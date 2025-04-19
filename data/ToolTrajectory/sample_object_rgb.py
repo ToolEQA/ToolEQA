@@ -28,7 +28,6 @@ from qwen_vl_utils import process_vision_info
 
 # Load tokenizer and model
 model_name = "/mynvme0/models/Qwen2-VL/Qwen2-VL-72B-Instruct-GPTQ-Int4/"
-# tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 model = Qwen2VLForConditionalGeneration.from_pretrained(
         model_name, 
         device_map="auto", 
@@ -185,29 +184,37 @@ def pil_to_base64(image: Image.Image, format='JPEG') -> str:
 
     return img_str
 
-def request_vlm(image, prompt):
-    image = Image.fromarray(image)
-    image = pil_to_base64(image)
+def request_vlm(images, prompts):
+    messages = []
+    for image, prompt in zip(images, prompts):
+        if isinstance(image, np.ndarray):
+            image = Image.fromarray(image)
+            image = pil_to_base64(image)
+        elif isinstance(image, str):
+            if os.path.isfile(image):
+                image = image
+        message = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "image": image,
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ]
+        messages.append(message)
 
-    messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "image": image,
-                    },
-                    {"type": "text", "text": prompt},
-                ],
-            }
-        ]
+    texts = [
+        processor.apply_chat_template(message, tokenize=False, add_generation_prompt=True)
+        for message in messages
+    ]
 
-    text = processor.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=True
-    )
     image_inputs, video_inputs = process_vision_info(messages)
     inputs = processor(
-        text=[text],
+        text=texts,
         images=image_inputs,
         videos=video_inputs,
         padding=True,
@@ -215,7 +222,6 @@ def request_vlm(image, prompt):
     )
     inputs = inputs.to("cuda")
 
-    # print(inputs)
     generated_ids = model.generate(**inputs, max_new_tokens=128)
     generated_ids_trimmed = [
         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
@@ -227,7 +233,7 @@ def request_vlm(image, prompt):
     return output_text
 
 
-def check_img(img, cate_name, color_threshold = 0.1, variance_threshold = 1500):
+def check_pixel(img, color_threshold = 0.1, variance_threshold = 1500):
     # 验证黑色区域占比
     if np.sum(np.all(img == [0, 0, 0], axis=-1)) / (img.shape[0] * img.shape[1]) > color_threshold:
         return False
@@ -237,19 +243,25 @@ def check_img(img, cate_name, color_threshold = 0.1, variance_threshold = 1500):
     var_gray = np.var(gray)
     if var_gray < variance_threshold:
         return False
-    
-    # 验证目标包含
-    prompt = f"Does this picture include a {cate_name}? Answer with single letter, Y or N."
-    
-    res = request_vlm(img, prompt)
-    
-    if res == "N":
-        return False
-    
+
     return True
 
+def check_semantic(imgs, cate_names):
+    results = []
+    prompts = []
+    for cate_name in cate_names:
+        prompts.append(f"Does this picture include a {cate_name}? Answer with single letter, Y or N.")
+    
+    res = request_vlm(imgs, prompts)
+    for r in res:
+        if r.strip(".") == "N":
+            results.append(False)
+        else:
+            results.append(True)
+    return results
 
-def capture_object_fine_details(sim, cate_name, floor_heights, object_center, radius=1, num_views=6):
+
+def capture_object_fine_details(sim, floor_heights, object_center, radius=1, num_views=5):
     rgbs = []
     object_center = pos_normal_to_habitat(object_center)
     y_offset = get_y_offset(object_center, floor_heights)
@@ -272,28 +284,34 @@ def capture_object_fine_details(sim, cate_name, floor_heights, object_center, ra
             obs = sim.get_sensor_observations()
             rgb = obs["color_sensor"][..., :3][..., ::-1]
 
-            # 筛选图片
-            if check_img(rgb, cate_name):
+            if check_pixel(rgb):
                 rgbs.append(rgb)
-            
+
     return rgbs
 
+def split_list(lst, chunk_size):
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be greater than 0")
+    if len(lst) <= chunk_size:
+        return [lst]
+    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 def extract_region_semantic(scene_dir):
     sim, agent = create_sim(scene_dir)
+
+    save_dir = os.path.join(scene_dir, "objects_rgb")
 
     scene_id = scene_dir.split("/")[-1].split("-")[-1]
     data = load_focus_point(os.path.join(scene_dir, scene_id + ".objects.pkl"))
 
     floor_heights = detect_floor_heights(sim)
 
-    region_map = []
     for region_id, objs_info in tqdm(data.items()):
         image_files = []
         for _, (id, name, target_point, dimensions) in enumerate(objs_info):
             radius = max(dimensions)
 
-            image_files = capture_object_fine_details(sim, name, floor_heights, target_point, radius)
+            image_files = capture_object_fine_details(sim, floor_heights, target_point, radius)
 
             if len(image_files) == 0:
                 continue
@@ -301,7 +319,6 @@ def extract_region_semantic(scene_dir):
                 if image_file is None:
                     continue
                 save_name = f"{id}_{name}_{j}.png"
-                save_dir = os.path.join(scene_dir, "objects_rgb")
                 save_path = os.path.join(scene_dir, "objects_rgb", f"region_{region_id}")
 
                 if os.path.isdir(save_path):
@@ -318,6 +335,34 @@ def extract_region_semantic(scene_dir):
     except:
         pass
 
+
+def check_object(scene_dir, batch_size=32):
+    image_files = []
+
+    image_dir = os.path.join(scene_dir, "objects_rgb")
+    # # vlm check semantic of image.
+    for r, d, f in os.walk(image_dir):
+        for image in f:
+            cate_name = image.split("_")[1].replace("-", " ")
+            image_files.append({"path": os.path.join(r, image), "cate": cate_name})
+
+    count = 0
+    images_list = split_list(image_files, batch_size)
+    for images_data in images_list:
+        images = []
+        categories = []
+        for item in images_data:
+            images.append(item["path"])
+            categories.append(item["cate"])
+        results = check_semantic(images, categories)
+        for res, item in zip(results, images_data):
+            if not res:
+                os.remove(item["path"])
+            else:
+                count += 1
+
+    print(f"场景{scene_dir}保留了{count}个图像")
+
 if __name__=="__main__":
     random.seed(42)
 
@@ -326,19 +371,17 @@ if __name__=="__main__":
     dirs.sort()
 
     for dir in tqdm(dirs):
+        scene_number = int(dir.split("-")[0].lstrip('0') or '0')
+        if scene_number <= 450:
+            continue
         path = os.path.join(root, dir)
         if not os.path.isdir(path):
             continue
         number, scene_id = dir.split("-")
 
-        # output_path = os.path.join(path, scene_id + ".region.json")
-        # if os.path.exists(output_path):
-        #     print(f"文件 {output_path} 已存在，跳过该目录。")
-        #     continue
-
         object_pkl = os.path.join(path, scene_id + ".objects.pkl")
         if os.path.exists(object_pkl):
-            extract_region_semantic(os.path.join(root, dir))
+            extract_region_semantic(path)
+            check_object(path)
         else:
-            # print(f"文件 {object_pkl} 不存在，跳过该目录。")
             continue
