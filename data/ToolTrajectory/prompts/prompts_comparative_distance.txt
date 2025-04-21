@@ -1,0 +1,81 @@
+You are given a JSON file containing a list of dictionaries. Each dictionary represents an object and contains the following attributes:
+
+1. category_name: The name of the object category (e.g., "chair", "table").
+2. region_id: The identifier of the object's region.
+3. center: The 3D position coordinates of the object, represented as [x, y, z].
+4. dimensions: The size of the object, given as [length, width, height].
+
+Your task is to generate **three distinct comparative questions** based on the relationships between two or more of these objects.
+
+Each question must be based on **one of the following valid comparison types**:
+
+---
+
+
+1. **Distance-based comparisons (2  objects)**
+   - Ask about the relative distances **between pairs of objects**.
+   - Valid question formats include:
+     • “What is the distance between object A and object B?” (quantitative range as answer)
+    
+   - Questions **must include  2 objects**.
+
+    - Answer format must be:
+     • Quantitative ranges (e.g., “0–1m, 1–2m...”) for distance questions
+
+2. **Distance-based comparisons  (3 objects)**
+   - Ask about the relative distances **between pairs of objects**.
+   - Valid question formats include:
+     • “Which object (a or b) is closest/farest to [reference object]?”
+    
+   - Questions **must include  3 objects**.
+
+
+
+3. **Positional hierarchy**  
+   Compare whether an object is **above**, **below**, or **on top of** another object.
+
+---
+
+
+
+You must prioritize comparisons that involve objects **from different regions**, as long as they are contextually meaningful and not trivially answerable.
+
+Encouraged examples include:
+- Comparing two chairs from different regions to see which is closer to a relevant object (like a table).
+- Determining whether a television in one region is positioned higher than a whiteboard in another region.
+- Reasoning about whether a shelf in region 2 is above or below a lamp in region 4.
+
+These cross-region comparisons are especially valuable because they reflect realistic indoor spatial reasoning tasks, like understanding object layout across rooms or levels.
+
+Do NOT generate comparisons that are obviously answerable based on region layout alone (e.g., comparing the chair in region 1 and the chair in region 4 to a table in region 1 — the answer is obvious).
+
+Make sure the question requires actual spatial reasoning to solve.
+---
+
+
+Important Rules:
+
+- All comparisons must be **meaningful**: only compare objects that are spatially or functionally related (e.g., both in the same region, or both are furniture items in a room).
+- Do **not** ask "why" or "how" questions.
+- In the **question**, every involved object must explicitly include its **category name and region_id** (e.g., "the chair in region 1").
+- Do **not** include object positions in the question.
+- Provide exactly **four answer options**.
+- Specify the **correct answer** and its corresponding label (A, B, C, or D).
+- At the end of each question block, list all involved objects in a **Related objects** section.
+- The **Related objects** section must list all involved objects, and must follow this format strictly:
+<category_name>: <actual 3D position>, <region_id>
+- Do NOT use placeholders like <position1> or <position2>. You MUST use the actual position values from the data (e.g., [2.3, 1.0, 0.5]).
+
+Use the following output format for each question:
+```
+Question: [your comparative question here]
+Options: [A. option1; B. option2; C. option3; D. option4]
+Answer: [answer]
+Label: [label]
+Related objects: [<category_name1>: <position1>, <region_id1>; <category_name2>: <position2>, <region_id2>; .....]
+```
+
+Make sure to:
+- Generate **exactly three** such question blocks (one for each type).
+- Include the separator `---` **after each question block**, except the last one.
+
