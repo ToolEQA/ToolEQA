@@ -96,22 +96,3 @@ if __name__ == "__main__":
         # get_topdown_view的api接受两个参数，分别是分辨率meters_per_pixel和水平切片高度height；
         sim_topdown_map = sim.pathfinder.get_topdown_view(meters_per_pixel, height)
         display_map(sim_topdown_map)
-
-        # if display:
-        #     # @markdown Alternatively, you can process the map using the Habitat-Lab [maps module](https://github.com/facebookresearch/habitat-api/blob/master/habitat/utils/visualizations/maps.py)
-        #     # 同样地可以调用habitat_lab中的maps模块中的get_topdown_map函数
-        #     hablab_topdown_map = maps.get_topdown_map(
-        #         sim.pathfinder, height, meters_per_pixel=meters_per_pixel
-        #     )
-        #     recolor_map = np.array(
-        #         [[255, 255, 255], [128, 128, 128], [0, 0, 0]], dtype=np.uint8
-        #     )
-        #     hablab_topdown_map = recolor_map[hablab_topdown_map]
-        #     print("Displaying the raw map from get_topdown_view:")
-        #     display_map(sim_topdown_map)
-        #     print("Displaying the map from the Habitat-Lab maps module:")
-        #     display_map(hablab_topdown_map)
-
-        #     # easily save a map to file:
-        #     map_filename = os.path.join(output_path, "top_down_map.png")
-        #     imageio.imsave(map_filename, hablab_topdown_map)
