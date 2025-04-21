@@ -1,0 +1,37 @@
+
+
+You are given a JSON file containing a list of dictionaries. Each dictionary represents an object and includes the following attributes:
+
+1. category_name: The name of the object category.
+2. region_id: The identifier of the object's region.
+3. center: The 3D position coordinates of the object, represented as [x, y, z].
+4. dimensions: The size of the object, given as [length, width, height].
+
+Your task is to generate **four distinct counting questions**, each based on one of the following types:
+
+1. Counting an object in a **specific room** (e.g., "How many *** are in region 1?")
+2. Counting an object in **multiple specific rooms** (e.g., "How many *** are in region 2 and region 3?")
+3. Counting a specific object **in the entire scene** (e.g., "How many *** are in the scene?")
+4. Counting **two or more different objects** in one room (e.g., "How many *** and *** are in region 4?")
+
+For each question:
+- Do **not** ask "why" or "how" questions.
+- The **category name(s)** and **region_id(s)** must appear **explicitly** in the question.
+- Provide **four answer options**.
+- Indicate the **correct answer** and its corresponding **label** (A, B, C, or D).
+- List all **related objects** that contribute to the answer.
+- Format the **Related objects** as: `<category_name>: <position>, <region_id>`
+
+Use the following output format for each question:
+```
+Question: [your comparative question here]
+Options: [A. option1; B. option2; C. option3; D. option4]
+Answer: [answer]
+Label: [label]
+Related objects: [<category_name1>: <position1>, <region_id1>; <category_name2>: <position2>, <region_id2>; .....]
+```
+
+Make sure to:
+- Generate **exactly four** such question blocks (one for each type).
+- Include the separator `---` **after each question block**, except the last one.
+
