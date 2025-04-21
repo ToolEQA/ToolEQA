@@ -1,0 +1,112 @@
+You are given a JSON file containing a list of dictionaries. Each dictionary represents an object and contains the following attributes:
+
+1. category_name: The name of the object category (e.g., "chair", "table").
+2. region_id: The identifier of the object's region.
+3. center: The 3D position coordinates of the object, represented as [x, y, z].
+4. dimensions: The size of the object, given as [length, width, height].
+
+Your task is to generate **two distinct location questions**.
+
+Each question must be based on **one of the following valid comparison types**:
+
+---
+
+
+1. Question Type 1: Location of a Single Object
+    Ask about all the rooms (region_ids) where a single object type appears.
+
+    Use formats like:
+    → "In which rooms is the chair located?"
+
+    Must involve exactly one object.
+
+    The answer format must be a list of region ids.
+
+2. Question Type 2: Location of Multiple Objects
+    Ask about the location of two or more specific objects together.
+
+    Use formats like:
+    → "In which room are the table and the lamp located?"
+
+    Must involve two or more objects.
+
+    Answer must be the list of region_ids where **all those objects appear together**.
+
+---
+
+### You must strictly follow this generation logic:
+
+#### For Question Type 1 (Single Object):
+
+1. Randomly select **one object category** (e.g., "chair").
+2. Retrieve **all region_ids where this object appears** in the JSON data.
+3. This list of region_ids is the **correct answer**.
+4. From the JSON data, randomly select three other incorrect region_id lists of similar size using only real region_ids from the data.
+   - These must **not** match the correct answer.
+   - Do not duplicate region_ids inside one option.
+   - Do not repeat region_id lists across options.
+5. Shuffle the 4 options (1 correct + 3 incorrect).
+6. Record the correct label (A/B/C/D).
+7. Retrieve all objects of the selected category and include them in the **Related objects** field (include actual position and region_id).
+
+#### For Question Type 2 (Multiple Objects):
+
+1. Randomly select **two or more object categories** (e.g., "lamp" and "sofa").
+2. Retrieve region_ids where **all selected categories co-occur** (i.e., where both appear).
+3. This list of region_ids is the **correct answer**.
+4. Randomly construct 3 other incorrect region_id lists that do not satisfy the co-occurrence condition.
+   - Use only real region_ids from the data.
+   - Do not duplicate region_ids or repeat lists.
+5. Shuffle options and identify correct label.
+6. In Related objects, list all the individual objects involved in the answer — i.e., all lamps and sofas in the relevant regions.
+
+---
+
+- You must output **exactly two** question blocks, one per type.
+- Each block must include the following fields:
+  - `Question`: a clearly worded spatial location question.
+  - `Options`: exactly 4 options, labeled A–D. Each option must be a list of region_ids (e.g., `(1, 2)`).
+  - `Answer`: the actual list of region_ids that satisfy the question.
+  - `Label`: the letter (A/B/C/D) of the correct option.
+  - `Related objects`: a list of all involved objects in the following format:  
+    `<category_name>: <center>, <region_id>`  
+    For example: `lamp: [2.3, 1.0, 0.5], 3`
+
+---
+
+
+---
+
+
+- ✅ You must **only use data present in the input**. Do not invent objects or region_ids.
+- ✅ The **Answer list must include exactly the correct number of region_ids** from the input that satisfy the question condition — no more, no fewer.
+- ✅ Do not artificially adjust the number of region_ids in the answer to match a fixed count. If the real answer involves only 1 or 2 rooms, return exactly 1 or 2.
+- ✅ You may construct incorrect options by selecting other real region_ids from the input that do **not** satisfy the condition.
+- ✅ Do not include duplicate region_ids in any option.
+- ✅ Do not repeat the same list in multiple options.
+- ❌ Do not include explanation or any extra commentary — just the question block in the defined format.
+
+---
+
+
+Use the following output format for each question:
+```
+Question: [your comparative question here]
+Options: [A. option1; B. option2; C. option3; D. option4]
+Answer: [answer]
+Label: [label]
+Related objects: [<category_name1>: <position1>, <region_id1>; <category_name2>: <position2>, <region_id2>; .....]
+```
+
+
+Question: In which rooms is the chair located?  
+Options: [A. [1]; B. [2, 3]; C. [3]; D. [1, 4]]  
+Answer: [3]  
+Label: C  
+Related objects: [chair: [2.1, 0.9, 1.3], 3]
+
+
+Make sure to:
+- Generate **exactly two** such question blocks (one for each type).
+- Include the separator `---` **after each question block**, except the last one.
+
