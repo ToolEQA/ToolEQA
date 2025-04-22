@@ -33,6 +33,7 @@ from src.utils.habitat import (
     pose_habitat_to_normal,
     pose_normal_to_tsdf,
 )
+from src.utils.navigate import navigation_video
 from src.utils.geom import get_cam_intr, get_scene_bnds
 from src.vlm.vlm import VLM
 from src.planner.tsdf import TSDFPlanner
@@ -193,6 +194,7 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
             init_clearance=cfg.init_clearance * 2,
         )
 
+        path_points = []
         # Run steps
         pts_pixs = np.empty((0, 2))  # for plotting path on the image
         max_step = 0
@@ -206,6 +208,8 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
             agent_state.position = pts
             agent_state.rotation = rotation
             agent.set_state(agent_state)
+
+            path_points.append({"position": pts, "rotation": quaternion.from_float_array([rotation[3], rotation[0], rotation[1], rotation[2]])})
 
             pts_normal = pos_habitat_to_normal(pts)
             result["step"].append({"step": cnt_step, "pts": pts.tolist(), "angle": angle})
@@ -257,7 +261,7 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
                     vlm_question
                     + "\nAnswer with the option's letter from the given choices directly."
                 )
-                
+
                 # logging.info(f"Prompt Pred: {prompt_question}")
                 response_pred = vlm.get_response(rgb_im, prompt_question, device=device)[0].strip(".")
                 smx_vlm_pred = np.zeros(len(vlm_pred_candidates))
@@ -407,6 +411,9 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
 
             if smx_vlm_rel[0] > 0.5:
                 break
+        
+        navigation_video(simulator, agent, path_points, os.path.join(episode_data_dir, "navigation_video.mp4"))
+        exit()
 
         # Check if success using weighted prediction
         smx_vlm_all = np.empty((0, 4))

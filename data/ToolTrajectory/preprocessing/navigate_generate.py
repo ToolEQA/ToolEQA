@@ -14,7 +14,7 @@ from tqdm import tqdm
 from scipy.spatial.transform import Rotation
 import cv2
 import math
-from show_map import display_map
+from utils.visualization.visualize_map import display_map
 from src.utils.habitat import (
     make_simple_cfg,
     pos_normal_to_habitat,
@@ -47,9 +47,10 @@ def path_to_actions(path, start_rotation, end_rotation, rotation_step=10, move_s
     
     for i in range(1, len(path)):
         target_pos = np.array(path[i], dtype=np.float64)
+        
         direction = target_pos - current_pos
         distance = np.linalg.norm(direction)
-        
+
         if distance < 1e-6:  # 忽略极小距离
             continue
 
@@ -82,7 +83,7 @@ def path_to_actions(path, start_rotation, end_rotation, rotation_step=10, move_s
         angle_deg = np.degrees(np.arctan2(np.linalg.norm(cross), dot))
 
         # 确定旋转方向 (使用叉积的y分量符号)
-        if cross[1] < 0:
+        if cross[1] > 0:
             angle_deg = -angle_deg
 
         # 分解旋转为多个小步
@@ -109,7 +110,7 @@ def path_to_actions(path, start_rotation, end_rotation, rotation_step=10, move_s
             for _ in range(num_move_steps):
                 actions.append(("move_forward", min(move_step, actual_step)))
             
-            current_pos = target_pos
+        current_pos = target_pos
     
     return actions
     
@@ -226,6 +227,7 @@ def save_navigation_video(sim, agent, path_points, start_position, start_rotatio
         open_vid=False
     )
 
+
 def save_obs_on_path(sim, agent, path_points, start_rotation, end_rotation):
     agent_state = habitat_sim.AgentState()
     for i in range(len(path_points)):
@@ -283,16 +285,17 @@ def main():
     output_video = "output.mp4"  # 输出视频文件名
     
     # 起点和终点的位置和旋转(四元数)
-    start_position = np.array([3.34482479095459, 0.050354525446891785, 9.988510131835938])  # 替换为实际起点坐标
-    start_rotation = quaternion.from_float_array([0.06694663545449525, 0.0, 0.997756557483499, 0.0])  # wxyz
+    start_position = np.array([3.34482479095459, 0.050354525446891785, 9.988510131835938]) # 替换为实际起点坐标
+    start_rotation = quaternion.from_float_array([0.06694663545449525, 0.0, 0.997756557483499, 0.0,])  # wxyz
 
-    end_position = np.array([-1.5373001098632812, 0.050354525446891785, 16.74457359313965])  # 替换为实际终点坐标
-    end_rotation = quaternion.from_float_array([0.015153784750062174, 0.0, 0.9998851748114626, 0.0])  # wxyz
+    end_position = np.array([-1.5373001098632812, 0.050354525446891785, 16.74457359313965]) # 替换为实际终点坐标
+    end_rotation = quaternion.from_float_array([0.015153784750062174, 0.0, 0.9998851748114626, 0.0,])  # wxyz
 
     # 初始化模拟器配置
     backend_cfg = habitat_sim.SimulatorConfiguration()
     backend_cfg.scene_id = scene_file
     backend_cfg.enable_physics = False  # 不需要物理引擎
+
 
     # 2. 配置RGB传感器
     sensor_spec = habitat_sim.CameraSensorSpec()
@@ -334,11 +337,14 @@ def main():
     
     sim.pathfinder.load_nav_mesh(navmesh_file)
     
+    # 初始化代理
+    agent = sim.initialize_agent(0)
+
     # 计算最短路径
     path = habitat_sim.ShortestPath()
     path.requested_start = start_position
     path.requested_end = end_position
-    
+
     # 计算最短路径
     found_path = sim.pathfinder.find_path(path)
     if not found_path:
@@ -347,9 +353,6 @@ def main():
     
     print(f"Path found with {len(path.points)} points")
     print(f"Path length: {path.geodesic_distance}")
-    
-    # 初始化代理
-    agent = sim.initialize_agent(0)
 
     # 使用 path.points 获取路径点
     path_points = path.points
