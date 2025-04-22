@@ -339,10 +339,10 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
                     if cfg.use_lsv:
                         prompt_lsv = f"\nConsider the question: '{question}', and you will explore the environment for answering it.\nWhich direction (black letters on the image) would you explore then? Answer with a single letter."
                         # lsv = vlm.get_response(rgb_im_draw, prompt_lsv, draw_letters[:actual_num_prompt_points])
-                        response = vlm.get_response(rgb_im_draw, prompt_lsv, device=device)[0]
+                        response_lsv = vlm.get_response(rgb_im_draw, prompt_lsv, device=device)[0]
                         lsv = np.zeros(actual_num_prompt_points)
                         for i in range(actual_num_prompt_points):
-                            if response == draw_letters[i]:
+                            if response_lsv == draw_letters[i]:
                                 lsv[i] = 1
                         lsv *= actual_num_prompt_points / 3
                     else:
@@ -354,9 +354,9 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
                     if cfg.use_gsv:
                         prompt_gsv = f"\nConsider the question: '{question}', and you will explore the environment for answering it. Is there any direction shown in the image worth exploring? Answer with Yes or No."
                         # gsv = vlm.get_loss(rgb_im, prompt_gsv, ["Yes", "No"])[0]
-                        gsv = vlm.get_response(rgb_im, prompt_gsv, device=device)[0].strip(".")
+                        response_gsv = vlm.get_response(rgb_im, prompt_gsv, device=device)[0].strip(".")
                         gsv = np.zeros(2)
-                        if response == "Yes":
+                        if response_gsv == "Yes":
                             gsv[0] = 1
                         else:
                             gsv[1] = 1
@@ -381,6 +381,14 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
                 result["step"][cnt_step]["smx_vlm_pred"] = (np.ones((4)) / 4).tolist()
                 result["step"][cnt_step]["smx_vlm_rel"] = (np.array([0.01, 0.99])).tolist()
 
+            path_points.append(
+                {
+                    "position": pts, 
+                    "rotation": quaternion.from_float_array([rotation[3], rotation[0], rotation[1], rotation[2]]),
+                    "thought": f"Question: {vlm_question}\nConfident: {response_rel}\nExploring: {response_lsv}"
+                }
+            )
+
             # Determine next point
             if cnt_step < num_step:
                 pts_normal, angle, cur_angle, pts_pix, fig = tsdf_planner.find_next_pose(
@@ -399,7 +407,6 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
                 ax5.plot(pts_pixs[:, 1], pts_pixs[:, 0], linewidth=5, color="black")
                 ax5.scatter(pts_pixs[0, 1], pts_pixs[0, 0], c="white", s=50)
                 fig.tight_layout()
-
 
                 plt.savefig(
                     os.path.join(episode_data_dir, "map.png".format(cnt_step + 1))
