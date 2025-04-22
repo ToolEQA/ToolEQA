@@ -153,7 +153,7 @@ def execute_actions(sim, actions):
         
         # 获取观察并写入视频
         obs = sim.get_sensor_observations()
-        observations.append({"color": obs["color"]})
+        observations.append({"color": obs["color_sensor"]})
 
     return observations
 

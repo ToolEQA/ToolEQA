@@ -207,8 +207,9 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
 
             agent_state.position = pts
             agent_state.rotation = rotation
-            path_points.append({"position": pts, "rotation": rotation})
             agent.set_state(agent_state)
+
+            path_points.append({"position": pts, "rotation": quaternion.from_float_array([rotation[3], rotation[0], rotation[1], rotation[2]])})
 
             pts_normal = pos_habitat_to_normal(pts)
             result["step"].append({"step": cnt_step, "pts": pts.tolist(), "angle": angle})
@@ -260,7 +261,7 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
                     vlm_question
                     + "\nAnswer with the option's letter from the given choices directly."
                 )
-                
+
                 # logging.info(f"Prompt Pred: {prompt_question}")
                 response_pred = vlm.get_response(rgb_im, prompt_question, device=device)[0].strip(".")
                 smx_vlm_pred = np.zeros(len(vlm_pred_candidates))
