@@ -1,4 +1,4 @@
-# 提取每个区域的语义信息
+# 提取场景中对象的rgb图像
 import os
 from collections import defaultdict
 import json
@@ -39,13 +39,21 @@ processor = AutoProcessor.from_pretrained(model_name)
 
 def load_focus_point(file_path):
     focus_points = defaultdict(list)
+    postfix = file_path.split(".")[-1]
+
     with open(file_path, "rb") as f:
-        object_data = pickle.load(f)
+        if postfix == "pkl":
+            object_data = pickle.load(f)
+        elif postfix == "json":
+            object_data = json.load(f)
 
     object_data = object_data["objects"]
     for object in object_data:
         object_id = object["object_id"]
-        region_id = object["region_id"]
+        if "region_id" in object.keys():
+            region_id = object["region_id"]
+        elif "floor_id" in object.keys():
+            region_id = object["floor_id"]
         category_name = object["category_name"]
         if category_name in ["wall", "wall panel", "ceiling", "floor", "window frame", "window", "door", "door frame", 
                              "kitchen countertop item", "kitchen countertop", "kitchen appliance", "appliance, decoration", "bathroom accessory", 
@@ -302,7 +310,7 @@ def extract_region_semantic(scene_dir):
     save_dir = os.path.join(scene_dir, "objects_rgb")
 
     scene_id = scene_dir.split("/")[-1].split("-")[-1]
-    data = load_focus_point(os.path.join(scene_dir, scene_id + ".objects.pkl"))
+    data = load_focus_point(os.path.join(scene_dir, scene_id + ".objects.json"))
 
     floor_heights = detect_floor_heights(sim)
 
@@ -379,7 +387,7 @@ if __name__=="__main__":
             continue
         number, scene_id = dir.split("-")
 
-        object_pkl = os.path.join(path, scene_id + ".objects.pkl")
+        object_pkl = os.path.join(path, scene_id + ".objects.json")
         if os.path.exists(object_pkl):
             extract_region_semantic(path)
             check_object(path)
