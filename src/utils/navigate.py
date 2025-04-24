@@ -17,6 +17,163 @@ from src.utils.habitat import (
     pose_habitat_to_normal,
     pose_normal_to_tsdf,
 )
+from PIL import Image, ImageFont, ImageDraw
+import textwrap
+
+def add_draw_point(image, point=None, radius=18):
+    # print(type(image))
+    image = Image.fromarray(image)
+
+    rgb_im_draw = image.copy()
+    draw_point = ImageDraw.Draw(rgb_im_draw)
+    draw_point.ellipse(
+        (
+            point[0] - radius,
+            point[1] - radius,
+            point[0] + radius,
+            point[1] + radius,
+        ),
+        fill=(200, 200, 200, 255),
+        outline=(0, 0, 0, 255),
+        width=3,
+    )
+
+    return rgb_im_draw
+
+
+def draw_text_fill_region(image, text, 
+                         region_width=None, region_height=None,
+                         font_path=None, 
+                         max_font_size=100, min_font_size=8,
+                         text_color=(255, 255, 255), 
+                         bg_color=(0, 0, 0, 128),
+                         padding=10,
+                         position='top',
+                         max_lines=None):
+    """
+    在图像上绘制自适应字体大小和自动换行的文字，尽量填满文字区域
+    
+    参数:
+        image: PIL Image对象或图像路径
+        text: 要绘制的文本
+        region_width: 文字区域宽度(默认图像宽度)
+        region_height: 文字区域高度(默认图像高度的20%)
+        font_path: 字体文件路径(可选)
+        max_font_size: 最大字体大小
+        min_font_size: 最小字体大小
+        text_color: 文字颜色
+        bg_color: 背景颜色(含透明度)
+        padding: 内边距
+        position: 文字位置('top', 'center', 'bottom')
+        max_lines: 最大行数限制(可选)
+    """
+    if isinstance(image, np.ndarray):
+        image = Image.fromarray(image)
+
+    # 设置默认文字区域大小
+    if region_width is None:
+        region_width = image.width
+    if region_height is None:
+        region_height = image.height * 0.2
+    
+    # 计算实际可用的文字绘制区域(减去padding)
+    print(region_width, padding)
+    text_area_width = region_width - 2 * padding
+    text_area_height = region_height - 2 * padding
+    
+    # 初始化字体大小
+    font_size = max_font_size
+    
+    # 最佳结果变量
+    best_font = None
+    best_lines = []
+    best_font_size = min_font_size
+    
+    # 二分查找最佳字体大小
+    low = min_font_size
+    high = max_font_size
+    
+    while low <= high:
+        mid = (low + high) // 2
+        font = ImageFont.truetype(font_path, mid) if font_path else ImageFont.load_default(mid)
+        
+        # 分割文本为多行
+        lines = []
+        if font.getlength(text) <= text_area_width:
+            lines = [text]
+        else:
+            # 计算每行大致字符数
+            avg_char_width = font.getlength("a")  # 近似字符宽度
+            chars_per_line = int(text_area_width / avg_char_width)
+            lines = textwrap.wrap(text, width=chars_per_line)
+            
+            # 如果设置了最大行数，截断多余行
+            if max_lines and len(lines) > max_lines:
+                lines = lines[:max_lines]
+                lines[-1] = lines[-1][:30] + "..."  # 添加省略号
+        
+        # 计算总文本高度
+        line_height = font.size * 1.2  # 行高为字体大小的1.2倍
+        total_height = len(lines) * line_height
+        
+        # 检查是否适合
+        if total_height <= text_area_height:
+            # 可以容纳，尝试更大的字体
+            best_font = font
+            best_lines = lines
+            best_font_size = mid
+            low = mid + 1
+        else:
+            # 太大，尝试更小的字体
+            high = mid - 1
+    
+    # 如果没有找到合适的字体(文本太长)，使用最小字体
+    if not best_font:
+        best_font_size = min_font_size
+        best_font = ImageFont.truetype(font_path, best_font_size) if font_path else ImageFont.load_default(best_font_size)
+        
+        # 强制分割文本
+        avg_char_width = best_font.getlength("a")
+        chars_per_line = int(text_area_width / avg_char_width)
+        best_lines = textwrap.wrap(text, width=chars_per_line)
+        
+        # 如果设置了最大行数，截断多余行
+        if max_lines and len(best_lines) > max_lines:
+            best_lines = best_lines[:max_lines]
+            best_lines[-1] = best_lines[-1][:30] + "..."  # 添加省略号
+    
+    # 创建新的图像，包含文字区域
+    result = Image.new('RGBA', (image.width, image.height + int(region_height)), (0, 0, 0, 0))
+    result.paste(image, (0, int(region_height) if position == 'top' else 0))
+    
+    # 创建文字背景
+    text_bg = Image.new('RGBA', (region_width, int(region_height)), bg_color)
+    
+    # 计算文字绘制位置
+    if position == 'top':
+        result.paste(text_bg, (0, 0), text_bg)
+        draw_y = padding
+    elif position == 'bottom':
+        result.paste(text_bg, (0, image.height), text_bg)
+        draw_y = image.height + padding
+    else:  # center
+        center_y = (result.height - int(region_height)) // 2
+        result.paste(text_bg, (0, center_y), text_bg)
+        draw_y = center_y + padding
+    
+    # 绘制文本
+    draw = ImageDraw.Draw(result)
+    line_height = best_font.size * 1.2
+    
+    for i, line in enumerate(best_lines):
+        # 计算文本宽度和位置(居中)
+        text_width = best_font.getlength(line)
+        x = (region_width - text_width) / 2
+        y = draw_y + i * line_height
+        
+        draw.text((x, y), line, font=best_font, fill=text_color)
+    
+    return result
 
 
 def _quaternion_to_forward_vector(q):
@@ -141,10 +298,14 @@ def path_to_actions(path, start_rotation, end_rotation, rotation_step=10, move_s
 
 
 # 执行动作并记录视频
-def execute_actions(sim, actions):
+def execute_actions(sim, actions, args, frame_rate=24):
     observations: List[np.ndarray] = []
     agent = sim.agents[0]
     
+    question = args["question"] + ": Where is the TV in the bed room?"
+    answer = args["answer"]
+    next_direction = args["direction"]
+
     for action, amount in tqdm(actions):
         # 更新动作参数
         agent.agent_config.action_space[action].actuation.amount = amount
@@ -153,12 +314,22 @@ def execute_actions(sim, actions):
         
         # 获取观察并写入视频
         obs = sim.get_sensor_observations()
-        observations.append({"color": obs["color_sensor"]})
+        img = obs["color_sensor"]
+        img = draw_text_fill_region(img, question)
+        # img = add_text_above_image(img, question)
+        observations.append({"color": img})
 
+    if next_direction is not None:
+        obs = sim.get_sensor_observations()
+        img = obs["color_sensor"]
+        for frame in range(frame_rate):
+            point_img = add_draw_point(img, next_direction)
+            point_img = draw_text_fill_region(point_img, question)
+            observations.append({"color": point_img})
     return observations
 
 
-def navigation_video(sim, agent, pathes, output_video="navigation.mp4"):
+def navigation_video(sim, agent, pathes, frame_rate=24, output_video="eqa.mp4"):
     agent_state = habitat_sim.AgentState()
 
     shortest_path = habitat_sim.ShortestPath()
@@ -195,8 +366,8 @@ def navigation_video(sim, agent, pathes, output_video="navigation.mp4"):
         # obs = sim.get_sensor_observations()
         # cv2.imwrite("start_rgb.jpg", obs["color"][..., :3])
         # 设置起始位置和旋转
-
-        observations.extend(execute_actions(sim, actions))
+        print(pathes[i])
+        observations.extend(execute_actions(sim, actions, pathes[i]))
 
     if len(observations) < 2:
         print("Not enough frames captured for video!")
@@ -208,7 +379,7 @@ def navigation_video(sim, agent, pathes, output_video="navigation.mp4"):
         primary_obs="color",
         primary_obs_type="color",
         video_file=output_video,
-        fps=24,
+        fps=frame_rate,
         open_vid=False
     )
 
@@ -229,9 +400,9 @@ if __name__ == "__main__":
     rotation3 = quaternion.from_float_array([0.443950753937056, 0.0, 0.8960511860818664, 0.0])
 
     pathes = [
-        {"position": position1, "rotation": rotation1},
-        {"position": position2, "rotation": rotation2},
-        {"position": position3, "rotation": rotation3},
+        {"position": position1, "rotation": rotation1, "question": "QUESTION", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
+        {"position": position2, "rotation": rotation2, "question": "QUESTION", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
+        {"position": position3, "rotation": rotation3, "question": "QUESTION", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
     ]
 
     # 初始化模拟器配置
@@ -241,7 +412,7 @@ if __name__ == "__main__":
 
     # 2. 配置RGB传感器
     sensor_spec = habitat_sim.CameraSensorSpec()
-    sensor_spec.uuid = "color"
+    sensor_spec.uuid = "color_sensor"
     sensor_spec.sensor_type = habitat_sim.SensorType.COLOR
     sensor_spec.resolution = [480, 640]
     sensor_spec.hfov = 120.0  # 水平视场角

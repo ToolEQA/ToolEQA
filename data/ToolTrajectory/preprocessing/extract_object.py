@@ -13,7 +13,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.cluster import KMeans
 from collections import Counter
 from PIL import Image
-from data.ToolTrajectory.preprocessing.analysis_object_color import get_all_colors
+from data.ToolTrajectory.preprocessing.extract_object_color import get_all_colors
 import colorsys
 
 def get_dominant_color(colors, max_clusters=5):
