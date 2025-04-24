@@ -355,19 +355,20 @@ def check_object(scene_dir, batch_size=32):
             image_files.append({"path": os.path.join(r, image), "cate": cate_name})
 
     count = 0
-    images_list = split_list(image_files, batch_size)
-    for images_data in images_list:
-        images = []
-        categories = []
-        for item in images_data:
-            images.append(item["path"])
-            categories.append(item["cate"])
-        results = check_semantic(images, categories)
-        for res, item in zip(results, images_data):
-            if not res:
-                os.remove(item["path"])
-            else:
-                count += 1
+    if len(image_files) > 0:
+        images_list = split_list(image_files, batch_size)
+        for images_data in images_list:
+            images = []
+            categories = []
+            for item in images_data:
+                images.append(item["path"])
+                categories.append(item["cate"])
+            results = check_semantic(images, categories)
+            for res, item in zip(results, images_data):
+                if not res:
+                    os.remove(item["path"])
+                else:
+                    count += 1
 
     print(f"场景{scene_dir}保留了{count}个图像")
 
@@ -380,8 +381,8 @@ if __name__=="__main__":
 
     for dir in tqdm(dirs):
         scene_number = int(dir.split("-")[0].lstrip('0') or '0')
-        if scene_number <= 450:
-            continue
+        # if scene_number <= 450:
+        #     continue
         path = os.path.join(root, dir)
         if not os.path.isdir(path):
             continue

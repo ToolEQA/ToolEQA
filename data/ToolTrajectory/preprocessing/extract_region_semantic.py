@@ -98,7 +98,7 @@ if __name__=="__main__":
     model_name = "/mynvme0/models/Qwen2-VL/Qwen2-VL-72B-Instruct-GPTQ-Int4/"
     model = Qwen2VLForConditionalGeneration.from_pretrained(
             model_name, 
-            device_map="cuda", 
+            device_map=device, 
             torch_dtype="auto",
             attn_implementation="flash_attention_2",
             trust_remote_code=True

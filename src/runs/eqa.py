@@ -209,8 +209,6 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
             agent_state.rotation = rotation
             agent.set_state(agent_state)
 
-            path_points.append({"position": pts, "rotation": quaternion.from_float_array([rotation[3], rotation[0], rotation[1], rotation[2]])})
-
             pts_normal = pos_habitat_to_normal(pts)
             result["step"].append({"step": cnt_step, "pts": pts.tolist(), "angle": angle})
 
@@ -381,11 +379,25 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
                 result["step"][cnt_step]["smx_vlm_pred"] = (np.ones((4)) / 4).tolist()
                 result["step"][cnt_step]["smx_vlm_rel"] = (np.array([0.01, 0.99])).tolist()
 
+            proposal_point = {"A": 0, "B": 1, "C": 2, "D": 3}
+
+            if len(prompt_points_pix) > 0:
+                ind = proposal_point[response_lsv]
+                if ind < len(prompt_points_pix):
+                    direction = prompt_points_pix[proposal_point[response_lsv]]
+                else:
+                    direction = None
+            else:
+                direction = None
+
             path_points.append(
                 {
                     "position": pts, 
                     "rotation": quaternion.from_float_array([rotation[3], rotation[0], rotation[1], rotation[2]]),
-                    "thought": f"Question: {vlm_question}\nConfident: {response_rel}\nExploring: {response_lsv}"
+                    "question": vlm_question,
+                    "answer": response_pred,
+                    "confidence": response_rel,
+                    "direction": direction,
                 }
             )
 
