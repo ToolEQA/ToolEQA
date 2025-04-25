@@ -1,3 +1,5 @@
+# 不需要输入图片的问题生成
+
 import os
 from openai import OpenAI
 import base64

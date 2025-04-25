@@ -17,26 +17,66 @@ from src.utils.habitat import (
     pose_habitat_to_normal,
     pose_normal_to_tsdf,
 )
+from src.utils.geom import (
+    get_cam_intr,
+    get_scene_bnds
+)
 from PIL import Image, ImageFont, ImageDraw
 import textwrap
+from src.planner.tsdf import TSDFPlanner
+import matplotlib.pyplot as plt
 
-def add_draw_point(image, point=None, radius=18):
+
+def concatenate_images_horizontally(image1, image2):
+    # 确保两张图片高度相同（可选：自动调整高度）
+    if isinstance(image1, np.ndarray):
+        image1 = Image.fromarray(image1)
+    if isinstance(image2, np.ndarray):
+        image2 = Image.fromarray(image2)
+    if image1.height != image2.height:
+        # 计算新高度（取较大者或较小者，这里以较大者为例）
+        new_height = max(image1.height, image2.height)
+        
+        # 调整图片高度（保持宽高比）
+        def resize_with_aspect_ratio(img, height):
+            ratio = height / float(img.height)
+            new_width = int(float(img.width) * ratio)
+            return img.resize((new_width, height), Image.Resampling.LANCZOS)
+            
+        image1 = resize_with_aspect_ratio(image1, new_height)
+        image2 = resize_with_aspect_ratio(image2, new_height)
+    
+    # 创建新图片（宽度为两张图片宽度之和，高度为共同高度）
+    new_width = image1.width + image2.width
+    new_image = Image.new('RGB', (new_width, image1.height))
+    
+    # 将两张图片粘贴到新图片中
+    new_image.paste(image1, (0, 0))
+    new_image.paste(image2, (image1.width, 0))
+    
+    return new_image
+
+def add_draw_point(image, point=None, trajectory=None, radius=18):
     # print(type(image))
-    image = Image.fromarray(image)
+    if isinstance(image, np.ndarray):
+        image = Image.fromarray(image)
 
     rgb_im_draw = image.copy()
-    draw_point = ImageDraw.Draw(rgb_im_draw)
-    draw_point.ellipse(
-        (
-            point[0] - radius,
-            point[1] - radius,
-            point[0] + radius,
-            point[1] + radius,
-        ),
-        fill=(200, 200, 200, 255),
-        outline=(0, 0, 0, 255),
-        width=3,
-    )
+    draw = ImageDraw.Draw(rgb_im_draw)
+    if point is not None:
+        draw.ellipse(
+            (
+                point[0] - radius,
+                point[1] - radius,
+                point[0] + radius,
+                point[1] + radius,
+            ),
+            fill=(200, 200, 200, 255),
+            outline=(0, 0, 255, 255),
+            width=5,
+        )
+    if trajectory is not None:
+        draw.line(trajectory, fill=(255, 0, 0), width=2, joint="curve")
 
     return rgb_im_draw
 
@@ -77,7 +117,6 @@ def draw_text_fill_region(image, text,
         region_height = image.height * 0.2
     
     # 计算实际可用的文字绘制区域(减去padding)
-    print(region_width, padding)
     text_area_width = region_width - 2 * padding
     text_area_height = region_height - 2 * padding
     
@@ -298,14 +337,15 @@ def path_to_actions(path, start_rotation, end_rotation, rotation_step=10, move_s
 
 
 # 执行动作并记录视频
-def execute_actions(sim, actions, args, frame_rate=24):
+def execute_actions(sim, actions, args, trajectory,frame_rate=24, planner=None):
     observations: List[np.ndarray] = []
     agent = sim.agents[0]
     
-    question = args["question"] + ": Where is the TV in the bed room?"
+    question = args["question"]
     answer = args["answer"]
     next_direction = args["direction"]
-
+    
+    cam_intr = get_cam_intr(120, 480, 640)
     for action, amount in tqdm(actions):
         # 更新动作参数
         agent.agent_config.action_space[action].actuation.amount = amount
@@ -315,8 +355,34 @@ def execute_actions(sim, actions, args, frame_rate=24):
         # 获取观察并写入视频
         obs = sim.get_sensor_observations()
         img = obs["color_sensor"]
+        depth = obs["depth_sensor"]
+
+        sensor = agent.get_state().sensor_states["depth_sensor"]
+        cam_pose = np.eye(4)
+        cam_pose[:3, :3] = quaternion.as_rotation_matrix(sensor.rotation)
+        cam_pose[:3, 3] = sensor.position
+        cam_pose_normal = pose_habitat_to_normal(cam_pose)
+        cam_pose_tsdf = pose_normal_to_tsdf(cam_pose_normal)
+
+        if planner is not None:
+            planner.integrate(
+                color_im=img,
+                depth_im=depth,
+                cam_intr=cam_intr,
+                cam_pose=cam_pose_tsdf,
+                obs_weight=1.0,
+                margin_h=int(0.6 * 480),
+                margin_w=int(0.25 * 640),
+            )
+            pts_normal = pos_habitat_to_normal(sensor.position)
+            island, unoccupied = planner.get_island_around_pts(pts_normal, height=0.4)
+            cur_point = planner.world2vox(pts_normal)
+            island_image = Image.fromarray(np.where(island, 255, 0).astype('uint8')).convert("RGB")
+            trajectory.append((cur_point[1], cur_point[0]))
+            island_image = add_draw_point(island_image, trajectory[-1], trajectory, 5)
+
+        img = concatenate_images_horizontally(img, island_image)
         img = draw_text_fill_region(img, question)
-        # img = add_text_above_image(img, question)
         observations.append({"color": img})
 
     if next_direction is not None:
@@ -324,12 +390,13 @@ def execute_actions(sim, actions, args, frame_rate=24):
         img = obs["color_sensor"]
         for frame in range(frame_rate):
             point_img = add_draw_point(img, next_direction)
+            point_img = concatenate_images_horizontally(point_img, island_image)
             point_img = draw_text_fill_region(point_img, question)
             observations.append({"color": point_img})
-    return observations
+    return observations, trajectory
 
 
-def navigation_video(sim, agent, pathes, frame_rate=24, output_video="eqa.mp4"):
+def navigation_video(sim, agent, pathes, frame_rate=24.0, output_video="eqa.mp4"):
     agent_state = habitat_sim.AgentState()
 
     shortest_path = habitat_sim.ShortestPath()
@@ -346,6 +413,18 @@ def navigation_video(sim, agent, pathes, frame_rate=24, output_video="eqa.mp4"):
     agent.set_state(agent_state)
 
     observations = []
+    pts_normal = pos_habitat_to_normal(pathes[0]["position"])
+    floor_height = pts_normal[-1]
+    tsdf_bnds, scene_size = get_scene_bnds(sim.pathfinder, floor_height)
+
+    tsdf_planner = TSDFPlanner(
+        vol_bnds=tsdf_bnds,
+        voxel_size=0.1,
+        floor_height_offset=0,
+        pts_init=pos_habitat_to_normal(pts_normal),
+        init_clearance=1,
+    )
+    trojectory = []
     for i in range(len(pathes)):
         if i == 0:
             continue
@@ -366,8 +445,8 @@ def navigation_video(sim, agent, pathes, frame_rate=24, output_video="eqa.mp4"):
         # obs = sim.get_sensor_observations()
         # cv2.imwrite("start_rgb.jpg", obs["color"][..., :3])
         # 设置起始位置和旋转
-        print(pathes[i])
-        observations.extend(execute_actions(sim, actions, pathes[i]))
+        observation, trojectory = execute_actions(sim, actions, pathes[i], trojectory, planner=tsdf_planner)
+        observations.extend(observation)
 
     if len(observations) < 2:
         print("Not enough frames captured for video!")
@@ -411,13 +490,22 @@ if __name__ == "__main__":
     backend_cfg.enable_physics = False  # 不需要物理引擎
 
     # 2. 配置RGB传感器
-    sensor_spec = habitat_sim.CameraSensorSpec()
-    sensor_spec.uuid = "color_sensor"
-    sensor_spec.sensor_type = habitat_sim.SensorType.COLOR
-    sensor_spec.resolution = [480, 640]
-    sensor_spec.hfov = 120.0  # 水平视场角
-    sensor_spec.position = mn.Vector3(0, 1.5, 0)  # 相对于代理的位置
-    sensor_spec.orientation = mn.Vector3(0, 0, 0)
+    rgb_sensor_spec = habitat_sim.CameraSensorSpec()
+    rgb_sensor_spec.uuid = "color_sensor"
+    rgb_sensor_spec.sensor_type = habitat_sim.SensorType.COLOR
+    rgb_sensor_spec.resolution = [480, 640]
+    rgb_sensor_spec.hfov = 120.0  # 水平视场角
+    rgb_sensor_spec.position = mn.Vector3(0, 1.5, 0)  # 相对于代理的位置
+    rgb_sensor_spec.orientation = mn.Vector3(0, 0, 0)
+
+    # 3. 配置DEPTH传感器
+    depth_sensor_spec = habitat_sim.CameraSensorSpec()
+    depth_sensor_spec.uuid = "depth_sensor"
+    depth_sensor_spec.sensor_type = habitat_sim.SensorType.DEPTH
+    depth_sensor_spec.resolution = [480, 640]
+    depth_sensor_spec.hfov = 120.0
+    depth_sensor_spec.position = mn.Vector3(0, 1.5, 0)
+    depth_sensor_spec.orientation = mn.Vector3(0, 0, 0)
     
     action_space_config = {
         "move_forward": habitat_sim.ActionSpec(
@@ -436,7 +524,7 @@ if __name__ == "__main__":
 
     # 代理配置
     agent_cfg = habitat_sim.agent.AgentConfiguration()
-    agent_cfg.sensor_specifications = [sensor_spec]
+    agent_cfg.sensor_specifications = [rgb_sensor_spec, depth_sensor_spec]
     agent_cfg.action_space = action_space_config
     
     # 创建模拟器

@@ -304,13 +304,13 @@ def split_list(lst, chunk_size):
         return [lst]
     return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
-def extract_region_semantic(scene_dir):
+def extract_region_semantic(scene_dir, object_data):
     sim, agent = create_sim(scene_dir)
 
     save_dir = os.path.join(scene_dir, "objects_rgb")
 
     scene_id = scene_dir.split("/")[-1].split("-")[-1]
-    data = load_focus_point(os.path.join(scene_dir, scene_id + ".objects.json"))
+    data = load_focus_point(object_data)
 
     floor_heights = detect_floor_heights(sim)
 
@@ -373,24 +373,41 @@ def check_object(scene_dir, batch_size=32):
     print(f"场景{scene_dir}保留了{count}个图像")
 
 if __name__=="__main__":
+    import argparse
+
+    # Parse arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--count", type=int, nargs='+')
+    args = parser.parse_args()
+
     random.seed(42)
 
     root = "data/HM3D"
     dirs = os.listdir(root)
     dirs.sort()
-
+    
+    cur_count = -1
     for dir in tqdm(dirs):
-        scene_number = int(dir.split("-")[0].lstrip('0') or '0')
-        # if scene_number <= 450:
-        #     continue
+        cur_count += 1
+        
+        if cur_count < args.count[0] or cur_count >= args.count[1]:
+            print(cur_count)
+            continue
+
         path = os.path.join(root, dir)
         if not os.path.isdir(path):
             continue
         number, scene_id = dir.split("-")
 
-        object_pkl = os.path.join(path, scene_id + ".objects.json")
+        object_pkl = os.path.join(path, scene_id + ".objects.pkl")
         if os.path.exists(object_pkl):
-            extract_region_semantic(path)
+            extract_region_semantic(path, object_pkl)
+            check_object(path)
+            continue
+            
+        object_json = os.path.join(path, scene_id + ".objects.json")
+        if os.path.exists(object_json):
+            extract_region_semantic(path, object_json)
             check_object(path)
         else:
             continue
