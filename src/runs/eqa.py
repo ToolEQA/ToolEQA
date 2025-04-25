@@ -335,7 +335,8 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
 
                     # get VLM reasoning for exploring
                     if cfg.use_lsv:
-                        prompt_lsv = f"\nConsider the question: '{question}', and you will explore the environment for answering it.\nWhich direction (black letters on the image) would you explore then? Answer with a single letter."
+                        proposal_point = draw_letters[:actual_num_prompt_points]
+                        prompt_lsv = f"\nConsider the question: '{question}', and you will explore the environment for answering it.\nWhich direction (black letters on the image {proposal_point}) would you explore then? Answer with a single letter."
                         # lsv = vlm.get_response(rgb_im_draw, prompt_lsv, draw_letters[:actual_num_prompt_points])
                         response_lsv = vlm.get_response(rgb_im_draw, prompt_lsv, device=device)[0]
                         lsv = np.zeros(actual_num_prompt_points)
