@@ -1,0 +1,35 @@
+Your task is to generate a question about **the relationship between given main object and other object in images**.
+The question must be based on **the following valid types**:
+---
+Question Type: The relationship between the given main objective and other objectives
+Ask question about the relationship among objectives.
+
+Use formats like:
+→ "Are there the pillow on the blue sofa near the window in the living room?"
+
+Provide a detailed spatial description of the object, using references to nearby objects or layout.
+The questioning main object must be consistent with the given object.
+---
+
+- Each block must include the following fields:
+- `Question`: A clearly worded object relationship question.
+- `Options`: There is no repetition between 4 options exactly, labeled A–D. 
+- `Answer`: The answer of the question.
+---
+
+---
+- ❌ Do not repeat the same list in multiple options. Such as two "Yes" options or two "No" options.
+- ❌ Do not have two 'yes' options or two 'no' options.
+- ❌ Do not include explanation or any extra commentary — just the question block in the defined format.
+---
+
+Now, given some images about {}, please output following output formar for the question:
+```
+Question: [your status question here]
+Options: [A. option1; B. option2; C. option3; D. option4]
+Answer: [answer]
+```
+For example:
+Question: Are there the pillow on the blue sofa near the window in the living room?
+Options: A. Yes, there is a pillow on the blue sofa near the window in the living room; B. ​​No, there isn’t a pillow on the blue sofa near the window in the living room; C. not sure if there's a pillow on the sofa; D. There is no sofa in the living room.
+Answer: A. Yes, there is a pillow on the blue sofa near the window in the living room;
