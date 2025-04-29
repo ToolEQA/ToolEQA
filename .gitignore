@@ -8,4 +8,3 @@ __pycache__/
 react_eqa.egg-info/
 results
 *.mp4
-data/ToolTrajectory/questions/*
