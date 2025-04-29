@@ -337,7 +337,7 @@ def path_to_actions(path, start_rotation, end_rotation, rotation_step=10, move_s
 
 
 # 执行动作并记录视频
-def execute_actions(sim, actions, args, trajectory,frame_rate=24, planner=None):
+def execute_actions(sim, actions, args, trajectory, frame_rate=24, planner=None, show_answer=False):
     observations: List[np.ndarray] = []
     agent = sim.agents[0]
     
@@ -385,6 +385,7 @@ def execute_actions(sim, actions, args, trajectory,frame_rate=24, planner=None):
         img = draw_text_fill_region(img, question)
         observations.append({"color": img})
 
+    next_direction = None
     if next_direction is not None:
         obs = sim.get_sensor_observations()
         img = obs["color_sensor"]
@@ -393,6 +394,15 @@ def execute_actions(sim, actions, args, trajectory,frame_rate=24, planner=None):
             point_img = concatenate_images_horizontally(point_img, island_image)
             point_img = draw_text_fill_region(point_img, question)
             observations.append({"color": point_img})
+
+    if answer is not None and show_answer:
+        obs = sim.get_sensor_observations()
+        img = obs["color_sensor"]
+        for frame in range(frame_rate):
+            answer_img = concatenate_images_horizontally(img, island_image)
+            answer_img = draw_text_fill_region(answer_img, answer)
+            observations.append({"color": answer_img})
+
     return observations, trajectory
 
 
@@ -445,7 +455,10 @@ def navigation_video(sim, agent, pathes, frame_rate=24.0, output_video="eqa.mp4"
         # obs = sim.get_sensor_observations()
         # cv2.imwrite("start_rgb.jpg", obs["color"][..., :3])
         # 设置起始位置和旋转
-        observation, trojectory = execute_actions(sim, actions, pathes[i], trojectory, planner=tsdf_planner)
+        if i < len(pathes) - 1:
+            observation, trojectory = execute_actions(sim, actions, pathes[i], trojectory, planner=tsdf_planner)
+        else:
+            observation, trojectory = execute_actions(sim, actions, pathes[i], trojectory, planner=tsdf_planner, show_answer=True)
         observations.extend(observation)
 
     if len(observations) < 2:
@@ -479,9 +492,9 @@ if __name__ == "__main__":
     rotation3 = quaternion.from_float_array([0.443950753937056, 0.0, 0.8960511860818664, 0.0])
 
     pathes = [
-        {"position": position1, "rotation": rotation1, "question": "QUESTION", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
-        {"position": position2, "rotation": rotation2, "question": "QUESTION", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
-        {"position": position3, "rotation": rotation3, "question": "QUESTION", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
+        {"position": position1, "rotation": rotation1, "question": "QUESTION: Where is the TV in the bed room?", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
+        {"position": position2, "rotation": rotation2, "question": "QUESTION: Where is the TV in the bed room?", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
+        {"position": position3, "rotation": rotation3, "question": "QUESTION: Where is the TV in the bed room?", "answer": "ANSWER: The TV is on the cabinet next to the window.", "confidence": "YES", "direction": [320, 240]},
     ]
 
     # 初始化模拟器配置
