@@ -1,0 +1,31 @@
+Your task is to generate a question about **the location of objects in images**.
+The question must be based on **the following valid types**:
+---
+Question Type: the location of the given object.
+Ask question about the location of a given object.
+
+Use formats like:
+→ Question: "In which room is the blue backpack hanging on a wooden shelf currently placed?"
+
+Provide a detailed spatial description of the object, using references to nearby objects or layout.
+The questioning object must be consistent with the given object.
+
+---
+- Each block must include the following fields:
+- `Question`: a clearly worded object status question.
+- `Options`: exactly 4 options, labeled A–D.
+- `Answer`: the answer of the question.
+---
+
+---
+- ❌ Do not include words directly related to the answer in the options.
+- ❌ Do not repeat the same list in multiple options.
+- ❌ Do not include explanation or any extra commentary — just the question block in the defined format.
+---
+
+Now, given some images about {}, please output following output formar for the single question:
+```
+Question: [your attribute question here]
+Options: [A. option1; B. option2; C. option3; D. option4]
+Answer: [answer]
+```

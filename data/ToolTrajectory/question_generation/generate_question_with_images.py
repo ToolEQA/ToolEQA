@@ -19,7 +19,7 @@ def load_data(path):
             data = pickle.load(f)
     return data
 
-def post_process(result):
+def post_process(result, extra):
     result = result.strip("`\n")
     split = result.split("\n")
 
@@ -36,7 +36,18 @@ def post_process(result):
         "question_formatted": f"{question} A) {options[0]} B) {options[1]} C) {options[2]} D) {options[3]}. Answer:",
         "answer": answer,
     }
+    response.update(extra)
     return response
+
+def post_process_multi(results, extra):
+    results = results.strip("`\n")
+    print(results)
+    split = results.split("---")
+    responses = []
+    for item in split:
+        response = post_process(item, extra)
+        responses.append(response)
+    return responses
 
 def single_obj_generator(cfg, scene_id, objects_data, prompt):
     results = []
@@ -45,20 +56,24 @@ def single_obj_generator(cfg, scene_id, objects_data, prompt):
         obj_cate = obj["category_name"]
         obj_id = obj["object_id"]
         obj_center = obj["bbox"]["center"]
+        obj_floor = obj["floor_id"]
         
         obj_images = get_image_from_id(scene_id, obj_id, cfg.data_root)
         if obj_images is None:
             continue
         new_prompt = prompt.format(obj_cate)
         response = requests_api(obj_images, new_prompt)
+        print("==========================")
         print(response["choices"][0]["message"]["content"])
+        
+        extra_data = {}
+        extra_data["scene_id"] = scene_id
+        extra_data["label"] = cfg.question_type
+        extra_data["locations"] = obj_cate + f" ({obj_id}): " + str([round(p, 3) for p in obj_center])
+        extra_data["floor_id"] = obj_floor
+        result = post_process_multi(response["choices"][0]["message"]["content"], extra_data)
 
-        result = post_process(response["choices"][0]["message"]["content"])
-        result["scene_id"] = scene_id
-        result["label"] = cfg.question_type
-        result["locations"] = obj_cate + f" ({obj_id}): " + str([round(p, 3) for p in obj_center])
-
-        results.append(result)
+        results.extend(result)
 
     return results
 
