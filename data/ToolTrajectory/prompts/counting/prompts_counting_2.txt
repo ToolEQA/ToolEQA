@@ -1,11 +1,11 @@
-
-
 You are given a JSON file containing a list of dictionaries. Each dictionary represents an object and includes the following attributes:
 
 1. category_name: The name of the object category.
 2. region_id: The identifier of the object's region.
 3. center: The 3D position coordinates of the object, represented as [x, y, z].
 4. dimensions: The size of the object, given as [length, width, height].
+5. object_id: The id of the object.
+
 
 Your task is to generate **four distinct counting questions**, each based on one of the following types:
 
@@ -20,18 +20,16 @@ For each question:
 - Provide **four answer options**.
 - Indicate the **correct answer** and its corresponding **label** (A, B, C, or D).
 - List all **related objects** that contribute to the answer.
-- Format the **Related objects** as: `<category_name>: <position>, <region_id>`
+- Format the **Related objects** as: `<category_name> (object_id): <position>, <region_id>`
 
 Use the following output format for each question:
 ```
 Question: [your comparative question here]
 Options: [A. option1; B. option2; C. option3; D. option4]
 Answer: [answer]
-Label: [label]
-Related objects: [<category_name1>: <position1>, <region_id1>; <category_name2>: <position2>, <region_id2>; .....]
+Related objects: [<category_name1> (object_id): <position1>, <region_id1>; <category_name2> (object_id2): <position2>, <region_id2>; .....]
 ```
 
 Make sure to:
 - Generate **exactly four** such question blocks (one for each type).
 - Include the separator `---` **after each question block**, except the last one.
-
