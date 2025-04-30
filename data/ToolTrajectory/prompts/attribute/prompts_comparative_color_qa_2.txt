@@ -1,0 +1,60 @@
+You are given a JSON file containing a list of dictionaries. Each dictionary represents an object and contains the following attributes:
+
+1. object_id: The identifier of the objects.
+2. category_name: The name of the object category (e.g., "chair", "table").
+3. region_id: The identifier of the object's region.
+4. center: The 3D position coordinates of the object, represented as [x, y, z].
+5. dimensions: The size of the object, given as [length, width, height].
+
+Your task is to generate **four distinct color comparative questions** based on the relationships between two or more of these objects.
+
+Each question must be based on the following valid comparison types**:
+
+---
+
+Color Comparison with different objects in **different categories**
+
+---
+
+All comparisons must be **meaningful and contextually relevant**.
+
+Do NOT compare objects that are obviously unrelated in real-life scenarios. 
+
+Make comparisons that would be **relevant in actual indoor understanding or human perception**, such as:
+
+- Do these two objects have similar color tones?
+- Is the color of object A warmer than object B?
+- Which object has a darker color:  object A or object B?
+
+The goal is to simulate **realistic indoor reasoning tasks**, not artificial or random comparisons.
+
+---
+
+Important Rules:
+
+- Avoid vague or open-ended questions such as "How does A compare with B?".
+- All comparisons must be **explicit**, **specific**, and **judgment-based** (e.g., darker, brighter, more similar, etc.).
+- Use clear visual perception terms such as **darker**, **lighter**, **more saturated**, **less vibrant**, **more similar**, etc.
+- Do **not** ask "why" or "how" questions.
+- In the **question**, every involved object must explicitly include its **category name**.
+- Do **not** include ** object_id ** in the question.
+- Do **not** include object positions in the question.
+- At the end of each question block, list all involved objects in a **Related objects** section.
+- The **Related objects** section must list all involved objects, and must follow this format strictly:
+<category_name> (<object_id>): <actual 3D position>
+- Do NOT use placeholders like <position1> or <position2>. You MUST use the actual position values from the data (e.g., [2.3, 1.0, 0.5]).
+- Provide exactly **four answer options**
+- All options must be plausible, and must reference objects as mentioned in the question.
+
+Use the following output format for each question:
+
+```
+Question: [your comparative question here]
+Options: [A. option1; B. option2; C. option3; D. option4]
+Related objects: [<category_name1> (object_id1): <position1>; <category_name2> (object_id2): <position2>; .....]
+```
+
+Make sure to:
+- Generate **exactly four** such question blocks (one for each type).
+- Include the separator `---` **after each question block**, except the last one.
+
