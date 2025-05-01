@@ -36,7 +36,7 @@ def get_image_from_id(scene_id: str, object_id: int, root="data/HM3D"):
                 if obj_id == object_id:
                     target_images_path.append(os.path.join(roots, file))
     if len(target_images_path) == 0:
-        print("没有检索到图像")
+        # print("没有检索到图像")
         return None
     return target_images_path
 

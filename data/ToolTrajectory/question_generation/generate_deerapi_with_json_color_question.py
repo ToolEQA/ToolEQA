@@ -8,7 +8,7 @@ import json
 
 import random
 import pandas as pd
-
+import pickle
 import argparse
 
 def load_data(path):
@@ -202,7 +202,7 @@ def generate(cfg):
             continue
         if not os.path.isdir(os.path.join(cfg.data_root, scene_data)):
             continue
-        scene_id = scene_data.split("_")[-1]
+        scene_id = scene_data.split("-")[-1]
         print('scene_id', scene_id)
         # objects_data_path = os.path.join(cfg.data_root, scene_data, scene_id + ".objects")
         # print('objects_data_path', objects_data_path)
@@ -210,6 +210,7 @@ def generate(cfg):
         for f_n in floor_number:
             objects_data_path = os.path.join(cfg.data_root, scene_data, scene_id + ".objects.cleaned.floor" + str(f_n))
             # print('objects_data_path', objects_data_path)
+
             if os.path.exists(objects_data_path + ".json"):
                 objects_data_path = objects_data_path + ".json"
             else: 
@@ -233,18 +234,15 @@ def generate(cfg):
         # objects_data = load_data(objects_data_path)
 
         # results = json_generator(cfg, scene_data, objects_data, prompt)
+
+        break
     
 
-
-
 if __name__ == "__main__":
-
-
-
     parser = argparse.ArgumentParser()
     parser.add_argument("-prompt", "--prompt_path", help="prompt file path.", type=str, default="prompts_comparative_color_qa_2.txt")
     parser.add_argument("-type", "--question_type", help="the type of the question.", type=str)
-    parser.add_argument("-root", "--data_root", help="the root dir of scene data.", type=str, default=r"C:\Users\Xiaomeng Fan\Desktop\期刊成稿\具身问答\format_withml\scene")
+    parser.add_argument("-root", "--data_root", help="the root dir of scene data.", type=str)
     parser.add_argument("-output", "--output_path", help="the path of output csv file.", type=str, default="question_HkseAnWCgqk_color_qa_3.csv")
     parser.add_argument("-scene_number", help="generated questions numbers for scene.", type=int, default=0.1)
 

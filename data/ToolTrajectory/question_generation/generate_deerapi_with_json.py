@@ -11,7 +11,7 @@ import json
 import random
 
 import argparse
-
+import pickle
 import pandas as pd
 
 
@@ -196,7 +196,7 @@ def generate(cfg):
             continue
         if not os.path.isdir(os.path.join(cfg.data_root, scene_data)):
             continue
-        scene_id = scene_data.split("_")[-1]
+        scene_id = scene_data.split("-")[-1]
         print('scene_id', scene_id)
         # objects_data_path = os.path.join(cfg.data_root, scene_data, scene_id + ".objects")
 
@@ -217,7 +217,7 @@ def generate(cfg):
             results = json_generator(cfg, scene_data, objects_data, prompt, f_n, generate_number)
             write_csv(cfg.output_path, results)
 
-
+        break
     #     print('objects_data_path', objects_data_path)
     #     if os.path.exists(objects_data_path + ".pkl"):
     #         objects_data_path = objects_data_path + ".pkl"

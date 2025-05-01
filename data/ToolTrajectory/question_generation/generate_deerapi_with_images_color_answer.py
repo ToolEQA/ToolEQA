@@ -8,6 +8,7 @@ import json
 import pandas as pd
 import re
 import argparse
+import pickle
 
 def load_data(path):
     postfix = path.split(".")[-1]
@@ -206,10 +207,6 @@ def generate(cfg):
 
 if __name__ == "__main__":
     # scene_root = "data/ReactEQA/sample_scene/images"
-
-
-
-
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-prompt", "--prompt_path", help="prompt file path.", type=str, default="prompts_comparative_color_qa_2.txt")
