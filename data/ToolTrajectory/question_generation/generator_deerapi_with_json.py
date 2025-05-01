@@ -138,9 +138,9 @@ def save_csv(csv_file_path, csv_columns, generated_data):
             writer.writerow(data)
 
 
-def json_generator(cfg, scene_id, objects_data, prompt):
+def json_generator(cfg, scene_id, objects_data, prompt, floor_name, generate_number):
     results = []
-    for num in range(cfg.scene_number):
+    for num in range(generate_number):
         random.shuffle(objects_data)
         result = requests_api(objects_data, prompt)
             # result_dict = post_process(result["choices"][0]["message"]["content"])
@@ -157,6 +157,7 @@ def json_generator(cfg, scene_id, objects_data, prompt):
             result = result_dict_list[i]
             result["scene_id"] = scene_id
             result["label"] = cfg.question_type
+            result["floor_id"] = floor_name
 
             results.append(result_dict_list[i])
 
@@ -182,6 +183,7 @@ def generate(cfg):
 
     all_scenes_path = os.listdir(cfg.data_root)
     all_scenes_path.sort()
+    floor_number = [-1,1,2,3]
 
     finished_scene = []
     if os.path.exists(cfg.output_path):
@@ -196,19 +198,38 @@ def generate(cfg):
             continue
         scene_id = scene_data.split("_")[-1]
         print('scene_id', scene_id)
-        objects_data_path = os.path.join(cfg.data_root, scene_data, scene_id + ".objects")
-        print('objects_data_path', objects_data_path)
-        if os.path.exists(objects_data_path + ".pkl"):
-            objects_data_path = objects_data_path + ".pkl"
-        elif os.path.exists(objects_data_path + ".json"):
-            objects_data_path = objects_data_path + ".json"
+        # objects_data_path = os.path.join(cfg.data_root, scene_data, scene_id + ".objects")
 
-        objects_data = load_data(objects_data_path)
 
-        results = json_generator(cfg, scene_data, objects_data, prompt)
+        for f_n in floor_number:
+            objects_data_path = os.path.join(cfg.data_root, scene_data, scene_id + ".objects.cleaned.floor" + str(f_n))
+            if os.path.exists(objects_data_path + ".json"):
+                objects_data_path = objects_data_path + ".json"
+            else: 
+                continue
 
-        break
-    write_csv(cfg.output_path, results)
+            print('objects_data_path', objects_data_path)
+
+            objects_data = load_data(objects_data_path)
+            generate_number = int(len(objects_data)*cfg.scene_number)
+            print('generate_number', generate_number)
+
+            results = json_generator(cfg, scene_data, objects_data, prompt, f_n, generate_number)
+            write_csv(cfg.output_path, results)
+
+
+    #     print('objects_data_path', objects_data_path)
+    #     if os.path.exists(objects_data_path + ".pkl"):
+    #         objects_data_path = objects_data_path + ".pkl"
+    #     elif os.path.exists(objects_data_path + ".json"):
+    #         objects_data_path = objects_data_path + ".json"
+
+    #     objects_data = load_data(objects_data_path)
+
+    #     results = json_generator(cfg, scene_data, objects_data, prompt)
+
+    #     break
+    # write_csv(cfg.output_path, results)
 
 
 
@@ -253,7 +274,7 @@ if __name__ == "__main__":
     parser.add_argument("-type", "--question_type", help="the type of the question.", type=str, default='attribute')
     parser.add_argument("-root", "--data_root", help="the root dir of scene data.", type=str, default=r"C:\Users\Xiaomeng Fan\Desktop\期刊成稿\具身问答\format_withml\scene")
     parser.add_argument("-output", "--output_path", help="the path of output csv file.", type=str, default="question_HkseAnWCgqk.csv")
-    parser.add_argument("-scene_number", help="generated questions numbers for scene.", type=int, default=10)
+    parser.add_argument("-scene_number", help="generated questions numbers for scene.", type=int, default=0.1)
 
     args = parser.parse_args()
     print(args)
