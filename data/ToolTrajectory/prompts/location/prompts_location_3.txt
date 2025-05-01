@@ -94,19 +94,16 @@ Use the following output format for each question:
 Question: [your comparative question here]
 Options: [A. option1; B. option2; C. option3; D. option4]
 Answer: [answer]
-Label: [label]
 Related objects: [<category_name1>: <position1>, <region_id1>; <category_name2>: <position2>, <region_id2>; .....]
 ```
 
 
 Question: In which rooms is the chair located?  
 Options: [A. [1]; B. [2, 3]; C. [3]; D. [1, 4]]  
-Answer: [3]  
-Label: C  
+Answer: C  
 Related objects: [chair: [2.1, 0.9, 1.3], 3]
 
 
 Make sure to:
 - Generate **exactly two** such question blocks (one for each type).
 - Include the separator `---` **after each question block**, except the last one.
-
