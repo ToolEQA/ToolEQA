@@ -1,1 +1,0 @@
-python generator_deerapi_with_images_color_answer.py --prompt_path prompts/color/prompts_comparative_color_onlyans.txt --input_path question_HkseAnWCgqk_color.csv --output_path question_HkseAnWCgqk_color_2.csv

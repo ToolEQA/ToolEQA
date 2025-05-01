@@ -1,1 +1,5 @@
-python generator_deerapi_with_json.py --prompt_path prompts/attribute/prompts_comparative_size.txt --output_path question_HkseAnWCgqk_attribute_size.csv --question_type attribute
+python data/ToolTrajectory/question_generation/generate_deerapi_with_json.py \
+-prompt data/ToolTrajectory/prompts/attribute/prompts_comparative_size.txt \
+-type attribute \
+-output data/ToolTrajectory/questions/attribute/size.csv \
+-root data/HM3D

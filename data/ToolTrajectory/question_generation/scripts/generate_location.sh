@@ -1,1 +1,5 @@
-python generator_deerapi_with_json.py --prompt_path prompts/location/prompts_location_3.txt --output_path question_HkseAnWCgqk_location.csv --question_type location
+python data/ToolTrajectory/question_generation/generate_deerapi_with_json.py \
+-prompt data/ToolTrajectory/prompts/location/prompts_location_3.txt \
+-type location \
+-output data/ToolTrajectory/questions/location/location.csv \
+-root data/HM3D
