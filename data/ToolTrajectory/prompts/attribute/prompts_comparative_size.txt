@@ -4,6 +4,7 @@ You are given a JSON file containing a list of dictionaries. Each dictionary rep
 2. region_id: The identifier of the object's region.
 3. center: The 3D position coordinates of the object, represented as [x, y, z].
 4. dimensions: The size of the object, given as [length, width, height].
+5. object_id: The id of the object.
 
 Your task is to generate **two distinct size comparative questions** based on the relationships between two or more of these objects.
 
@@ -23,7 +24,7 @@ Do NOT compare objects that are obviously unrelated in real-life scenarios.
 
 Make comparisons that would be **relevant in actual indoor understanding or human perception**, such as:
 
-- Objects used in similar contexts or the same objects in different region (e.g., objects A in region a and in region b).
+- Objects used in similar contexts or the same objects in different region.
 
 
 The goal is to simulate **realistic indoor reasoning tasks**, not artificial or random comparisons.
@@ -33,13 +34,15 @@ Important Rules:
 
 - All comparisons must be **meaningful**: only compare objects that are spatially or functionally related (e.g., both in the same region, or both are furniture items in a room).
 - Do **not** ask "why" or "how" questions.
-- In the **question**, every involved object must explicitly include its **category name and region_id** (e.g., "the chair in region 1").
-- Do **not** include object positions in the question.
+- In the **question**, every involved object must explicitly include its **category name**.
+- Do **not** include **dimensions** in the question.
+- Do **not** include **object_id** in the question.
+- Do **not** include **object positions** in the question.
 - Provide exactly **four answer options**.
 - Specify the **correct answer** and its corresponding label (A, B, C, or D).
 - At the end of each question block, list all involved objects in a **Related objects** section.
 - The **Related objects** section must list all involved objects, and must follow this format strictly:
-<category_name>: <actual 3D position>, <region_id>
+<category_name> (object_id): <actual 3D position>
 - Do NOT use placeholders like <position1> or <position2>. You MUST use the actual position values from the data (e.g., [2.3, 1.0, 0.5]).
 
 Use the following output format for each question:
@@ -47,11 +50,9 @@ Use the following output format for each question:
 Question: [your comparative question here]
 Options: [A. option1; B. option2; C. option3; D. option4]
 Answer: [answer]
-Label: [label]
-Related objects: [<category_name1>: <position1>, <region_id1>; <category_name2>: <position2>, <region_id2>; .....]
+Related objects: [<category_name1> (object_id1): <position1>; <category_name2> (object_id2): <position2>; .....]
 ```
 
 Make sure to:
 - Generate **exactly three** such question blocks (one for each type).
 - Include the separator `---` **after each question block**, except the last one.
-

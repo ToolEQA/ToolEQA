@@ -1,0 +1,16 @@
+You are given a question with four answer options. Each option compares the color of two visual objects, each identified by a name in parentheses (e.g., "rug").
+
+The question is: {}.
+
+Your task is to:  
+1. Extract all visual objects mentioned in the question, preserving both the name and ID.  
+2. Choose the correct answer from the provided options.  
+
+**Strict Rules:**  
+- The output must conform to the output format.
+
+
+Output Format:
+```
+Answer: [A/B/C/D]
+```
