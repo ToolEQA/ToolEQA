@@ -217,7 +217,6 @@ def generate(cfg):
             results = json_generator(cfg, scene_data, objects_data, prompt, f_n, generate_number)
             write_csv(cfg.output_path, results)
 
-        break
     #     print('objects_data_path', objects_data_path)
     #     if os.path.exists(objects_data_path + ".pkl"):
     #         objects_data_path = objects_data_path + ".pkl"

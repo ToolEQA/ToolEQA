@@ -1,0 +1,9 @@
+sh data/ToolTrajectory/question_generation/scripts/generate_attribute_color.sh
+sh data/ToolTrajectory/question_generation/scripts/generate_attribute_size.sh
+sh data/ToolTrajectory/question_generation/scripts/generate_attribute_special.sh
+sh data/ToolTrajectory/question_generation/scripts/generate_counting.sh
+sh data/ToolTrajectory/question_generation/scripts/generate_distance.sh
+sh data/ToolTrajectory/question_generation/scripts/generate_location_special.sh
+sh data/ToolTrajectory/question_generation/scripts/generate_location.sh
+sh data/ToolTrajectory/question_generation/scripts/generate_relationship.sh
+sh data/ToolTrajectory/question_generation/scripts/generate_status.sh
