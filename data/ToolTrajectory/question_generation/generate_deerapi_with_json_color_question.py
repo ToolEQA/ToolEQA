@@ -235,7 +235,6 @@ def generate(cfg):
 
         # results = json_generator(cfg, scene_data, objects_data, prompt)
 
-        break
     
 
 if __name__ == "__main__":

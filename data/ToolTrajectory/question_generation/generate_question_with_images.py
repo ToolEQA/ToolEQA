@@ -121,7 +121,6 @@ def generate(cfg):
 
         results = single_obj_generator(cfg, scene_data, objects_data, prompt)
 
-        break
     write_csv(cfg.output_path, results)
 
 
