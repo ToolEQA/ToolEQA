@@ -57,6 +57,9 @@ class Filter():
         self.seen_counting_keys.add(key)
         return True
 
+    def check_object(self, data):
+        pass
+
     def check(self, data):
         checked = []
         checked.append(self.check_obj(data))
