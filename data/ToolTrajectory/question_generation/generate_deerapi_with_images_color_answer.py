@@ -9,6 +9,9 @@ import pandas as pd
 import re
 import argparse
 import pickle
+import http.client
+import time
+import socket
 
 def load_data(path):
     postfix = path.split(".")[-1]
@@ -23,7 +26,7 @@ def convert_image_to_base64(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-def requests_api(images, prompt):
+def requests_api(images, prompt, max_retries=3, retry_delay=1):
     image_urls = []
     for image in images:
         base64_image = convert_image_to_base64(image)
@@ -31,7 +34,11 @@ def requests_api(images, prompt):
     prompt = [{"type": "text", "text": prompt}]
     content = prompt + image_urls
 
-    conn = http.client.HTTPSConnection('api.deerapi.com')
+    headers = {
+        'Authorization': 'sk-lrenmYBYEOQH0rqv9rlMmoTaELkvZni1afswhr6be3tTN44S',
+        'Content-Type': 'application/json'
+    }
+    
     payload = json.dumps({
         "model": "gpt-4o-mini",
         "stream": False,
@@ -40,18 +47,37 @@ def requests_api(images, prompt):
                 "role": "user",
                 "content": content
             }
-            ],
-            "max_tokens": 400
-        })
-    headers = {
-        'Authorization': 'sk-lrenmYBYEOQH0rqv9rlMmoTaELkvZni1afswhr6be3tTN44S',
-        'Content-Type': 'application/json'
-    }
-    conn.request("POST", "/v1/chat/completions", payload, headers)
-    res = conn.getresponse()
-    data = json.loads(res.read().decode("utf-8"))
+        ],
+        "max_tokens": 400
+    })
 
-    return data
+    for attempt in range(max_retries):
+        try:
+            conn = http.client.HTTPSConnection('api.deerapi.com')
+            conn.request("POST", "/v1/chat/completions", payload, headers)
+            res = conn.getresponse()
+            
+            if res.status == 200:
+                try:
+                    data = json.loads(res.read().decode("utf-8"))
+                    return data
+                except json.JSONDecodeError:
+                    print("Failed to decode JSON response")
+            else:
+                print(f"Request failed with status code: {res.status}")
+                
+        except Exception as e:
+            print(f"Request failed (attempt {attempt + 1}/{max_retries}): {str(e)}")
+            
+        finally:
+            if 'conn' in locals():
+                conn.close()
+                
+        if attempt < max_retries - 1:
+            time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+            
+    print("Max retries reached, giving up")
+    return None
 
 def post_process(result):
     result = result.strip("`\n")
@@ -79,6 +105,25 @@ def save_csv(csv_file_path, csv_columns, generated_data):
         writer.writeheader()
         for data in generated_data:
             writer.writerow(data)
+
+
+
+def write_csv(file_path, data):
+    if len(data) > 0:
+        title = data[0].keys()
+    else:
+        return
+
+    if os.path.exists(file_path):
+        with open(file_path, mode="a", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=title)
+            writer.writerows(data)
+    else:
+        with open(file_path, mode="a", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=title)
+            writer.writeheader()
+            writer.writerows(data)
+
 
 def extract_numbers_from_excel(question):
     
@@ -157,52 +202,47 @@ def generate(cfg):
     df = pd.read_csv(cfg.input_path)
     answers = []
 
+    finished_scene = []
+    if os.path.exists(cfg.output_path):
+        out = pd.read_csv(cfg.output_path)
+        finished_scene = out["scene_id"].tolist()
+
     for index, row in df.iterrows():
+        scene_id = row['scene_id']
+        if scene_id in finished_scene:
+            print(f"skip scene {scene_id}")
+            continue
+
         question = row['question']
         question_formatted = row['question_formatted']
+        
         image_root = os.path.join(cfg.data_root,row['scene_id'],'objects_rgb')
         locations = row['locations']
-         
+        
         numbers = extract_numbers_from_locations(locations)
-        print('numbers', numbers)
-        # if 
         matched_images = find_images_with_numbers(image_root, numbers)
 
         if len(matched_images) == 0:
-            answers.append([])
             continue
         prompt_1 = prompt.format(question_formatted)
        
         result = requests_api(matched_images, prompt_1)
+        if result is None:
+            continue
+
         try:
             result_dict = post_process(result["choices"][0]["message"]["content"])
             result_dict["source_image"] = matched_images
-            # generated_data.append(result_dict)
-            # options.append(result_dict["choices"])
-            
+
             answers.append(result_dict["answer"])
-            # source_image.append(result_dict["source_image"])
-            # print('answers', result_dict["answer"])
-            # print('label', result_dict["label"])
+
+            new_data = dict(row)
+            new_data["answers"] = result_dict["answer"]
+
+            write_csv(cfg.output_path, [new_data])
+
         except:
-            print('format is error')
-            answers.append([])
-            # source_image.append([])
             continue
-
-    if 'answers' in df.columns:
-        print("表头中已包含 'answers'")
-    else:
-        print("未找到 'answers' 表头，正在添加...")
-
-        # 添加一列空的 'answers'（可以设默认值，例如空字符串）
-        df['answers'] = ''
-
-    df['answers'] = answers
-
-    df.to_csv(cfg.output_path, index=False)
-
-
 
 
 if __name__ == "__main__":

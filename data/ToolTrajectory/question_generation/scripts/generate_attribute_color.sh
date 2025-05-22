@@ -11,5 +11,3 @@ python data/ToolTrajectory/question_generation/generate_deerapi_with_images_colo
 -root data/HM3D \
 -input $TMP_FILE \
 -output data/ToolTrajectory/questions/attribute/color.csv
-
-rm $TMP_FILE

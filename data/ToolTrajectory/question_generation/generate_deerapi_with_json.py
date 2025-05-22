@@ -9,11 +9,12 @@ import http.client
 import json
 
 import random
+import socket
 
 import argparse
 import pickle
 import pandas as pd
-
+import time
 
 def load_data(path):
     postfix = path.split(".")[-1]
@@ -29,26 +30,16 @@ def convert_image_to_base64(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-def requests_api(txt_files, prompt):
-    # image_urls = []
-    # for image in images:
-    #     base64_image = convert_image_to_base64(image)
-    #     image_urls.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}})
-    # prompt = [{"type": "text", "text": prompt+ "\n\n" + txt_files}]
-    # import json
+def requests_api(txt_files, prompt, max_retries=10, retry_delay=3):
+    prompt_content = [{"type": "text", "text": prompt + "\n\n" + json.dumps(txt_files, indent=2)}]
 
-    prompt = [{"type": "text", "text": prompt + "\n\n" + json.dumps(txt_files, indent=2)}]
-
-    content = prompt 
-
-    conn = http.client.HTTPSConnection('api.deerapi.com')
     payload = json.dumps({
         "model": "gpt-4o-mini",
         "stream": False,
         "messages": [
             {
                 "role": "user",
-                "content": content
+                "content": prompt_content
             }
             ],
             "max_tokens": 8192
@@ -57,23 +48,35 @@ def requests_api(txt_files, prompt):
         'Authorization': 'sk-lrenmYBYEOQH0rqv9rlMmoTaELkvZni1afswhr6be3tTN44S',
         'Content-Type': 'application/json'
     }
-    conn.request("POST", "/v1/chat/completions", payload, headers)
-    res = conn.getresponse()
-    response_text = res.read().decode("utf-8")  # 🔁 先读取并解码
-    print("=== Response Text ===")
-    print(repr(response_text))  # 用 repr 看有没有空格、换行或其他乱码
-    print("======================")
-    if response_text.strip():
-        data = json.loads(response_text)        # ✅ 再解析 JSON
-    else:
-        print("响应内容是空的！")
-    # if res.text.strip():
-    #     data = json.loads(res.read().decode("utf-8"))
-    # else:
-    #     print("响应内容是空的！")
-    
 
-    return data
+    for attempt in range(max_retries):
+        try:
+            conn = http.client.HTTPSConnection('api.deerapi.com', timeout=10)
+            conn.request("POST", "/v1/chat/completions", payload, headers)
+            res = conn.getresponse()
+            response_text = res.read().decode("utf-8")
+
+            print(f"=== Attempt {attempt + 1} Response ===")
+            print(repr(response_text))
+            print("======================")
+
+            if not response_text.strip():
+                print("响应内容是空的！")
+                raise ValueError("Empty response")
+                
+            data = json.loads(response_text)
+            return data
+        
+        except Exception as e:
+            print(f"请求失败 (尝试 {attempt + 1}/{max_retries}): {str(e)}")
+            if attempt < max_retries - 1:
+                print(f"{retry_delay}秒后重试...")
+                time.sleep(retry_delay)
+            else:
+                print("已达到最大重试次数，请求失败")
+                raise Exception(f"API请求失败: {str(e)}")
+        finally:
+            conn.close()  # 确保连接被关闭
 
 
 def post_process_multiple(result):
@@ -165,7 +168,10 @@ def json_generator(cfg, scene_id, objects_data, prompt, floor_name, generate_num
 
 
 def write_csv(file_path, data):
-    title = data[0].keys()
+    if len(data) > 0:
+        title = data[0].keys()
+    else:
+        return
 
     if os.path.exists(file_path):
         with open(file_path, mode="a", newline="", encoding="utf-8") as file:
@@ -180,6 +186,12 @@ def write_csv(file_path, data):
 def generate(cfg):
     with open(cfg.prompt_path, "r", encoding="utf-8") as file:
         prompt = file.read()
+
+    categories = []
+    with open(os.path.join(cfg.data_root, "new2ori_mapping.json"), "r") as f:
+        categories_json = json.load(f)
+        for big_cate in categories_json:
+            categories.extend(categories_json[big_cate])
 
     all_scenes_path = os.listdir(cfg.data_root)
     all_scenes_path.sort()
@@ -211,10 +223,15 @@ def generate(cfg):
             print('objects_data_path', objects_data_path)
 
             objects_data = load_data(objects_data_path)
-            generate_number = int(len(objects_data)*cfg.scene_number)
+            new_objects_data = []
+            # 过滤类别
+            for obj_info in objects_data:
+                if obj_info["category_name"] in categories:
+                    new_objects_data.append(obj_info)
+            generate_number = int(len(new_objects_data)*cfg.scene_number)
             print('generate_number', generate_number)
 
-            results = json_generator(cfg, scene_data, objects_data, prompt, f_n, generate_number)
+            results = json_generator(cfg, scene_data, new_objects_data, prompt, f_n, generate_number)
             write_csv(cfg.output_path, results)
 
     #     print('objects_data_path', objects_data_path)
