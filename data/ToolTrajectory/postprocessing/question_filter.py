@@ -60,7 +60,6 @@ class Filter():
     def check(self, data):
         checked = []
         checked.append(self.check_obj(data))
-        exit()
         checked.append(self.check_refering(data))
         checked.append(self.check_empty(data))
         checked.append(self.check_choice(data))
