@@ -66,7 +66,6 @@ def requests_api(txt_files, prompt):
     #     data = json.loads(res.read().decode("utf-8"))
     # else:
     #     print("响应内容是空的！")
-    
 
     return data
 
@@ -171,7 +170,10 @@ def json_generator(cfg, scene_id, objects_data, prompt, floor_name, generate_num
 
 
 def write_csv(file_path, data):
-    title = data[0].keys()
+    if len(data) > 0:
+        title = data[0].keys()
+    else:
+        return
 
     if os.path.exists(file_path):
         with open(file_path, mode="a", newline="", encoding="utf-8") as file:
@@ -186,6 +188,12 @@ def write_csv(file_path, data):
 def generate(cfg):
     with open(cfg.prompt_path, "r", encoding="utf-8") as file:
         prompt = file.read()
+        
+    categories = []
+    with open(os.path.join(cfg.data_root, "new2ori_mapping.json"), "r") as f:
+        categories_json = json.load(f)
+        for big_cate in categories_json:
+            categories.extend(categories_json[big_cate])
 
     all_scenes_path = os.listdir(cfg.data_root)
     all_scenes_path.sort()
@@ -219,10 +227,16 @@ def generate(cfg):
             print('objects_data_path', objects_data_path)
 
             objects_data = load_data(objects_data_path)
-            generate_number = int(len(objects_data)*cfg.scene_number)
+            new_objects_data = []
+            # 过滤类别
+            for obj_info in objects_data:
+                if obj_info["category_name"] in categories:
+                    new_objects_data.append(obj_info)
+
+            generate_number = int(len(new_objects_data)*cfg.scene_number)
             print('generate_number', generate_number)
 
-            results = json_generator(cfg, scene_data, objects_data, prompt, f_n, generate_number)
+            results = json_generator(cfg, scene_data, new_objects_data, prompt, f_n, generate_number)
             write_csv(cfg.output_path, results)
             # print('results', results)
 

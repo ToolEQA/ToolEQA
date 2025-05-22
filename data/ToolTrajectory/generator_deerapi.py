@@ -9,6 +9,7 @@ import http.client
 import json
 import numpy as np
 import cv2
+import time
 
 def convert_image_to_base64(image):
     if os.path.exists(image):
@@ -28,7 +29,6 @@ def requests_api(images, prompt):
     prompt = [{"type": "text", "text": prompt}]
     content = prompt + image_urls
 
-    conn = http.client.HTTPSConnection('api.deerapi.com')
     payload = json.dumps({
         "model": "gpt-4o-mini",
         "stream": False,
@@ -37,20 +37,41 @@ def requests_api(images, prompt):
                 "role": "user",
                 "content": content
             }
-            ],
-            "max_tokens": 400
-        })
+        ],
+        "max_tokens": 400
+    })
     headers = {
         'Authorization': 'sk-lrenmYBYEOQH0rqv9rlMmoTaELkvZni1afswhr6be3tTN44S',
         'Content-Type': 'application/json'
     }
 
-    try:
-        conn.request("POST", "/v1/chat/completions", payload, headers)
-        res = conn.getresponse()
-        data = json.loads(res.read().decode("utf-8"))
-    except:
-        print(f"Error occured: {res.status}, {res.reason}")
+    max_retries = 3
+    retry_delay = 1  # 初始延迟1秒
+    data = None
+
+    for attempt in range(max_retries):
+        try:
+            conn = http.client.HTTPSConnection('api.deerapi.com')
+            conn.request("POST", "/v1/chat/completions", payload, headers)
+            res = conn.getresponse()
+
+            if res.status == 200:
+                data = json.loads(res.read().decode("utf-8"))
+                break  # 成功则跳出循环
+            else:
+                print(f"Attempt {attempt + 1} failed with status code: {res.status}")
+                if attempt < max_retries - 1:  # 如果不是最后一次尝试
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # 指数退避，增加重试间隔
+
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed with error: {str(e)}")
+            if attempt < max_retries - 1:  # 如果不是最后一次尝试
+                time.sleep(retry_delay)
+                retry_delay *= 2  # 指数退避，增加重试间隔
+                
+        finally:
+            conn.close()
 
     return data
 
@@ -119,6 +140,8 @@ if __name__ == "__main__":
         images_file = [os.path.join(scene_root, scene, file) for file in images_file]
         
         result = requests_api(images_file, prompt)
+        if result is None:
+            continue
         result_dict = post_process(result["choices"][0]["message"]["content"])
         result_dict["source_image"] = file
         result_dict["scene"] = file.split("_")[0]
