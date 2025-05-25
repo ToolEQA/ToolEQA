@@ -1,28 +1,43 @@
 [
     {
-        "question": "What is the trajectory of the tool?",
-        "proposals": ["A", "B", "C"],
-        "answer": "The trajectory of the tool is a straight line from the starting point to the end point.",
+        "sample_id": "question_00001",
+        "scene": "00695-BJovXQkqbC3",
+        "image": "data/MT-HM3D/sample_scene_single/images/00695-BJovXQkqbC3_0_0.png",
+        "question": "What is the color of the chair?",
+        "proposals": ["The chair is black.", "The chair is red.", "The chair is blue.", "The chair is green."],
+        "answer": "The chair is black.",
+        "question_type": "color",
+        "floor": 0,
+        "init_pos": [-4.031486511230469, 0.07823586463928223, -3.293611526489258],
+        "init_rot": [0.0, 0.417904810818124, 0.0, 0.9084908194886],        
         "related_objects": [
             {
                 "category_name": "chair", 
-                "region": 1, 
+                "region": "living room", 
                 "position": [0.0, 0.0, 0.0]
             }
         ],
-        "init_position": [0, 0, 0],
-        "init_rotation": [0, 0, 0, 0],
-        "trajectory": [
-            {
-                "step_1": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0, 0],
-                    "action": "start drilling",
-                    "observation": {"image": "image_1.png", "text": "The tool is at the starting point."},
-                    "code": "The tool is at the starting point.",
-                    "thought": "The tool is at the starting point."
-                }
+        "trajectory": {
+            "step_0": {
+                "thought": "thought",
+                "code": "code",
+                "observation": "observation",
+                "action": "action",
+                "position": [-4.031486511230469, 0.07823586463928223, -3.293611526489258],
+                "rotation": [0.0, 0.417904810818124, 0.0, 0.9084908194886],
+                "is_key": false, 
+                "image_path": ""
+            },
+            "step_1": {
+                "thought": "thought",
+                "code": "code",
+                "observation": "observation",
+                "action": "action",
+                "position": [0, 0, 0],
+                "rotation": [1, 0.0, 0.0, 0.0],
+                "is_key": true,
+                "image_path": ""
             }
-        ]
+        }
     }
 ]

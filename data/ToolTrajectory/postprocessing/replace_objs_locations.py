@@ -41,7 +41,7 @@ def get_image_from_id(scene_id: str, object_id: int, root="data/HM3D"):
     return target_images_path
 
 
-def get_obj_location_from_id(model, 
+def get_obj_desc_from_id(model, 
                              scene_id: str, 
                              object_id: int, 
                              prompt="Provide a detailed spatial description of the [{}], using references to nearby objects or layout. The object is visible in multiple images from different viewpoints. Summarize into a phrase, for example: TV on the cabinet next to the window. Only answer the phrase.", 
@@ -68,7 +68,7 @@ def transfer_question(scene_id, question, locations):
     
     objs_desc = []
     for id in objs_id:
-        res = get_obj_location_from_id(None, scene_id, int(id))
+        res = get_obj_desc_from_id(None, scene_id, int(id))
         if res is None:
             break
         objs_desc.append(res.strip(".").lower())
