@@ -10,3 +10,4 @@ results
 *.mp4
 *.csv
 data/EQA-Traj
+*.tar

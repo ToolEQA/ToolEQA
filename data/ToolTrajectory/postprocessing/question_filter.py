@@ -8,6 +8,7 @@ class Filter():
     def __init__(self, files):
         self.files = files
         self.seen_counting_keys = set()
+        self.cur_type = ""
 
     def check_refering(self, data):
         # 删除问题中包含this image、this scene，this object、that area这类指代不明的词汇
@@ -57,12 +58,42 @@ class Filter():
         self.seen_counting_keys.add(key)
         return True
 
-    def check_object(self, data):
-        pass
+    def check_answer(self, data):
+        answer = data['answer']
+        if not isinstance(answer, str):
+            return False
+        
+        if answer.strip() in ["", "[]"]:
+            return False
+        return True
+
+    def check_locations(self, data):
+        loc_str = data['locations']
+        if loc_str in [""]:
+            return False
+        
+        return True
+
+    def check_count(self, data):
+        loc_str = data['locations']
+        if not isinstance(loc_str, str):
+            return False
+        loc_list = loc_str.split(";")
+        if self.cur_type in ["counting_counting"]:
+            if len(loc_list) > 5:
+                return False
+        if self.cur_type in ["location_location"]:
+            return True
+        else:
+            if len(loc_list) > 3:
+                return False
+        return True
 
     def check(self, data):
         checked = []
-        checked.append(self.check_obj(data))
+        checked.append(self.check_count(data))
+        checked.append(self.check_locations(data))
+        checked.append(self.check_answer(data))
         checked.append(self.check_refering(data))
         checked.append(self.check_empty(data))
         checked.append(self.check_choice(data))
@@ -86,18 +117,24 @@ class Filter():
                 writer.writeheader()
                 writer.writerows(data)
 
-
     def filtering(self):
+        org_data = 0
+        all_data = 0
         for file in self.files:
             question_csv = pd.read_csv(file)
             filtered_data = []
             self.seen_counting_keys = set()
+            self.cur_type = file.split("/")[-2] + "_" + file.split("/")[-1][:-4]
+
             for index, row in question_csv.iterrows():
                 data = dict(row)
                 if self.check(data):
                     filtered_data.append(data) 
             # self.write_csv(file + ".filtered", filtered_data)
-            print(index+1, len(filtered_data))
+            all_data += len(filtered_data)
+            org_data += index+1
+            print(file, index+1, len(filtered_data))
+        print(f"原始{org_data}条样本，过滤后还剩{all_data}条样本")
 
 if __name__=="__main__":
     files_path = [

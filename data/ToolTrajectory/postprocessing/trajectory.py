@@ -8,12 +8,20 @@ import pandas as pd
 import quaternion
 import habitat_sim
 import json
+import re
 from tqdm import tqdm
 import cv2
 from src.utils.habitat import make_simple_cfg
 from data.ToolTrajectory.postprocessing.extract_object_location import get_image_from_id
 import subprocess
 from habitat_sim.utils.common import quat_to_coeffs, quat_from_angle_axis
+import uuid
+import base64
+import random
+
+def short_uuid():
+    u = uuid.uuid4()
+    return base64.urlsafe_b64encode(u.bytes).rstrip(b'=').decode('ascii')
 
 def two_points_direction(point, prior_point):
     direction = point - prior_point
@@ -26,20 +34,99 @@ def two_points_direction(point, prior_point):
     return rotation
 
 
+def get_navigable_path_safe(simulator, start_pos, goal_pos, verbose=False,
+                            search_radius=3, sample_count=200):
+    """
+    尝试从起点到终点规划路径，如果失败则在终点周围采样多个点寻找可达路径。
+
+    参数：
+        simulator: habitat_sim.Simulator 实例
+        start_pos: 起点 [x, y, z]
+        goal_pos: 终点 [x, y, z]
+        verbose: 是否打印调试信息
+        search_radius: 终点附近的采样半径（米）
+        sample_count: 尝试的最大采样数量
+
+    返回：
+        path_points: 路径点列表（如果找不到则为空）
+        geodesic_distance: 路径长度（float）
+        final_goal: 实际使用的终点（如果与输入 goal_pos 不同）
+    """
+    pathfinder = simulator.pathfinder
+
+    def snap(pos):
+        return pathfinder.snap_point(pos)
+
+    def is_valid(pos):
+        return pathfinder.is_navigable(pos)
+
+    def try_path(start, end):
+        req = habitat_sim.ShortestPath()
+        req.requested_start = start
+        req.requested_end = end
+        found = pathfinder.find_path(req)
+        if found and req.geodesic_distance < float('inf') and len(req.points) > 0:
+            return req.points, req.geodesic_distance
+        return [], float('inf')
+
+    # Snap 起点和终点
+    start = snap(start_pos)
+    goal = snap(goal_pos)
+
+    if verbose:
+        print(f"起点 snap 后: {start}, 是否可通行: {is_valid(start)}")
+        print(f"终点 snap 后: {goal}, 是否可通行: {is_valid(goal)}")
+
+    # 尝试直接路径
+    path, dist = try_path(start, goal)
+    if dist < float('inf'):
+        if verbose:
+            print(f"✅ 直接路径可达，长度: {dist:.3f}")
+        return path, dist, goal
+
+    if verbose:
+        print("⚠️ 直接路径失败，开始在目标附近搜索可达点...")
+
+    # 尝试在目标附近采样多个点
+    for _ in range(sample_count):
+        offset = np.random.uniform(-1, 1, size=3)
+        offset[1] = 0  # 不改变高度
+        offset = offset / np.linalg.norm(offset) * random.uniform(0.05, search_radius)
+        sampled_goal = goal + offset
+
+        if not is_valid(sampled_goal):
+            continue
+
+        path, dist = try_path(start, sampled_goal)
+        if dist < float('inf'):
+            if verbose:
+                print(f"✅ 找到备选目标点 {sampled_goal}，路径长度: {dist:.3f}")
+            return path, dist, sampled_goal
+
+    if verbose:
+        print("❌ 所有尝试都失败，无法规划路径")
+    return [], float('inf'), None
+
+
 def objstr2list(objs_str):
+    pattern = r'^(?P<name>.+?)\s+\((?P<id>\d+)\):\s+\[(?P<position>[-\d.,\s]+)\]'
     objs_list = objs_str.split("; ")
     objs_data = []
     for obj in objs_list:
-        info = obj.split(" ")
-        name = info[0]
-        id = info[1].strip(" ():")
-        pos = [float(p.strip("[],")) for p in info[2:]]
-        objs_data.append({
-            "name": name,
-            "id": int(id),
-            "pos": [pos[0], pos[2], -pos[1]],
-        })
-    return objs_data
+        match = re.match(pattern, obj.strip())
+        if match:
+            name = match.group('name').strip()
+            id = match.group('id')
+            pos = [float(p) for p in match.group('position').split(", ")]
+
+            objs_data.append({
+                "name": name,
+                "id": int(id),
+                "pos": [pos[0], pos[2], -pos[1]],
+            })
+    if len(objs_list) == len(objs_data):
+        return objs_data
+    return None
 
 
 def save_obs_on_path(sim, agent, order, path_points, start_rotation, save_root="./"):
@@ -97,11 +184,6 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
     scene_mesh_file = os.path.join(scene_dir, scene_id + ".basis" + ".glb")
     navmesh_file = os.path.join(scene_dir, scene_id + ".basis" + ".navmesh")
 
-    try:
-        simulator.close()
-    except:
-        pass
-
     sim_settings = {
         "scene": scene_mesh_file,
         "default_agent": 0,
@@ -147,13 +229,20 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
     trajectory[0]["is_key"] = False
     trajectory[0]["image_path"] = save_path
 
+    traj_length = 0
+
     # 初始位置到第一个关键点
-    path.requested_start = init_pos
-    path.requested_end = objs_data[-1]["pos"]
-    found_path = simulator.pathfinder.find_path(path)
-    path_points = path.points
-    print(f"Path found with {len(path.points)} points")
-    print(f"Path length: {path.geodesic_distance}")
+    path_points, path_length, real_goal = get_navigable_path_safe(simulator, init_pos, objs_data[-1]["pos"])
+    # path.requested_start = init_pos
+    # path.requested_end = nearest_point
+    # found_path = simulator.pathfinder.find_path(path)
+    # path_points = path.points
+    # traj_length += path.geodesic_distance
+    # print(f"Path found with {len(path.points)} points")
+    # print(f"Path length: {path.geodesic_distance}")
+    traj_length += path_length
+    print(f"Path found with {len(path_points)} points")
+    print(f"Path length: {path_length}")
     temp_traj = save_obs_on_path(simulator, agent, 0, path_points, start_rotation, save_root)
     trajectory.extend(temp_traj)
 
@@ -172,19 +261,22 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
             start_position = objs_data[i-1]["pos"]
             end_position = objs_data[i]["pos"]
 
-            path.requested_start = start_position
-            path.requested_end = end_position
+            path_points, path_length, real_goal = get_navigable_path_safe(simulator, start_position, end_position)
+            traj_length += path_length
+            # nearest_point = simulator.pathfinder.snap_point(end_position)
+            # path.requested_start = start_position
+            # path.requested_end = nearest_point
+            # # 计算最短路径
+            # found_path = simulator.pathfinder.find_path(path)
+            # traj_length += path.geodesic_distance
+            # if not found_path:
+            #     print("No valid path found between start and end positions!")
 
-            # 计算最短路径
-            found_path = simulator.pathfinder.find_path(path)
-            if not found_path:
-                print("No valid path found between start and end positions!")
+            # print(f"Path found with {len(path.points)} points")
+            # print(f"Path length: {path.geodesic_distance}")
 
-            print(f"Path found with {len(path.points)} points")
-            print(f"Path length: {path.geodesic_distance}")
-
-            # 使用 path.points 获取路径点
-            path_points = path.points
+            # # 使用 path.points 获取路径点
+            # path_points = path.points
 
             # 中间点图像
             temp_traj = save_obs_on_path(simulator, agent, i, path_points, start_rotation, save_root)
@@ -196,7 +288,13 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
             # # 复制到指定位置
             # subprocess.run(["cp", target_image, f"{i}-{end_name}-end.png"], check=True)
 
-    return trajectory
+    
+    try:
+        simulator.close()
+    except:
+        pass
+
+    return trajectory, traj_length
 
 
 if __name__ == "__main__":
@@ -215,35 +313,42 @@ if __name__ == "__main__":
 
     samples_trajectory = []
     for question_file in question_files:
-        question_cate = question_file.split("/")[-1].split(".")[0]
+        question_cate = question_file.split("/")[-2]
         csv_data = pd.read_csv(question_file)
         for index, row in csv_data.iterrows():
+            if index > 500:
+                break
             sample_trajectory = {}
-            if index == 0:
-                scene_id = row["scene_id"]
-                scene_dir = os.path.join(scene_root, row["scene_id"])
-                objs_data = objstr2list(row["locations"])
-                floor = list(floor_dict[scene_id.split("-")[-1]].keys()).index(str(row["floor_id"]))
-                init_info = init_dict[scene_id + f"_{floor}"]
 
-                start_position = np.array([init_info["init_x"], init_info["init_y"], init_info["init_z"]])
-                start_rotation = quat_to_coeffs(quat_from_angle_axis(init_info["init_angle"], np.array([0, 1, 0]))).tolist()
-                # start_rotation = quaternion.from_float_array(yaw_to_quaternion(init_info["init_angle"]))
+            question_id = short_uuid()
 
-                trajectory = get_sample_obs(scene_dir, objs_data, start_position, start_rotation, f"./data/EQA-Traj/{index}")
+            scene_id = row["scene_id"]
+            scene_dir = os.path.join(scene_root, row["scene_id"])
+            objs_data = objstr2list(row["locations"])
+            if objs_data is None:
+                continue
+            floor = list(floor_dict[scene_id.split("-")[-1]].keys()).index(str(row["floor_id"]))
+            init_info = init_dict[scene_id + f"_{floor}"]
 
-                sample_trajectory["sample_id"] = index
-                sample_trajectory["scene"] = scene_id
-                sample_trajectory["question"] = row["question"]
-                sample_trajectory["proposals"] = row["choices"]
-                sample_trajectory["answer"] = row["answers"]
-                sample_trajectory["question_type"] = row["label"] + "_" + question_cate
-                sample_trajectory["floor"] = row["floor_id"]
-                sample_trajectory["floor_index"] = floor
-                sample_trajectory["init_pos"] = [init_info["init_x"], init_info["init_y"], init_info["init_z"]]
-                sample_trajectory["init_rot"] = init_info["init_angle"]
-                sample_trajectory["related_objects"] = objs_data
-                sample_trajectory["trajectory"] = trajectory
+            start_position = np.array([init_info["init_x"], init_info["init_y"], init_info["init_z"]])
+            start_rotation = quat_to_coeffs(quat_from_angle_axis(init_info["init_angle"], np.array([0, 1, 0]))).tolist()
+            # start_rotation = quaternion.from_float_array(yaw_to_quaternion(init_info["init_angle"]))
+
+            trajectory, traj_length = get_sample_obs(scene_dir, objs_data, start_position, start_rotation, f"./data/EQA-Traj/{question_id}")
+
+            sample_trajectory["sample_id"] = question_id
+            sample_trajectory["scene"] = scene_id
+            sample_trajectory["question"] = row["question"]
+            sample_trajectory["proposals"] = eval(row["choices"])
+            sample_trajectory["answer"] = row["answers"]
+            sample_trajectory["question_type"] = question_cate + "_" + row["label"]
+            sample_trajectory["floor"] = row["floor_id"]
+            sample_trajectory["floor_index"] = floor
+            sample_trajectory["init_pos"] = [init_info["init_x"], init_info["init_y"], init_info["init_z"]]
+            sample_trajectory["init_rot"] = init_info["init_angle"]
+            sample_trajectory["related_objects"] = objs_data
+            sample_trajectory["traj_length"] = traj_length
+            sample_trajectory["trajectory"] = trajectory
 
             samples_trajectory.append(sample_trajectory)
 
