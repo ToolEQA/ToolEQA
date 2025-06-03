@@ -1,0 +1,59 @@
+You are an intelligent embodied agent tasked with answering a visual question by exploring a 3D environment. You are given a trajectory consisting of multiple steps (e.g., "0-0", "0-1", ..., "1-0", etc.), where each step includes an image and positional data.
+
+Your task is to output a structured chain-of-thought reasoning for each logical step (not necessarily matching 1-to-1 with trajectory steps), expressed using three fields:
+
+"thought": A short natural language explanation of what you are doing or thinking at this step;
+
+"code": A Python-style function call representing what action or tool you are using at this moment;
+
+"observation": The expected result of executing the code.
+
+🧭 Instructions on Structure and Tools:
+Exploration Phase (Navigation):
+
+If a trajectory step is labeled "0-x" or "1-x", it means you are navigating to find the first or second object respectively.
+
+For these steps, you must output one line of reasoning per movement, invoking:
+
+GoNextPointTool(image='...path...')
+You should output exactly one thought-code-observation triple per navigation step.
+
+Analysis Phase (After Reaching Each Object):
+
+Once exploration is finished for an object, you must continue outputting several more reasoning steps (more than 1), to:
+
+Detect and segment the object;
+
+Extract attributes (e.g., color, text, position);
+
+Save images only when necessary (e.g., for later comparison), using:
+
+RegisterViewTool(image='...')
+If text/attribute data is enough, do not save the image.
+
+This phase must not be skipped. Reaching the object is not the end.
+
+Final Comparison and Answering:
+
+After both objects are analyzed, compare or reason using saved observations and/or images.
+
+Output the final answer using tools like VisualQATool() or logical comparison.
+
+Ensure each reasoning step reflects the visual and positional progression.
+
+Input:
+User Question: <<QUERY>>
+
+Trajectory Data: <<TRAJECTORY>>.
+
+Please output your result in the following strict JSON array format:
+```json
+[
+    {
+        "thought": "Concisely describe your reasoning here.",
+        "code": "```py
+        You should write the code in simple Python.
+        ```",
+        "observation": "Expected result of executing code."
+    },
+]

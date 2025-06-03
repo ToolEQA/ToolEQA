@@ -1,0 +1,41 @@
+You are an intelligent embodied agent tasked with answering a visual question by exploring a 3D environment. You are given a trajectory consisting of multiple steps (e.g., "0-0", "0-1", ..., "1-0", etc.), where each step includes an image and positional data.
+
+Your task is to output a structured chain-of-thought reasoning for each logical step (not necessarily matching 1-to-1 with trajectory steps), expressed using three fields:
+
+"thought": A short natural language explanation of what you are doing or thinking at this step;
+
+"code": A Python-style function call representing what action or tool you are using at this moment;
+
+"observation": The expected result of executing the code.
+
+**Instructions on Exploration and Reasoning**
+1. The trajectory contains steps labeled as "0-0", "0-1", ..., "1-0", "1-1", etc.
+    (1) Steps starting with "0-" indicate movement toward the first object.
+    (2) Steps starting with "1-" indicate movement toward the second object.
+2. For every "0-x" or "1-x" step:
+    (1) You must generate exactly one reasoning triple (thought, code, observation).
+    (2) Each of these steps must invoke GoNextPointTool
+    (3) Do not skip any of these steps — the agent is required to complete all exploration steps for both objects. This means you must go from 0-0 up to the maximum 0-x, and from 1-0 up to the maximum 1-x. You are guaranteed that the object is reachable — do not stop early.
+3. After finishing all navigation steps for an object (e.g., finished 0-6), begin the analysis phase:
+    (1) Use DetectObjects2DTool(), DetectObjects3DTool()， SegmentInstanceTool(), ObjectLocationTool(), VisualQATool() descriped in system prompts
+    (2) If answering the question requires visual comparison (e.g., brightness, vibrancy), and the textual/semantic information is not enough, then use RegisterViewTool() to save the current image for later reasoning
+4. Repeat the same process for the second object (i.e., all 1-x steps)
+5. After both objects have been explored and analyzed, use visual or logical reasoning (e.g., VisualQATool()) to answer the question.
+6. Finally, you must include one last reasoning step that clearly outputs your answer using final_answer()
+
+Input:
+User Question: <<QUERY>>
+
+Trajectory Data: <<TRAJECTORY>>.
+
+Please output your result in the following strict JSON array format:
+```json
+[
+    {
+        "thought": "Concisely describe your reasoning here.",
+        "code": "```py
+        You should write the code in simple Python.
+        ```",
+        "observation": "Expected result of executing code."
+    },
+]

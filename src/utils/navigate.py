@@ -217,7 +217,10 @@ def draw_text_fill_region(image, text,
 
 def _quaternion_to_forward_vector(q):
     """将单位四元数转换为旋转后的前向向量 (-Z轴)"""
-    w, x, y, z = q.w, q.x, q.y, q.z
+    if isinstance(q, np.quaternion):
+        w, x, y, z = q.w, q.x, q.y, q.z
+    else:
+        w, x, y, z = q[0], q[1], q[2], q[3]
     # 初始前向向量 (0, 0, 1)
     vx = 2 * (x*z - w*y)
     vy = 2 * (y*z + w*x)
@@ -303,7 +306,7 @@ def path_to_actions(path, start_rotation, end_rotation, rotation_step=10, move_s
     actions = []
     if len(path) < 2:
         return actions
-    
+
     current_rot = start_rotation
     current_pos = np.array(path[0], dtype=np.float64)
     
@@ -554,4 +557,4 @@ if __name__ == "__main__":
     # 初始化代理
     agent = sim.initialize_agent(0)
 
-    navigation_video(sim, agent, pathes)
+    navigation_video(sim, agent, pathes, output_video=output_video)

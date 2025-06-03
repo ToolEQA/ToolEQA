@@ -21,7 +21,7 @@ def convert_image_to_base64(image):
     elif isinstance(image, str):
         return image
 
-def requests_api(images, prompt):
+def requests_api(images, prompt, system=None):
     image_urls = []
     for image in images:
         base64_image = convert_image_to_base64(image)
@@ -29,16 +29,16 @@ def requests_api(images, prompt):
     prompt = [{"type": "text", "text": prompt}]
     content = prompt + image_urls
 
+    messages = []
+    if system is not None:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": content})
+
     payload = json.dumps({
         "model": "gpt-4o-mini",
         "stream": False,
-        "messages": [
-            {
-                "role": "user",
-                "content": content
-            }
-        ],
-        "max_tokens": 400
+        "messages": messages,
+        "max_tokens": 8192
     })
     headers = {
         'Authorization': 'sk-lrenmYBYEOQH0rqv9rlMmoTaELkvZni1afswhr6be3tTN44S',

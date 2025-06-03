@@ -1,0 +1,18 @@
+Now, given images and corresponding information at each moment, each image provides a thought, a code, and an observation, exploring along the trajectory of the image and obtaining the final answer.
+
+1. User Query: <<QUERY>>
+2. Image Content: <<IMAGE_SEQUENCE>>
+
+where IMAGE_SEQUENCE is the RGB information during the exploration process, each image represents the state of a moment.
+Output MUST use the following json template to provide <<NUM_IMAGES>> thought, code and observation.
+```json
+[
+    {
+        "thought": "Concisely describe your reasoning here.",
+        "code": "```py
+        You should write the code in simple Python.
+        ```",
+        "observation": "Expected result of executing code."
+    }
+]
+```

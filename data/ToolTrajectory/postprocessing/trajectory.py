@@ -18,20 +18,48 @@ from habitat_sim.utils.common import quat_to_coeffs, quat_from_angle_axis
 import uuid
 import base64
 import random
+from src.utils.navigate import path_to_actions
+
+save_dir = "/mynvme1/EQA-Traj-new"
+
 
 def short_uuid():
     u = uuid.uuid4()
     return base64.urlsafe_b64encode(u.bytes).rstrip(b'=').decode('ascii')
 
-def two_points_direction(point, prior_point):
-    direction = point - prior_point
-    direction = direction / np.linalg.norm(direction)
-    horizontal_direction = np.array([direction[0], direction[2]])
-    yaw_rad = np.arctan2(horizontal_direction[0], horizontal_direction[1])
-    yaw_deg = np.degrees(yaw_rad)
+# def look_at(cur_point, target_point):
+#     direction = target_point - cur_point
+#     direction = direction / np.linalg.norm(direction)
+#     yaw_rad = np.arctan2(direction[2], direction[0])
+#     if yaw_rad < 0:
+#         print("reverse")
+#         yaw_rad += 2 * np.pi
 
-    rotation = quat_to_coeffs(quat_from_angle_axis(yaw_deg, np.array([0, 1, 0]))).tolist()
-    return rotation
+#     rotation = quat_to_coeffs(quat_from_angle_axis(yaw_rad, np.array([0, 1, 0]))).tolist()
+#     return rotation
+
+def look_at(cur_point, target_point):
+    """
+    计算从当前点到目标点的方向向量，并返回一个四元数表示的旋转。
+
+    参数：
+        cur_point: 当前点 [x, y, z]
+        target_point: 目标点 [x, y, z]
+
+    返回：
+        quaternion: 四元数表示的旋转
+    """
+    direction = np.array(target_point) - np.array(cur_point)
+    direction = direction / np.linalg.norm(direction)  # 归一化
+
+    forward_vector = np.array([0.0, 0.0, -1.0])
+    cos_theta = np.dot(forward_vector, direction)
+    cos_theta = np.clip(cos_theta, -1.0, 1.0)
+    angle_radians = np.arccos(cos_theta)
+    if direction[0] > 0:  # 如果目标在左侧（x坐标为负）
+        angle_radians += np.pi  # 转换为 [0, 2pi]
+
+    return quat_to_coeffs(quat_from_angle_axis(angle_radians, np.array([0, 1, 0]))).tolist()
 
 
 def get_navigable_path_safe(simulator, start_pos, goal_pos, verbose=False,
@@ -118,12 +146,14 @@ def objstr2list(objs_str):
             name = match.group('name').strip()
             id = match.group('id')
             pos = [float(p) for p in match.group('position').split(", ")]
-
+            if len(pos) != 3:
+                return None
             objs_data.append({
                 "name": name,
                 "id": int(id),
                 "pos": [pos[0], pos[2], -pos[1]],
             })
+
     if len(objs_list) == len(objs_data):
         return objs_data
     return None
@@ -132,26 +162,29 @@ def objstr2list(objs_str):
 def save_obs_on_path(sim, agent, order, path_points, start_rotation, save_root="./"):
     steps_data = []
     agent_state = habitat_sim.AgentState()
-    for i in range(len(path_points) - 1):
+    for i in range(len(path_points)):
         step_data = {}
-        # if i == len(path_points) - 1:
-        #     # 最后一个点使用终点旋转
-        #     cur_position = agent_state.position
-        #     end_rotation = two_points_direction(cur_position, path_points[i])
-        #     agent_state.position = path_points[i]
-        #     agent_state.rotation = end_rotation
-        if i == 0:
+        if i == len(path_points) - 1:
+            # 最后一个点使用终点旋转
+            cur_position = agent_state.position
+            start_rotation = look_at(cur_position, path_points[-1])
+            action = path_to_actions([cur_position, cur_position], agent_state.rotation, start_rotation)
+            agent_state.position = cur_position
+            agent_state.rotation = start_rotation
+        elif i == 0:
             # 第一个点使用起点旋转
             agent_state.position = path_points[i]
             agent_state.rotation = start_rotation
+            agent.set_state(agent_state)
             continue
         else:
             # 中间点的方向使用当前点和下一点之间的方向
             point = path_points[i]
-            prior_point = path_points[i + 1]
-            start_rotation = two_points_direction(point, prior_point)
+            target_point = path_points[i + 1]
+            start_rotation = look_at(point, target_point)
+            action = path_to_actions([agent_state.position, point], agent_state.rotation, start_rotation)
             # 设置代理状态
-            agent_state.position = path_points[i]
+            agent_state.position = point
             agent_state.rotation = start_rotation
 
         agent.set_state(agent_state)
@@ -165,7 +198,7 @@ def save_obs_on_path(sim, agent, order, path_points, start_rotation, save_root="
         step_data["thought"] = ""
         step_data["code"] = ""
         step_data["observation"] = ""
-        step_data["action"] = ""
+        step_data["action"] = action
         step_data["position"] = path_points[i].tolist()
         step_data["rotation"] = start_rotation
         step_data["is_key"] = True if i + 1 == len(path_points) - 1 else False
@@ -231,8 +264,9 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
 
     traj_length = 0
 
+    print(objs_data)
     # 初始位置到第一个关键点
-    path_points, path_length, real_goal = get_navigable_path_safe(simulator, init_pos, objs_data[-1]["pos"])
+    path_points, path_length, real_goal = get_navigable_path_safe(simulator, init_pos, objs_data[0]["pos"])
     # path.requested_start = init_pos
     # path.requested_end = nearest_point
     # found_path = simulator.pathfinder.find_path(path)
@@ -240,9 +274,11 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
     # traj_length += path.geodesic_distance
     # print(f"Path found with {len(path.points)} points")
     # print(f"Path length: {path.geodesic_distance}")
+
+    # print(f"Path found with {len(path_points)} points")
+    # print(f"Path length: {path_length}")
     traj_length += path_length
-    print(f"Path found with {len(path_points)} points")
-    print(f"Path length: {path_length}")
+    start_rotation = init_rot
     temp_traj = save_obs_on_path(simulator, agent, 0, path_points, start_rotation, save_root)
     trajectory.extend(temp_traj)
 
@@ -283,7 +319,7 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
             trajectory.extend(temp_traj)
 
             # # 保存终点位置obs
-            # target_image = get_image_from_id(scene_id_order, objs_data[i]["id"])[0]
+            # target_image = get_image_from_id(scene_id_order, objs_data[i]["id"])[1]
             # end_name = objs_data[i]["name"]
             # # 复制到指定位置
             # subprocess.run(["cp", target_image, f"{i}-{end_name}-end.png"], check=True)
@@ -299,7 +335,15 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
 
 if __name__ == "__main__":
     scene_root = "data/HM3D"
-    question_files = ["data/ToolTrajectory/questions/attribute/color.csv"]
+    question_files = ["data/ToolTrajectory/questions/final_question/attribute/color.csv",
+                      "data/ToolTrajectory/questions/final_question/attribute/size.csv",
+                      "data/ToolTrajectory/questions/final_question/attribute/special.csv",
+                      "data/ToolTrajectory/questions/final_question/counting/counting.csv",
+                      "data/ToolTrajectory/questions/final_question/distance/distance.csv",
+                      "data/ToolTrajectory/questions/final_question/location/location.csv",
+                      "data/ToolTrajectory/questions/final_question/location/special.csv",
+                      "data/ToolTrajectory/questions/final_question/relationship/relationship.csv",
+                      "data/ToolTrajectory/questions/final_question/status/status.csv"]
     init_file = "data/HM3D/scene_init_poses_with_floor.csv"
     floor_file = "data/HM3D/scene_floor_info.json"
 
@@ -312,12 +356,25 @@ if __name__ == "__main__":
         init_dict[row["scene_floor"]] = row
 
     samples_trajectory = []
+
+    if os.path.exists(os.path.join(save_dir, "trajectory.jsonl")):
+        with open(os.path.join(save_dir, "trajectory.jsonl"), "r", encoding='utf-8') as f:
+            samples_trajectory = [json.loads(line) for line in f]
+        print(f"已经生成了: {len(samples_trajectory)}. 现在继续生成...")
+
+    count = 0
     for question_file in question_files:
         question_cate = question_file.split("/")[-2]
+        question_sub_cat = question_file.split("/")[-1].split(".")[0]
+        # print(f"Processing {question_cate} - {question_sub_cat}...")
+        
         csv_data = pd.read_csv(question_file)
         for index, row in csv_data.iterrows():
-            if index > 500:
-                break
+            count += 1
+            if count < len(samples_trajectory):
+                continue
+            print(f"================== {count} ==================")
+
             sample_trajectory = {}
 
             question_id = short_uuid()
@@ -327,21 +384,32 @@ if __name__ == "__main__":
             objs_data = objstr2list(row["locations"])
             if objs_data is None:
                 continue
-            floor = list(floor_dict[scene_id.split("-")[-1]].keys()).index(str(row["floor_id"]))
+            try:
+                floor = list(floor_dict[scene_id.split("-")[-1]].keys()).index(str(row["floor_id"]))
+            except:
+                continue
+            if scene_id + f"_{floor}" not in init_dict.keys():
+                continue
             init_info = init_dict[scene_id + f"_{floor}"]
 
             start_position = np.array([init_info["init_x"], init_info["init_y"], init_info["init_z"]])
             start_rotation = quat_to_coeffs(quat_from_angle_axis(init_info["init_angle"], np.array([0, 1, 0]))).tolist()
             # start_rotation = quaternion.from_float_array(yaw_to_quaternion(init_info["init_angle"]))
 
-            trajectory, traj_length = get_sample_obs(scene_dir, objs_data, start_position, start_rotation, f"./data/EQA-Traj/{question_id}")
+            trajectory, traj_length = get_sample_obs(scene_dir, objs_data, start_position, start_rotation, os.path.join(save_dir, question_id))
+
+            print(scene_id)
+            print(traj_length)
+
+            if traj_length == float('inf'):
+                continue
 
             sample_trajectory["sample_id"] = question_id
             sample_trajectory["scene"] = scene_id
             sample_trajectory["question"] = row["question"]
             sample_trajectory["proposals"] = eval(row["choices"])
-            sample_trajectory["answer"] = row["answers"]
-            sample_trajectory["question_type"] = question_cate + "_" + row["label"]
+            sample_trajectory["answer"] = row["answer"]
+            sample_trajectory["question_type"] = f"{question_cate}-{question_sub_cat}"
             sample_trajectory["floor"] = row["floor_id"]
             sample_trajectory["floor_index"] = floor
             sample_trajectory["init_pos"] = [init_info["init_x"], init_info["init_y"], init_info["init_z"]]
@@ -352,8 +420,13 @@ if __name__ == "__main__":
 
             samples_trajectory.append(sample_trajectory)
 
+            # 保存最后的json
+            with open(os.path.join(save_dir, "trajectory.jsonl"), "a") as f:
+                json.dump(sample_trajectory, f)
+                f.write('\n')
+
     # 保存最后的json
-    with open("data/EQA-Traj/trajectory.json", "w") as f:
+    with open(os.path.join(save_dir, "trajectory.json"), "w") as f:
         json.dump(samples_trajectory, f, indent=4)
 
 
