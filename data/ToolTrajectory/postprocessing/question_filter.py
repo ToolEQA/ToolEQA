@@ -43,7 +43,7 @@ class Filter():
     def check_unique_cate(self, data):
         loc_str = str(data['locations'])
         categories = re.findall(r'\b([a-zA-Z_]+) \(.*?\d+\)', loc_str)
-        if len(categories) != len(set(categories)) and str(data.get('label', '')).strip() != 'counting':
+        if len(categories) != len(set(categories)) and str(data.get('label', '')).strip() not in ['counting', 'location']:
             return False
         return True
     
@@ -75,6 +75,9 @@ class Filter():
         return True
 
     def check_count(self, data):
+        if self.cur_type in ["location_location"]:
+            return True
+        
         loc_str = data['locations']
         if not isinstance(loc_str, str):
             return False
@@ -82,8 +85,6 @@ class Filter():
         if self.cur_type in ["counting_counting"]:
             if len(loc_list) > 5:
                 return False
-        if self.cur_type in ["location_location"]:
-            return True
         else:
             if len(loc_list) > 3:
                 return False
@@ -117,6 +118,13 @@ class Filter():
                 writer.writeheader()
                 writer.writerows(data)
 
+    def save_csv(self, root, data):
+        types = self.cur_type.split("_")
+        if not os.path.exists(os.path.join(root, types[0])):
+            os.mkdir(os.path.join(root, types[0]))
+        path = os.path.join(root, types[0], types[1] + ".csv")
+        self.write_csv(path, data)
+
     def filtering(self):
         org_data = 0
         all_data = 0
@@ -130,7 +138,11 @@ class Filter():
                 data = dict(row)
                 if self.check(data):
                     filtered_data.append(data) 
+            
+            # 保存筛选后的样本文件
             # self.write_csv(file + ".filtered", filtered_data)
+            self.save_csv("data/ToolTrajectory/questions/final_question", filtered_data)
+
             all_data += len(filtered_data)
             org_data += index+1
             print(file, index+1, len(filtered_data))
@@ -138,15 +150,15 @@ class Filter():
 
 if __name__=="__main__":
     files_path = [
-        "data/ToolTrajectory/questions/attribute/color.csv",
-        "data/ToolTrajectory/questions/attribute/size.csv",
-        "data/ToolTrajectory/questions/attribute/special.csv",
-        "data/ToolTrajectory/questions/counting/counting.csv",
-        "data/ToolTrajectory/questions/distance/distance.csv",
-        "data/ToolTrajectory/questions/location/location.csv",
-        "data/ToolTrajectory/questions/location/special.csv",
-        "data/ToolTrajectory/questions/relationship/relationship.csv",
-        "data/ToolTrajectory/questions/status/status.csv"
+        "data/ToolTrajectory/questions/raw_question/attribute/color.csv",
+        "data/ToolTrajectory/questions/raw_question/attribute/size.csv",
+        "data/ToolTrajectory/questions/raw_question/attribute/special.csv",
+        "data/ToolTrajectory/questions/raw_question/counting/counting.csv",
+        "data/ToolTrajectory/questions/raw_question/distance/distance.csv",
+        "data/ToolTrajectory/questions/raw_question/location/location.csv",
+        "data/ToolTrajectory/questions/raw_question/location/special.csv",
+        "data/ToolTrajectory/questions/raw_question/relationship/relationship.csv",
+        "data/ToolTrajectory/questions/raw_question/status/status.csv"
     ]
     filter = Filter(files_path)
     filter.filtering()
