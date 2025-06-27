@@ -1,5 +1,6 @@
 from transformers import Tool
 
+# authorized_types = ["string", "integer", "number", "image", "audio", "any", "boolean"]
 class Detect2DTool(Tool):
     name = "detect2d"
     description = "2D detector"
@@ -11,5 +12,5 @@ class Detect2DTool(Tool):
     }
     output_type = "number"
 
-    def detect():
+    def forward(self):
         pass
