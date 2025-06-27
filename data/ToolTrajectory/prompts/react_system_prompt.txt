@@ -32,15 +32,6 @@ print("The color of the sofa is ", color)
 Observation:
 The color of the sofa is purple.
 
-Thought: I noticed that the dishwasher is under the countertop next to the sink, and I need to obtain its color
-Code:
-```py
-color = VisualQAGPT4Tool("What is the color of the dishwasher in this image?", ".cache/view2.png")
-print("The color of the dishwasher is ", color)
-```<end_action>
-Observation:
-The color of the dishwasher is white.
-
 Thought: Now I know that the color of sofa and dishwasher. I think purple is more vibrant than white.
 Code:
 ```py
@@ -58,8 +49,8 @@ You also can perform computations in the Python code that you generate.
 Here are the rules you should always follow to solve your task:
 1. Always provide a 'Thought:' sequence, and a 'Code:\n```py' sequence ending with '```<end_action>' sequence, else you will fail.
 2. Use only variables that you have defined!
-3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = ask_search_agent({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = ask_search_agent(query="What is the place where James Bond lives?")'.
-4. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
+3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = final_answer({'answer': "Yes, it is."})', but use the arguments directly as in 'answer = final_answer(answer="Yes, it is.")'.
+4. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to vqa has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
 5. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
 6. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
 7. Never create any notional variables in our code, as having these in your logs might derail you from the true variables.

@@ -20,50 +20,41 @@ import base64
 import random
 from src.utils.navigate import path_to_actions
 
-save_dir = "/mynvme1/EQA-Traj-new"
+save_dir = "/mynvme1/EQA-Traj-0611"
 
 
 def short_uuid():
     u = uuid.uuid4()
     return base64.urlsafe_b64encode(u.bytes).rstrip(b'=').decode('ascii')
 
-# def look_at(cur_point, target_point):
-#     direction = target_point - cur_point
-#     direction = direction / np.linalg.norm(direction)
-#     yaw_rad = np.arctan2(direction[2], direction[0])
-#     if yaw_rad < 0:
-#         print("reverse")
-#         yaw_rad += 2 * np.pi
-
-#     rotation = quat_to_coeffs(quat_from_angle_axis(yaw_rad, np.array([0, 1, 0]))).tolist()
-#     return rotation
-
 def look_at(cur_point, target_point):
     """
-    计算从当前点到目标点的方向向量，并返回一个四元数表示的旋转。
-
-    参数：
-        cur_point: 当前点 [x, y, z]
-        target_point: 目标点 [x, y, z]
-
-    返回：
-        quaternion: 四元数表示的旋转
+        UP = Vector(0, 1, 0)
+        GRAVITY = Vector(-0, -1, -0)
+        FRONT = Vector(-0, -0, -1)
+        BACK = Vector(0, 0, 1)
+        LEFT = Vector(-1, 0, 0)
+        RIGHT = Vector(1, 0, 0)
     """
     direction = np.array(target_point) - np.array(cur_point)
     direction = direction / np.linalg.norm(direction)  # 归一化
 
-    forward_vector = np.array([0.0, 0.0, -1.0])
-    cos_theta = np.dot(forward_vector, direction)
-    cos_theta = np.clip(cos_theta, -1.0, 1.0)
-    angle_radians = np.arccos(cos_theta)
-    if direction[0] > 0:  # 如果目标在左侧（x坐标为负）
-        angle_radians += np.pi  # 转换为 [0, 2pi]
+    angle_radians = np.arctan2(direction[0], direction[2]) # x/z 平面上的角度 [-pi, pi]
+    angle_radians += np.pi # [0, 2*pi]
+
+    # forward_vector = np.array([0.0, 0.0, -1.0])
+    # cos_theta = np.dot(forward_vector, direction)
+    # cos_theta = np.clip(cos_theta, -1.0, 1.0)
+    # angle_radians = np.arccos(cos_theta) # [0, pi]
+    # cross_product = np.cross(forward_vector, direction)
+    # if cross_product[1] < 0:  # 如果目标在左侧（x坐标为负）
+    #     angle_radians += np.pi  # 转换为 [0, 2pi]
 
     return quat_to_coeffs(quat_from_angle_axis(angle_radians, np.array([0, 1, 0]))).tolist()
 
 
 def get_navigable_path_safe(simulator, start_pos, goal_pos, verbose=False,
-                            search_radius=3, sample_count=200):
+                            search_radius=0.5, sample_count=100):
     """
     尝试从起点到终点规划路径，如果失败则在终点周围采样多个点寻找可达路径。
 
@@ -171,6 +162,7 @@ def save_obs_on_path(sim, agent, order, path_points, start_rotation, save_root="
             action = path_to_actions([cur_position, cur_position], agent_state.rotation, start_rotation)
             agent_state.position = cur_position
             agent_state.rotation = start_rotation
+            agent.set_state(agent_state)
         elif i == 0:
             # 第一个点使用起点旋转
             agent_state.position = path_points[i]
@@ -186,8 +178,7 @@ def save_obs_on_path(sim, agent, order, path_points, start_rotation, save_root="
             # 设置代理状态
             agent_state.position = point
             agent_state.rotation = start_rotation
-
-        agent.set_state(agent_state)
+            agent.set_state(agent_state)
 
         obs = sim.get_sensor_observations()
         save_path = os.path.join(save_root, f"{order}-{i}.png")
@@ -266,18 +257,21 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
 
     print(objs_data)
     # 初始位置到第一个关键点
-    path_points, path_length, real_goal = get_navigable_path_safe(simulator, init_pos, objs_data[0]["pos"])
-    # path.requested_start = init_pos
-    # path.requested_end = nearest_point
-    # found_path = simulator.pathfinder.find_path(path)
-    # path_points = path.points
-    # traj_length += path.geodesic_distance
-    # print(f"Path found with {len(path.points)} points")
-    # print(f"Path length: {path.geodesic_distance}")
+    # path_points, path_length, real_goal = get_navigable_path_safe(simulator, init_pos, objs_data[0]["pos"])
+    # traj_length += path_length
+    # print(path_points)
+
+    path.requested_start = init_pos
+    path.requested_end = objs_data[0]["pos"]
+    found_path = simulator.pathfinder.find_path(path)
+    path_points = path.points
+    traj_length += path.geodesic_distance
+    print(f"Path found with {len(path.points)} points")
+    print(f"Path length: {path.geodesic_distance}")
 
     # print(f"Path found with {len(path_points)} points")
     # print(f"Path length: {path_length}")
-    traj_length += path_length
+
     start_rotation = init_rot
     temp_traj = save_obs_on_path(simulator, agent, 0, path_points, start_rotation, save_root)
     trajectory.extend(temp_traj)
@@ -290,41 +284,42 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
     #     target_image = target_image[0]
     # end_name = objs_data[0]["name"]
     # # 复制到指定位置
-    # subprocess.run(["cp", target_image, f"{0}-{end_name}-end.png"], check=True)
+    # subprocess.run(["cp", target_image, f"{save_dir}/{0}-{end_name}-end.png"], check=True)
 
     if len(objs_data) > 1:
         for i in range(1, len(objs_data)):
             start_position = objs_data[i-1]["pos"]
             end_position = objs_data[i]["pos"]
 
-            path_points, path_length, real_goal = get_navigable_path_safe(simulator, start_position, end_position)
-            traj_length += path_length
-            # nearest_point = simulator.pathfinder.snap_point(end_position)
-            # path.requested_start = start_position
-            # path.requested_end = nearest_point
-            # # 计算最短路径
-            # found_path = simulator.pathfinder.find_path(path)
-            # traj_length += path.geodesic_distance
-            # if not found_path:
-            #     print("No valid path found between start and end positions!")
+            # path_points, path_length, real_goal = get_navigable_path_safe(simulator, start_position, end_position)
+            # print(path_points)
+            # traj_length += path_length
+            
+            nearest_point = simulator.pathfinder.snap_point(end_position)
+            path.requested_start = start_position
+            path.requested_end = nearest_point
+            # 计算最短路径
+            found_path = simulator.pathfinder.find_path(path)
+            traj_length += path.geodesic_distance
+            if not found_path:
+                print("No valid path found between start and end positions!")
 
-            # print(f"Path found with {len(path.points)} points")
-            # print(f"Path length: {path.geodesic_distance}")
+            print(f"Path found with {len(path.points)} points")
+            print(f"Path length: {path.geodesic_distance}")
 
-            # # 使用 path.points 获取路径点
-            # path_points = path.points
+            # 使用 path.points 获取路径点
+            path_points = path.points
 
             # 中间点图像
             temp_traj = save_obs_on_path(simulator, agent, i, path_points, start_rotation, save_root)
             trajectory.extend(temp_traj)
 
             # # 保存终点位置obs
-            # target_image = get_image_from_id(scene_id_order, objs_data[i]["id"])[1]
+            # target_image = get_image_from_id(scene_id_order, objs_data[i]["id"])[0]
             # end_name = objs_data[i]["name"]
             # # 复制到指定位置
-            # subprocess.run(["cp", target_image, f"{i}-{end_name}-end.png"], check=True)
+            # subprocess.run(["cp", target_image, f"{save_dir}/{i}-{end_name}-end.png"], check=True)
 
-    
     try:
         simulator.close()
     except:
@@ -335,15 +330,17 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
 
 if __name__ == "__main__":
     scene_root = "data/HM3D"
-    question_files = ["data/ToolTrajectory/questions/final_question/attribute/color.csv",
-                      "data/ToolTrajectory/questions/final_question/attribute/size.csv",
-                      "data/ToolTrajectory/questions/final_question/attribute/special.csv",
-                      "data/ToolTrajectory/questions/final_question/counting/counting.csv",
-                      "data/ToolTrajectory/questions/final_question/distance/distance.csv",
-                      "data/ToolTrajectory/questions/final_question/location/location.csv",
-                      "data/ToolTrajectory/questions/final_question/location/special.csv",
-                      "data/ToolTrajectory/questions/final_question/relationship/relationship.csv",
-                      "data/ToolTrajectory/questions/final_question/status/status.csv"]
+    question_files = [
+        "data/ToolTrajectory/questions/final_question/attribute/color.csv",
+        "data/ToolTrajectory/questions/final_question/attribute/size.csv",
+        "data/ToolTrajectory/questions/final_question/attribute/special.csv",
+        "data/ToolTrajectory/questions/final_question/counting/counting.csv",
+        "data/ToolTrajectory/questions/final_question/distance/distance.csv",
+        "data/ToolTrajectory/questions/final_question/location/location.csv",
+        "data/ToolTrajectory/questions/final_question/location/special.csv",
+        "data/ToolTrajectory/questions/final_question/relationship/relationship.csv",
+        "data/ToolTrajectory/questions/final_question/status/status.csv"
+    ]
     init_file = "data/HM3D/scene_init_poses_with_floor.csv"
     floor_file = "data/HM3D/scene_floor_info.json"
 
@@ -373,11 +370,11 @@ if __name__ == "__main__":
             count += 1
             if count < len(samples_trajectory):
                 continue
-            print(f"================== {count} ==================")
 
             sample_trajectory = {}
 
             question_id = short_uuid()
+            print(f"================== {count}: {question_id} ==================")
 
             scene_id = row["scene_id"]
             scene_dir = os.path.join(scene_root, row["scene_id"])

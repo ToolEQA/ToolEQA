@@ -13,15 +13,15 @@ from transformers.agents.tools import get_tool_description_with_args
 
 def get_tool_box():
     MODEL_TOOLBOX = [
-        VQATool(),
-        Detect2DTool(),
-        Detect3DTool(),
-        GoNextPointTool(),
-        ObjectLocationTool(),
-        QueryObjectInfoTool(),
-        RigisterViewTool(),
-        SegTool(),
-        FinalAnswerTool(),
+        # VQATool(),
+        # Detect2DTool(),
+        # Detect3DTool(),
+        # GoNextPointTool(),
+        # ObjectLocationTool(),
+        # QueryObjectInfoTool(),
+        # RigisterViewTool(),
+        # SegTool(),
+        # FinalAnswerTool(),
     ]
     return MODEL_TOOLBOX
 
