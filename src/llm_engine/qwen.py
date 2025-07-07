@@ -4,7 +4,7 @@ import re
 import torch
 from PIL import Image
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoProcessor
-from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor
+from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
 from qwen_vl_utils import process_vision_info
 from openai import OpenAI
@@ -15,11 +15,11 @@ def load_pretrained_model(model_name):
     torch.manual_seed(0)
     print("from pretrained", model_name)
     if "VL" in model_name:
-        model = Qwen2VLForConditionalGeneration.from_pretrained(
+        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             model_name, 
             torch_dtype="auto", 
             device_map="auto",
-            # attn_implementation="flash_attention_2",
+            attn_implementation="flash_attention_2",
         )
         processor = AutoProcessor.from_pretrained(model_name)
         return model, processor
@@ -116,7 +116,7 @@ class QwenEngine(HfApiEngine):
         return response.choices[0].message.content
 
     def call_vlm(self, messages, stop_sequences=[], *args, **kwargs):
-        print("call vlm")
+        # print("call vlm")
         assert self.has_vision, "Should use this function with Qwen VL model"
         image_paths = kwargs.get("image_paths", [])
         for msg_id, msg in enumerate(messages):
@@ -136,7 +136,7 @@ class QwenEngine(HfApiEngine):
                     "content": content_replace
                 }
                 break
-        print("msg=", messages)
+        # print("msg=", messages)
         text = self.processor.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True
         )

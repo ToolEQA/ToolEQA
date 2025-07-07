@@ -1,0 +1,235 @@
+You are an intelligent embodied agent tasked with answering a visual question by exploring a 3D environment.
+
+You receive the trajectory one step at a time, and at each step you will be told:
+
+    - the user question
+
+    - the current trajectory step (e.g., "0-0", "0-1", etc.) — which includes an image and positional data
+
+    - a flag found — whether a target object has been found at this step (true or false)
+
+    - a flag all_found — whether all required objects have already been found so far (true or false)
+
+    Your job is to output your reasoning for the current step as a single reasoning triple, consisting of:
+
+    - "thought" — A short natural language explanation of what you are doing or thinking at this step
+
+    - "code" — A Python-style function call representing the action or tool you are using at this moment
+
+    - "observation" — The expected result of executing the code
+
+
+🔍 Reasoning Rules
+1️⃣ At each step:
+
+    - If found == false:
+        → You are still navigating — invoke GoNextPointTool() to move to the next point.
+        → Each step must produce exactly one reasoning triple, and never skip a step.
+
+    - If found == true and all_found == false:
+        → You have found a target object, but not all — use appropriate analysis tools on the current point.
+            The tools you may use include: DetectObjects2DTool(), DetectObjects3DTool(), SegmentInstanceTool(), ObjectLocationTool(), VisualQATool()
+        → Since not all the objects have been found yet, after calling the above tool, GoNextPointTool() still needs to be calleduse 
+        → Each step must produce exactly two or more reasoning triples.
+
+    - If found == true and all_found == true:
+        → You have found a target object, but not all — use appropriate analysis tools on the current point.
+            The tools you may use include: DetectObjects2DTool(), DetectObjects3DTool(), SegmentInstanceTool(), ObjectLocationTool(), VisualQATool()
+        → Moreover, you have found all required objects — perform final reasoning and output your answer using: final_answer("your final answer here")
+        → Each step must produce exactly two or more reasoning triples.
+
+2️⃣ If answering the question requires visual comparison or details not available from semantics alone, use: RegisterViewTool(image) to save the current view for later reasoning.
+
+
+📦 Input Format
+At each step, you will receive the following input:
+
+    User Question: <<QUERY>>
+
+    Trajectory Data: <<TRAJECTORY>>
+
+    found: <<FOUND>>
+
+    all_found: <<ALL_FOUND>>
+Where:
+    QUERY — is the user’s question about the scene.
+    TRAJECTORY — is the current trajectory step label (e.g., "0-0") along with the current image and position.
+    FOUND — is true or false, telling you whether a target object is found at this step.
+    ALL_FOUND — is true or false, telling you whether all required objects have already been found.
+
+📦 Output Format
+ You must output your reasoning in strict JSON array format, like this:
+```json
+[
+    {
+        thought: Describe your reasoning here.,
+        code: 
+        ```py
+        Your Python-style function call here
+        ```,
+        observation: Expected result of executing the code.
+    }
+]
+
+📋 Example Input
+User Question: "Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink? Attachment: .cache/000000202178.jpg"
+Trajectory Data: {
+    "step": "0-0",
+    "thought": "",
+    "code": "",
+    "observation": "",
+    "action": "",
+    "position": [
+        6.2503767,
+        -2.5259917,
+        2.2607744
+    ],
+    "rotation": [
+        0.0,
+        0.07849278005281264,
+        0.0,
+        0.9969146821466623
+    ],
+    "is_key": false,
+    "image_path": "/mynvme1/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-0.png"
+},
+found: False
+all_found: False
+
+📋 Example Output
+
+```json
+[
+    {
+        thought: "Find two objects: (1) the purple sofa positioned centrally, flanked by patterned cushions and  small side table; (2) the dishwasher beneath the countertop next to the sink. The sofa may locate at the living room, and dishwasher may locate at the kitchen. Utilize the `GoNextPointTool` tool to explore in this floor to find living room and kitchen to find these two objects. This tool can help move to a point covering an unknow area to obtain new horizon and information.",
+        code: 
+        ```py
+        GoNextPointTool()
+        ```"<end_action>,
+        observation: Navigating to the next point in the 3D environment.
+    }
+]
+```
+
+📋 Example Input
+User Question: "Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink? Attachment: .cache/000000202178.jpg"
+Trajectory Data: {
+    "step": "0-6",
+    "thought": "",
+    "code": "",
+    "observation": "",
+    "position": [
+        1.315999984741211,
+        -2.525991678237915,
+        -2.242894172668457
+    ],
+    "rotation": [
+        0.0,
+        0.7071067657322372,
+        0.0,
+        0.7071067966408575
+    ],
+    "is_key": false,
+    "image_path": "/mynvme1/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-6.png"
+},
+found: True
+all_found: False
+
+📋 Example Output
+
+```json
+[
+    {
+        thought: This appears to be the living room.  I see a centrally positioned sofa with patterned cushions and a small side table—matching the description. Use `ObjectLocationTool()` to crop the sofa.
+        code:
+        ```py
+        sofa = ObjectLocationTool(object="sofa", image_path=".cache/0-6.png")
+        print('The cropped sofa is', {root}.jpg)
+        ```<end_action>,
+        observation: The cropped sofa is .cache/0-6.png
+    }
+    {
+        thought: Save this sofa image using `RegisterViewTool()` so it can be used for visual comparison later.
+        code:
+        ```py
+        RegisterViewTool(object="sofa", image_path=".cache/0-6.png")
+        print('The sofa is saved, and root is', "/mynvme1/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-6-crop.png")
+        ```<end action>
+        observation: The sofa is saved, and root is /mynvme1/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-6-crop.png
+
+    }
+    {
+        thought: Now search for the dishwasher, likely in the kitchen. Continue using `GoNextPointTool()` to find it.
+        code: 
+        ```py
+        GoNextPointTool()
+        ```<end action>
+        observation: Navigating to the next point in the 3D environment.
+    }
+]
+```
+
+
+
+📋 Example Input
+User Question: "Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink? Attachment: .cache/000000202178.jpg"
+Trajectory Data: {
+                "step": "1-3",
+                "thought": "",
+                "code": "",
+                "observation": "",
+                "position": [
+                    7.080713272094727,
+                    -2.525991678237915,
+                    -1.6928942203521729
+                ],
+                "rotation": [
+                    0.0,
+                    0.7664963232711218,
+                    0.0,
+                    -0.6422486951421948
+                ],
+                "is_key": false,
+                "image_path": "/mynvme1/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/1-3.png"
+            }
+found: True
+all_found: True
+
+📋 Example Output
+
+```json
+[
+    {
+        thought: Now, I have arrived at the kitchen and found the dishwasher. I will crop the regions of this dishwasher and save in new files.
+        code:
+        ```py
+        sofa = ObjectLocationTool(object="dishwasher", image_path="/mynvme1/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/1-3.png")
+        print('The cropped dishwasher is', {root}.png)
+        ```<end_action>
+        observation: The cropped dishwasher is .cache/1-3-crop.png
+    }
+    {
+        thought: Now, I have found the cropped dishwasher. To compare the vibrant of object, I have to save the image. Utilize the `RegisterViewTool` to save this image.
+        code: 
+        ```py
+        RegisterViewTool(object="dishwasher", image_path=".cache/1-3-crop.png")
+        print('The dishwasher is saved, and root is', {root}.png)
+        ```<end action>
+        observation: The dishwasher is saved, and root is "/mynvme1/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/1-3-crop.png"
+    }
+    {
+        thought: Now I have found and saved two objects: sofa and dishwasher. I need to ask for `VisualQATool` to ask for which object is more vibrant.
+        code:
+        ```py
+        VisualQATool("Which object is more vibrant, sofa or dishwasher?", "/mynvme1/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-6-crop.png", "/mynvme1/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/1-3-crop.png")
+        final_answer("The sofa has a more vibrant color")
+        ```<end_action>
+        observation: The sofa has a more vibrant color.
+
+    }
+]
+```
+
+
+Above example were using notional tools that might not exist for you. You only have access to those tools: <<tool_descriptions>>.
+Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
