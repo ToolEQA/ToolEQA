@@ -298,6 +298,7 @@ def main(cfg, gpu_id, gpu_index, gpu_count):
                         )
                     )
                     plt.close()
+                exit()
 
                 # Visual prompting
                 draw_letters = ["A", "B", "C", "D"]  # always four
@@ -520,7 +521,7 @@ if __name__ == "__main__":
 
     # Parse arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("-cfg", "--cfg_file", help="cfg file path", default="cfg/vlm_exp_ov.yaml", type=str)
+    parser.add_argument("-cfg", "--cfg_file", help="cfg file path", default="config/vlm_exp_ov.yaml", type=str)
     parser.add_argument("-gpus", "--gpu_ids", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="0")
     args = parser.parse_args()
 

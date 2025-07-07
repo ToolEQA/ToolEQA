@@ -2,16 +2,16 @@
 seed: 42
 exp_name: MT-HM3D
 output_parent_dir: results/explore-eqa
-question_data_path: ./data/HM-EQA/questions.csv
-init_pose_data_path: ./data/HM-EQA/scene_init_poses.csv
-scene_data_path: ./data/HM3D
+question_data_path: ./data/EQA-Traj-0611/trajectory.json
+scene_data_path: [./data/HM3D]
+output_dir: ./results
 save_obs: true
 save_freq: 20
 
 # Question answering
 vlm:
   device: 'cuda'
-  model_name_or_path: /mynvme0/models/Qwen2-VL/Qwen2-VL-2B-Instruct
+  model_name_or_path: /mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct
 
 # Camera, image
 camera_height: 1.5

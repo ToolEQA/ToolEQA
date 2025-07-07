@@ -70,6 +70,7 @@ class EQAReactAgent(ReactCodeAgent):
                 if self.planning_interval is not None and iteration % self.planning_interval == 0:
                     self.planning_step(task, is_first_step=(iteration == 0), iteration=iteration)
                 step_logs = self.step()
+                import pdb; pdb.set_trace()
                 if "final_answer" in step_logs:
                     final_answer = step_logs["final_answer"]
             except AgentError as e:
@@ -78,7 +79,6 @@ class EQAReactAgent(ReactCodeAgent):
                 error_count += 1
             finally:
                 iteration += 1
-        print(final_answer)
 
         if final_answer is None and iteration == self.max_iterations:
             error_message = "Reached max iterations."
@@ -171,12 +171,28 @@ class EQAReactAgent(ReactCodeAgent):
                 self.logger.log(32, result)
                 current_step_logs["final_answer"] = result
         return current_step_logs
-    
+
+    def run(self, task: str, image_path: str = None, stream: bool = False, reset: bool = True, **kwargs):
+        if image_path is not None:
+            self.set_image_path(image_path)
+
+        self.task = task
+        if len(kwargs) > 0:
+            self.task += f"\nYou have been provided with these initial arguments: {str(kwargs)}."
+        self.state = kwargs.copy()
+        if reset:
+            self.initialize_for_run()
+        else:
+            self.logs.append({"task": task})
+
+        return self.direct_run(task)
+
 
 if __name__=="__main__":
     system_prompt = open("data/ToolTrajectory/prompts/react_system_prompt.txt", "r").read()
     eqa_react_agent = EQAReactAgent(get_tool_box(),
-                  QwenEngine("/mynvme0/models/Qwen2-VL/Qwen2-VL-7B-Instruct/"),
+                  QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct"),
                   system_prompt,
                   )
-    print(eqa_react_agent.run("如何使用微波炉？"))
+
+    eqa_react_agent.run("Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink?")
