@@ -2,7 +2,7 @@ from transformers import Tool
 from src.runs.eqa_modeling import EQA_Modeling
 
 class GoNextPointTool(Tool):
-    name = "go_next_point"
+    name = "GoNextPointTool"
     description = "the agent conitnue explore next point and obtain next observation (rgb image)."
     inputs = {
         "query": {

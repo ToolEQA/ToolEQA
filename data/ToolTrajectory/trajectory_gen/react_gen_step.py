@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from data.ToolTrajectory.generator_deerapi import requests_api
 from src.tools.tool_box import get_tool_box, show_tool_descriptions
+import re
 
 def load_data(path):
     data_list = []
@@ -20,6 +21,53 @@ def get_prompt(path):
     with open(path, "r", encoding="utf-8") as file:
         prompt = file.read()
     return prompt
+
+def parse_blocks(response_text, filename="output.json"):
+    """
+    把 response 文本按 block 提取成合法 dict 列表，并保存为 json。
+    """
+    results = []
+
+    # 去掉外层 ```json 和 ```
+    response_text = re.sub(r"^```json", "", response_text.strip(), flags=re.MULTILINE)
+    response_text = re.sub(r"```$", "", response_text.strip(), flags=re.MULTILINE).strip()
+
+    # 切出每个对象块，用大括号对齐
+    blocks = re.findall(r"\{(.*?)\}", response_text, re.DOTALL)
+
+    for block in blocks:
+        item = {}
+
+        # thought
+        m = re.search(r'"thought"\s*:\s*"([^"]+)"', block)
+        if m:
+            item['thought'] = m.group(1)
+
+        # code
+        m = re.search(r'"code"\s*:\s*"([^`]+)`*', block, re.DOTALL)
+        if m:
+            code_content = m.group(1)
+            # 清理多余的 ```py 和 ```
+            code_content = code_content.replace("```py", "").replace("```", "").strip()
+            item['code'] = code_content
+
+        # observation
+        m = re.search(r'"observation"\s*:\s*"([^"]+)"', block, re.DOTALL)
+        if m:
+            item['observation'] = m.group(1)
+
+        if item:
+            results.append(item)
+        
+        print(results)
+
+    # 保存成 json 文件
+    # with open(filename, "w", encoding="utf-8") as f:
+    #     json.dump(results, f, indent=4, ensure_ascii=False)
+
+    # print(f"✅ 已保存到 {filename}")
+    # return results
+
 
 
 
@@ -91,22 +139,27 @@ def gen_react(data_path, system_prompt_path, user_prompt_path):
                 # print('=================================================Current Step:' + step_i +'==============================================================')
 
 
-
-        # images = [os.path.join("/mynvme1/EQA-Traj", item["image_path"]) for item in traj]
-        # print(len(images), images)
-
-        # user_prompt = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj))#.replace("<<ANSWER>>", answer)
-        # print("============================")
-        # print(user_prompt)
-        # print(choices, answer)
-        # print("============================")
-        # response = requests_api(images, user_prompt, system_prompt)
-        # print(response["choices"][0]["message"]["content"])
-        # exit()
-
 if __name__=="__main__":
     system_prompt_path = "/home/zml/algorithm/ReactEQA/data/ToolTrajectory/prompts/trajectory/system_prompt.txt"
-    user_prompt_path = "/home/zml/algorithm/ReactEQA/data/ToolTrajectory/prompts/trajectory/user_prompt_step_2.txt"
+    user_prompt_path = "/home/zml/algorithm/ReactEQA/data/ToolTrajectory/prompts/trajectory/user_prompt_step_3.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
     data_path = "data.json"
-    gen_react(data_path, system_prompt_path, user_prompt_path)
+    # gen_react(data_path, system_prompt_path, user_prompt_path)
+
+    response_text = "[
+        {
+            "thought": "I have found the required target object and all required objects are fully processed",
+            "code": "objectLocation2D(object='radiator', image, path=' /mynvme1/EQA-Traj-0611/vtuutd1bQeKK7KJaCHD9yw/1')",
+            "observation": "The bounding box of the radiator is [x,y,z].",
+        },
+        {
+            "thought": "Now I need to crop and save the radiator's region for further analysis.",
+            "code": "objectcrop(bounding, box = [x,y,z],image_ path='/mynvme1/EQA-Traj-0611/vtuutd1bgeKK7KJaCHD9yw/1-6.')",
+            "observation": "cropped radiator saved at /mynvme1/E0A-Traj-0611/vtuutd1bgekK7KJaCHD9yw/radiator-rop.png",
+        }
+    ]
+
+    parse_blocks(response_text)
+
+
+
