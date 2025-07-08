@@ -1,7 +1,7 @@
 from transformers import Tool
 
-class VQATool(Tool):
-    name = "vqa"
+class VisualQATool(Tool):
+    name = "VisualQATool"
     description = "A tool that can answer questions about attached images."
     inputs = {
         "question": {"description": "the question to answer", "type": "string"},

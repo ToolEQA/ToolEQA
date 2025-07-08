@@ -35,7 +35,6 @@ from src.utils.habitat import (
 )
 from src.utils.navigate import navigation_video
 from src.utils.geom import get_cam_intr, get_scene_bnds
-from src.vlm.vlm import VLM
 from src.planner.tsdf import TSDFPlanner
 from src.llm_engine.qwen import QwenEngine
 from omegaconf import OmegaConf
@@ -51,35 +50,14 @@ class EQA_Modeling():
         self.img_height = cfg.img_height
         self.img_width = cfg.img_width
         self.cam_intr = get_cam_intr(cfg.hfov, self.img_height, self.img_width)
-        # self.cur_rgb = None
-        # self.cur_depth = None
 
-        # # simulator
-        # self.simulator = None
-        # self.planner = None
-        # self.agent = None
-        # self.agent_state = None
-        # self.pathfinder = None
-        
         # vlm
         self.vlm_question = ""
         self.vlm_pred_candidates = ["A", "B", "C", "D"]
 
-        # scene
-        # self.tsdf_bnds = None
-        # self.scene_size = None
-        # self.floor_height = 0.0
-
         # state
         self.max_step = 0
         self.cur_step = 0
-        # self.cur_angle = None
-        # self.pts_pixs = None
-        # self.pts_normal = None
-        # self.cam_pose_tsdf = None
-
-        # path
-        # self.episode_data_dir = ""
 
         # Load dataset
         with open(cfg.question_data_path) as f:

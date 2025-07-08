@@ -1,7 +1,7 @@
 from transformers import Tool
 
-class SegTool(Tool):
-    name = "segmentation"
+class SegmentInstanceTool(Tool):
+    name = "SegmentInstanceTool"
     description = "A tool that can do instance segmentation on the given image."
     inputs = {
         "image_path": {
@@ -14,3 +14,6 @@ class SegTool(Tool):
         },
     }
     output_type = "string"
+
+    def forward(self, image_path: str, prompt: str) -> str:
+        pass

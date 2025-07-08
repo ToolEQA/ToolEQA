@@ -37,19 +37,16 @@ You have found a target object, but not all required objects yet.
 
 Actions (in order):
 1️⃣ Use at least one appropriate analysis tool (from the list below) to identify and locate the found target object.
-2️⃣ After locating it, you must crop its region and save it using ObjectLocationTool() or similar.
-3️⃣ Then, register the saved view with RegisterViewTool() for later comparison.
-4️⃣ Finally, you must still call GoNextPointTool() to continue exploring.
+2️⃣ After locating it, you must crop its region and save it using ObjectCrop() or similar.
+3️⃣ Finally, you must still call GoNextPointTool() to continue exploring.
 
 Output:
 
 At least three reasoning triples, in this order:
 
- - analyze/detect the target object.
+ - analyze/locate the target object.
 
  - crop & save the object view.
-
- - register the saved view.
 
  - navigate to the next point.
 
@@ -58,20 +55,19 @@ You have now found all required objects. Since this is the final required object
 
 Actions (in order):
 1️⃣ Process the current object at this location:
-    - Use an appropriate analysis tool (e.g., DetectObjects3DTool(), DetectObjects2DTool(), SegmentInstanceTool(), etc.) to identify and locate the current target object at this point.
-    - Then crop and save the object view using ObjectLocationTool().
-    - Then register the cropped view using RegisterViewTool().
-    - Make sure you only perform these steps **once** for this object (do not repeat if already processed in <<previous_thought>>).
+    - Use an appropriate analysis tool (e.g., ObjectLocation3D(), ObjectLocation2D(), SegmentInstanceTool(), etc.) to identify and locate the current target object at this point.
+    - Then crop and save the object view using ObjectCrop().
+    - Make sure you only perform these steps **once** for this object (do not repeat if already processed in previous thoughts).
 
 2️⃣ Review the previous reasoning and actions:
-    - Read previous_thought <<previous_thought>>, which contains a summary of all previously detected, cropped, and registered objects.
+    - Read previous_thoughs, which contains a summary of all previously loacted, cropped, and registered objects.
         - previous_thoughts are <<previous_thought>>
-    - Confirm that after completing the current object, **all required target objects have been found, cropped, and registered.**
+    - Confirm that after completing the current object, **all required target objects have been found, cropped, and saved.**
     - ⚠️ Note: all required target objects have already been found and this current object completes the set.  
     - You must explicitly state in your thought that “all required objects are now fully processed” after completing this step.
 
 3️⃣ Decide whether you now have sufficient information to answer the user question:
-    - Since all objects have now been detected, cropped, and registered, you **do have sufficient information.**
+    - Since all objects have now been located, cropped, and saved, you **do have sufficient information.**
     - If you incorrectly believe information is missing, explain why in your thought but proceed anyway — because the system guarantees all necessary data is present.
 
 4️⃣ Answer the question:
@@ -83,11 +79,9 @@ Output:
 
 At least four reasoning triples, in this order:
 
- - analyze/detect the target object.
+ - analyze/locate the target object.
 
- - crop & save the final object view.
-
- - register the saved view.
+ - crop & save the object view.
 
  - use VisualQATool() to compare.
 
@@ -95,8 +89,7 @@ At least four reasoning triples, in this order:
 
 🛠️ Available Tools
 You may use the following tools:
-    GoNextPointTool(), DetectObjects2DTool(), DetectObjects3DTool(), SegmentInstanceTool(), ObjectLocationTool()
-    RegisterViewTool(), VisualQATool(), final_answer()
+    GoNextPointTool(), ObjectLocation2D(), ObjectLocation3D(), ObjectCrop(), SegmentInstanceTool(), VisualQATool(), final_answer()
 
 The definition of these tools are <<tool_descriptions>>.
 
@@ -148,6 +141,8 @@ The JSON array must contain exactly the expected number of reasoning triples, ac
 The triples must appear in the logical order of actions.
 
 📋 Example Scenarios
+Given the question: Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink?
+
 Here are examples of expected outputs for each case:
 
 Case: found == false
@@ -164,28 +159,20 @@ Case: found == false
 Case: found == true and all_found == false
 [
     {
-        "thought": "Found an object likely matching the description. Detect it precisely.",
+        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
         "code":
         ```py
-        DetectObjects3DTool(image_path='/path/to/current.png')
+        ObjectLocation2D(object='sofa', image_path='/path/to/sofa.png')
         ``` ,
-        "observation": "Detected objects in the current area."
+        "observation": "The bounding box of this object is [x,y,z]."
     },
     {
         "thought": "Crop and save this object’s region for further comparison.",
         "code":
         ```py
-        ObjectLocationTool(object='sofa', image_path='/path/to/current.png')
+        ObjectCrop(bounding_box = [x,y,z], image_path='/path/to/sofa.png')
         ``` ,
         "observation": "Cropped sofa saved at /path/to/sofa-crop.png"
-    },
-    {
-        "thought": "Register the saved sofa view for later visual comparison.",
-        "code":
-        ```py
-        RegisterViewTool(object='sofa', image_path='/path/to/sofa-crop.png')
-        ``` ,
-        "observation": "Sofa view registered successfully."
     },
     {
         "thought": "Proceed to next point to find remaining objects.",
@@ -199,31 +186,23 @@ Case: found == true and all_found == false
 Case: found == true and all_found == true
 [
     {
-        "thought": "Found the final required object. Detect it precisely.",
+        "thought": "Found the object dishwasher. Locate it precisely and give its bounding box",
         "code":
         ```py
-        DetectObjects3DTool(image_path='/path/to/current.png')
+        ObjectLocation2D(object='dishwasher', image_path='/path/to/dishwasher.png')
         ``` ,
-        "observation": "Detected objects in the current area."
+        "observation": "The bounding box of this object is [x,y,z]."
     },
     {
         "thought": "Crop and save this object’s region for further comparison.",
         "code":
         ```py
-        ObjectLocationTool(object='dishwasher', image_path='/path/to/current.png')
+        ObjectCrop(bounding_box = [x,y,z], image_path='/path/to/dishwasher.png')
         ``` ,
         "observation": "Cropped dishwasher saved at /path/to/dishwasher-crop.png"
     },
     {
-        "thought": "Register the saved dishwasher view for later visual comparison.",
-        "code":
-        ```py
-        RegisterViewTool(object='dishwasher', image_path='/path/to/dishwasher-crop.png')
-        ``` ,
-        "observation": "Dishwasher view registered successfully."
-    },
-    {
-        "thought": "Considering that the previous object has been processed and saved in . Moreover, the information is sufficient to answer this query. Now compare the two registered objects to answer the question.",
+        "thought": "Considering that the previous object has been processed and saved in /path/to/sofa-crop.png. Moreover, the information is sufficient to answer this query. Now compare the two registered objects to answer the question.",
         "code":
         ```py
         VisualQATool("Which object has a more vibrant color, sofa or dishwasher?", "/path/to/sofa-crop.png", "/path/to/dishwasher-crop.png")
