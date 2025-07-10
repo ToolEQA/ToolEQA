@@ -3,6 +3,8 @@ import requests
 import base64
 from PIL import Image
 import io
+from src.utils.shared_memory import client_send_image
+import numpy as np
 
 class ObjectLocation3D(Tool):
     name = "ObjectLocation3D"
@@ -20,23 +22,21 @@ class ObjectLocation3D(Tool):
         super().__init__(*args, **kwargs)
         # Initialize any necessary components for 3D object localization here
         # For example, you might load a pre-trained model or set up a 3D environment
-        self.url = "http://localhost:8000/location_3d"
-
+        self.endpoint = "location_3d"
 
     def forward(self, object: str, image_path: str) -> list:
-        with open(image_path, 'rb') as f:
-            image_bytes = f.read()
-        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+        image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {
-            'image': image_b64,
+            'endpoint': self.endpoint,
+            'image': image,
             'text': object
         }
+        res = client_send_image(data)
 
-        res = requests.post(self.url, json=data)
-        if res.status_code != 200:
-            raise Exception(f"Error in ObjectLocation3D: {res.status_code} - {res.text}")
-        return res.json()
+        if "error" in res.keys():
+            raise Exception(f"Error: {res['error']}")
+        return res
     
 if __name__=="__main__":
     tool = ObjectLocation3D()

@@ -1,7 +1,10 @@
-from transformers import Tool
 import cv2
 import base64
 import requests
+import numpy as np
+from src.utils.shared_memory import client_send_image
+from PIL import Image
+from transformers import Tool
 
 # authorized_types = ["string", "integer", "number", "image", "audio", "any", "boolean"]
 class ObjectLocation2D(Tool):
@@ -19,22 +22,23 @@ class ObjectLocation2D(Tool):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.url = "http://localhost:8000/location_2d"
+        self.endpoint = "location_2d"
 
     def forward(self, object: str, image_path: str) -> list:
-        with open(image_path, 'rb') as f:
-            image_bytes = f.read()
-        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+        image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {
-            'image': image_b64,
+            'endpoint': self.endpoint,
+            'image': image,
             'text': object
         }
 
-        res = requests.post(self.url, json=data)
-        if res.status_code != 200:
-            raise Exception(f"Error in ObjectLocation2D: {res.status_code} - {res.text}")
-        return res.json()
+        res = client_send_image(data)
+        
+        if "error" in res.keys():
+            raise Exception(f"Error: {res['error']}")
+        
+        return res
 
     def draw_2dbox(self, img, bboxes, labels=None, output="output_det2d.jpg"):
         img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
