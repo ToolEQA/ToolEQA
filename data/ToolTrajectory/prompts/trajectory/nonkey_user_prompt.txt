@@ -1,0 +1,2 @@
+You are given a starting photo, the goal is to find the object <<object_name>>, and the next action is <<action name>>. 
+Briefly explain (in one or two sentences) why this action is the most effective choice to progress toward finding the target.
