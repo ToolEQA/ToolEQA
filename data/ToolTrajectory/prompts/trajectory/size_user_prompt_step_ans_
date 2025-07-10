@@ -54,9 +54,10 @@ At least three reasoning triples, in this order:
 You have now found all required objects. Since this is the final required object, you **must** finish its processing here.
 
 Actions (in order):
-
 📋 What you MUST do now:
 ⚠️ Since all_found == true, you are NOT allowed to navigate to any next point, and you MUST complete processing and answering at this point. **The final tool you invoke must be final_answer().**
+🚫 Do NOT call GoNextPointTool() at this step — if you do, the task fails.
+✅ After processing the last object, you MUST call final_answer("{expected_answer}").
 
 1️⃣ Process the current object at this location:
     - Use an appropriate analysis tool (e.g., ObjectLocation3D(), ObjectLocation2D(), SegmentInstanceTool(), etc.) to identify and locate the current target object at this point.
@@ -76,7 +77,7 @@ Actions (in order):
 
 4️⃣ Answer the question:
     - Use VisualQATool() to compare the saved views of the relevant objects and generate the answer.
-    - Then use final_answer("your answer here") to output the final answer.
+    - Then use final_answer() to output the final answer.  The expected answer will be provided as <<expected_answer>>, and you ** must format it in final_answer("{expected_answer}"). **
 
 
 Output:
@@ -187,7 +188,7 @@ Case: found == true and all_found == false
         "observation": "Navigating to the next point in the 3D environment."
     }
 ]
-Case: found == true and all_found == true
+** Case: found == true and all_found == true **
 [
     {
         "thought": "Found the object dishwasher. Locate it precisely and give its bounding box",
@@ -222,6 +223,20 @@ Case: found == true and all_found == true
         "observation": "Final answer submitted."
     }
 ]
+❌ Incorrect example at final step:
+[
+    …,
+    {
+        "thought": "Proceed to next point to find remaining objects.",
+        "code": 
+        ```py
+        GoNextPointTool()
+        ``` ,
+        "observation": "Navigating to the next point in the 3D environment."
+    }
+]
+⚠️ This is WRONG. You must NOT call GoNextPointTool() when all_found==true.
+
 If you follow these rules strictly, you will solve the task correctly.
 If you solve the task correctly, you will receive a reward of $1,000,000.
 

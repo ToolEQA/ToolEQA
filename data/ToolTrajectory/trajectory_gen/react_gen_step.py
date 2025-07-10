@@ -22,7 +22,7 @@ def get_prompt(path):
         prompt = file.read()
     return prompt
 
-def parse_blocks(response_text, filename="output.json"):
+def parse_blocks(response_text):
     """
     把 response 文本按 block 提取成合法 dict 列表，并保存为 json。
     """
@@ -42,9 +42,11 @@ def parse_blocks(response_text, filename="output.json"):
         m = re.search(r'"thought"\s*:\s*"([^"]+)"', block)
         if m:
             item['thought'] = m.group(1)
-
-        # code
-        m = re.search(r'"code"\s*:\s*"([^`]+)`*', block, re.DOTALL)
+        m = re.search(
+            r'"code"\s*:\s*`{3}py\s*(.*?)`{3}',
+            block,
+            re.DOTALL
+        )
         if m:
             code_content = m.group(1)
             # 清理多余的 ```py 和 ```
@@ -59,19 +61,20 @@ def parse_blocks(response_text, filename="output.json"):
         if item:
             results.append(item)
         
-        print(results)
-
-    # 保存成 json 文件
-    # with open(filename, "w", encoding="utf-8") as f:
-    #     json.dump(results, f, indent=4, ensure_ascii=False)
-
-    # print(f"✅ 已保存到 {filename}")
-    # return results
+    return results
+        
 
 
+def write_in_json(traj, react_results):
+    # 将 react的结果写入到 json数据中
+    for items in react_results:
+        traj["react"].append(items)
+    
+    return traj
 
 
-def gen_react(data_path, system_prompt_path, user_prompt_path):
+
+def gen_react(data_path, system_prompt_path, user_prompt_path, output_path):
     system_prompt = get_prompt(system_prompt_path)
     
 
@@ -83,7 +86,12 @@ def gen_react(data_path, system_prompt_path, user_prompt_path):
     user_prompt.replace("<<tool_descriptions>>", tools_desc)
 
     data = load_data(data_path)
+    data = pre_process(data) # 去除掉没用的thought, code, observation; 加上 "react": []
     proposal_choice = ["A", "B", "C", "D"]
+
+    if not os.path.exists(output_path):
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump([], f)
 
     for index, item in enumerate(data):
         # if index < 2:
@@ -101,8 +109,8 @@ def gen_react(data_path, system_prompt_path, user_prompt_path):
         
         max_suffix = defaultdict(int)
 
-        for item in steps:
-            prefix, suffix = item.split('-')
+        for item_steps in steps:
+            prefix, suffix = item_steps.split('-')
             suffix = int(suffix)
             if suffix > max_suffix[prefix]:
                 max_suffix[prefix] = suffix
@@ -127,16 +135,46 @@ def gen_react(data_path, system_prompt_path, user_prompt_path):
                 print('found', found, 'all_found', all_found) 
                 user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found)
                 # print(user_prompt_r)
-                print('=================================================Current Step:' + step_i +'==============================================================')
                 response = requests_api(images, user_prompt_r)
+                print('=================================================Current Step:' + step_i +'==============================================================')          
                 print(response["choices"][0]["message"]["content"])
+                react_results = parse_blocks(response["choices"][0]["message"]["content"])
+                traj_i = write_in_json(traj_i, react_results)
+                
                 
             else: # 代表 中间的过程只是需要调用 gonextpoint工具
                 images = os.path.join("/mynvme1/EQA-Traj", traj_i["image_path"])
                 user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found)
-                # response = requests_api(images, user_prompt_r)
-                # print(response["choices"][0]["message"]["content"])
-                # print('=================================================Current Step:' + step_i +'==============================================================')
+                response = requests_api(images, user_prompt_r)
+                print('=================================================Current Step:' + step_i +'==============================================================')
+                print(response["choices"][0]["message"]["content"])
+                react_results = parse_blocks(response["choices"][0]["message"]["content"])
+                traj_i = write_in_json(traj_i, react_results)
+
+        with open(output_path, 'r', encoding='utf-8') as f:
+            data_output = json.load(f)
+        
+        data_output.append(item)
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(data_output, f, ensure_ascii=False, indent=4)
+
+        # with open(output_path, "a", encoding="utf-8") as f:
+        #     f.write(json.dumps(item, ensure_ascii=False) + '\n')
+            
+
+def pre_process(data):
+    for index, item in enumerate(data):
+
+        traj = item["trajectory"]
+
+        for traj_i in traj:
+            traj_i["react"] = []
+            for k in {"thought", "code", "observation"}:
+                traj_i.pop(k, None)
+            for k in {"action", "rotation"}:
+                traj_i.pop(k, None)
+    return data
 
 
 if __name__=="__main__":
@@ -144,22 +182,6 @@ if __name__=="__main__":
     user_prompt_path = "/home/zml/algorithm/ReactEQA/data/ToolTrajectory/prompts/trajectory/user_prompt_step_3.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
     data_path = "data.json"
-    # gen_react(data_path, system_prompt_path, user_prompt_path)
-
-    response_text = "[
-        {
-            "thought": "I have found the required target object and all required objects are fully processed",
-            "code": "objectLocation2D(object='radiator', image, path=' /mynvme1/EQA-Traj-0611/vtuutd1bQeKK7KJaCHD9yw/1')",
-            "observation": "The bounding box of the radiator is [x,y,z].",
-        },
-        {
-            "thought": "Now I need to crop and save the radiator's region for further analysis.",
-            "code": "objectcrop(bounding, box = [x,y,z],image_ path='/mynvme1/EQA-Traj-0611/vtuutd1bgeKK7KJaCHD9yw/1-6.')",
-            "observation": "cropped radiator saved at /mynvme1/E0A-Traj-0611/vtuutd1bgekK7KJaCHD9yw/radiator-rop.png",
-        }
-    ]
-
-    parse_blocks(response_text)
-
-
+    output_path = "output.json"
+    gen_react(data_path, system_prompt_path, user_prompt_path, output_path)
 

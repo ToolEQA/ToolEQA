@@ -1,5 +1,7 @@
 from transformers import Tool
 from src.runs.eqa_modeling import EQA_Modeling
+from omegaconf import OmegaConf
+import cv2
 
 class GoNextPointTool(Tool):
     name = "GoNextPointTool"
@@ -14,22 +16,20 @@ class GoNextPointTool(Tool):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.images = ["./data/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-0.png",
-                "./data/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-1.png",
-                "./data/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-2.png",
-                "./data/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-3.png",
-                "./data/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-4.png",
-                "./data/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-5.png",
-                "./data/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/0-6.png",
-                "./data/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/1-1.png",
-                "./data/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/1-2.png",
-                "./data/EQA-Traj-0611/a6VtzZdES3Kxj42jjq58cg/1-3.png",]
-        self.idx = -1
+
+        cfg = OmegaConf.load("config/react-eqa.yaml")
+        OmegaConf.resolve(cfg)
+        self.eqa_modeling = EQA_Modeling(cfg)
+        
+        self.base_path = "./tmp/next_point_{}.jpg"
+        self.step_idx = -1
+
+    def set_data(self, data):
+        self.eqa_modeling.initialize(data)
 
     def forward(self):
-        self.idx += 1
-        if self.idx < len(self.images):
-            output = self.images[self.idx]
-        else:
-            output = self.images[-1]
-        return output
+        self.step_idx += 1
+        save_path = self.base_path.format(self.step_idx)
+        self.eqa_modeling.go_next_point()
+        cv2.imwrite(save_path, self.eqa_modeling.cur_rgb)
+        return save_path

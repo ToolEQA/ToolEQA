@@ -22,19 +22,22 @@ def convert_image_to_base64(image):
         return image
 
 def requests_api(images, prompt, system=None):
-    image_urls = []
-    if isinstance(images, (list, tuple)):
-        # 是列表或元组
-        images = images
-    else:
-        # 不是列表，那就当成一个单路径，封装成列表
-        images = [images]
+    if images is not None:
+        image_urls = []
+        if isinstance(images, (list, tuple)):
+            # 是列表或元组
+            images = images
+        else:
+            # 不是列表，那就当成一个单路径，封装成列表
+            images = [images]
 
-    for image in images:
-        base64_image = convert_image_to_base64(image)
-        image_urls.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}})
-    prompt = [{"type": "text", "text": prompt}]
-    content = prompt + image_urls
+        for image in images:
+            base64_image = convert_image_to_base64(image)
+            image_urls.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}})
+        prompt = [{"type": "text", "text": prompt}]
+        content = prompt + image_urls
+    else:
+        content = prompt
 
     messages = []
     if system is not None:
