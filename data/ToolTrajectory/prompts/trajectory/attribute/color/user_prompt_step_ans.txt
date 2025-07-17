@@ -9,6 +9,8 @@ the current trajectory step (e.g., "0-0") — which includes an image and positi
 
 a flag found — whether a target object has been found at this step (true or false)
 
+the current found object — provided only if found is true
+
 a flag all_found — whether all required objects have already been found so far (true or false)
 
 Your job is to output your reasoning for the current step as a JSON array of reasoning triples, where each triple consists of:
@@ -112,6 +114,8 @@ Trajectory Data: <<TRAJECTORY>>
 
 found: <<FOUND>>
 
+current found object: <<FOUND_OBJECT>>
+
 all_found: <<ALL_FOUND>>
 Where:
 
@@ -122,6 +126,8 @@ TRAJECTORY — the current trajectory step label (e.g., "0-0") along with the cu
 FOUND — true or false, whether a target object is found.
 
 ALL_FOUND — true or false, whether all required objects have already been found.
+
+FOUND_OBJECT - name of the found object 
 
 📦 Output Format
 At each step you must output your reasoning in strict JSON array format, like this:

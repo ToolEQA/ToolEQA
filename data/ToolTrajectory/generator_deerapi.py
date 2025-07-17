@@ -115,8 +115,8 @@ def save_csv(csv_file_path, csv_columns, generated_data):
             writer.writerow(data)
 
 if __name__=="__main__":
-    img = cv2.imread("tmp/test.jpg")
-    data = requests_api(img, "what is it?")
+    # img = cv2.imread("tmp/test.jpg")
+    data = requests_api(None, "who am I?")
     print(data)
 
 # if __name__ == "__main__":

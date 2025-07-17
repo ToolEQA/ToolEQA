@@ -11,3 +11,4 @@ results
 *.csv
 data/EQA-Traj
 *.tar
+cache/

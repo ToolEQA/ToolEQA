@@ -117,6 +117,8 @@ class EQA_Modeling():
         self.pts_normal = pos_habitat_to_normal(np.array(self.pts))
         self.floor_height = self.pts_normal[-1]
 
+        logging.info("Finished initializing data.")
+
     def _init_sim(self):
         # Set up scene in Habitat
         try:
@@ -159,6 +161,7 @@ class EQA_Modeling():
         logging.info(
             f"Scene size: {self.scene_size} Floor height: {self.floor_height} Steps: {self.max_step}"
         )
+        logging.info("Finished initializing simulation.")
 
     def _init_planner(self):
         # Initialize TSDF Planner
@@ -169,6 +172,7 @@ class EQA_Modeling():
             pts_init=self.pts_normal,
             init_clearance=self.cfg.init_clearance * 2,
         )
+        logging.info("Finished initializing planner.")
 
     def initialize(self, data):
         self.pts_pixs = np.empty((0, 2))
@@ -200,6 +204,11 @@ class EQA_Modeling():
 
         if self.cfg.save_obs:
             self._display_sample(self.cur_rgb, self.cur_depth, os.path.join(self.episode_data_dir, "init.png"))
+            # 保存初始rgb图像
+            save_path = os.path.join(self.episode_data_dir, "init_rgb.jpg")
+            cv2.imwrite(os.path.join(self.episode_data_dir, "init_rgb.jpg"), cv2.cvtColor(self.cur_rgb, cv2.COLOR_RGB2BGR))
+
+        return save_path
 
     def _get_mesh(self, planner, save_path):
         return planner.get_mesh(save_path)
@@ -232,7 +241,7 @@ class EQA_Modeling():
         )
         return rgb_im_draw
 
-    def go_next_point(self):
+    def go_next_point(self, command):
         """
             Go next point in the environment.
             Input: 
@@ -391,7 +400,6 @@ class EQA_Modeling():
         for cnt_step in range(self.max_step):
             logging.info(f"\n== step: {cnt_step}")
             self.go_next_point()
-            exit()
 
 
 if __name__ == "__main__":
