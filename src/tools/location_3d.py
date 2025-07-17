@@ -44,4 +44,4 @@ if __name__=="__main__":
     t = time.time()
     result = tool.forward("human", "./tmp/human.jpg")
     print("Time taken:", time.time() - t)
-    print(result)
+    print(np.array(result['rot_mat'][0]).shape)

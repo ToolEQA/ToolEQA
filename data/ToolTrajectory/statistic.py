@@ -95,6 +95,7 @@ def visualize(data):
 
 
 if __name__=="__main__":
-    data_file = "data/EQA-Traj-0611/trajectory.json"
+    data_file = "/mynvme1/EQA-Traj-0715/trajectory.json"
     data = statistic(data_file)
+    print(data)
     visualize(data)

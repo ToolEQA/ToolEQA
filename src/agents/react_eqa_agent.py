@@ -16,7 +16,7 @@ class EQAReactAgent(ReactCodeAgent):
         system_prompt: Optional[str] = None,
         tool_description_template: Optional[str] = DEFAULT_TOOL_DESCRIPTION_TEMPLATE,
         additional_authorized_imports: Optional[List[str]] = LIST_SAFE_MODULES,
-        planning_interval: int = 1,
+        planning_interval: int = None,
         error_tolerance_count: int = -1, 
         **kwargs,
     ):
@@ -28,11 +28,12 @@ class EQAReactAgent(ReactCodeAgent):
                         planning_interval=planning_interval,
                         **kwargs
                         )
-        self.image = None
+        self.image = []
         self.error_tolerance_count = error_tolerance_count
-        
+
     def set_image_path(self, image):
-        self.image = image
+        self.image.clear()
+        self.image.append(image)
 
     def evaluate_python_code_modify(
         self,
@@ -67,10 +68,10 @@ class EQAReactAgent(ReactCodeAgent):
             if self.error_tolerance_count > 0 and error_count == self.error_tolerance_count:
                 break
             try:
-                if self.planning_interval is not None and iteration % self.planning_interval == 0:
+                if self.planning_interval is not None and iteration % self.planning_interval == 0 and iteration == 0:
                     self.planning_step(task, is_first_step=(iteration == 0), iteration=iteration)
+                # import pdb; pdb.set_trace()
                 step_logs = self.step()
-                import pdb; pdb.set_trace()
                 if "final_answer" in step_logs:
                     final_answer = step_logs["final_answer"]
             except AgentError as e:
@@ -129,10 +130,10 @@ class EQAReactAgent(ReactCodeAgent):
         self.logger.debug("===== Extracting action =====")
         try:
             rationale, raw_code_action = self.extract_action(llm_output=llm_output, split_token="Code:")
+            import pdb; pdb.set_trace()
         except Exception as e:
             self.logger.debug(f"Error in extracting action, trying to parse the whole output. Error trace: {e}")
             rationale, raw_code_action = llm_output, llm_output
-        import pdb; pdb.set_trace()
         try:
             code_action = parse_code_blob(raw_code_action)
         except Exception as e:
@@ -165,6 +166,7 @@ class EQAReactAgent(ReactCodeAgent):
             if "'dict' object has no attribute 'read'" in str(e):
                 error_msg += "\nYou get this error because you passed a dict as input for one of the arguments instead of a string."
             raise AgentExecutionError(error_msg)
+        # import pdb; pdb.set_trace()
         for line in code_action.split("\n"):
             if line[: len("final_answer")] == "final_answer":
                 self.logger.warning(">>> Final answer:")
@@ -172,27 +174,55 @@ class EQAReactAgent(ReactCodeAgent):
                 current_step_logs["final_answer"] = result
         return current_step_logs
 
-    def run(self, task: str, image_path: str = None, stream: bool = False, reset: bool = True, **kwargs):
-        if image_path is not None:
-            self.set_image_path(image_path)
+    def initialize_for_run(self, data):
+        super().initialize_for_run()
 
-        self.task = task
+        for tool_name in self.toolbox._tools:
+            tool = self.toolbox._tools[tool_name]
+            if hasattr(tool, "initialize"):
+                tool.initialize(data)
+
+        if "GoNextPointTool" in self.toolbox._tools:
+            # Set the current image path if available
+            if hasattr(self.toolbox._tools["GoNextPointTool"], "cur_rgb_path"):
+                self.set_image_path(self.toolbox._tools["GoNextPointTool"].cur_rgb_path)
+                self.max_iterations = self.toolbox._tools["GoNextPointTool"].eqa_modeling.max_step
+
+    def run(self, data = None, reset: bool = True, **kwargs):
+        self.task = data["question"]
         if len(kwargs) > 0:
             self.task += f"\nYou have been provided with these initial arguments: {str(kwargs)}."
         self.state = kwargs.copy()
         if reset:
-            self.initialize_for_run()
+            self.initialize_for_run(data)
         else:
-            self.logs.append({"task": task})
+            self.logs.append({"task": self.task})
 
-        return self.direct_run(task)
+        return self.direct_run(self.task)
 
 
 if __name__=="__main__":
-    system_prompt = open("data/ToolTrajectory/prompts/react_system_prompt.txt", "r").read()
-    eqa_react_agent = EQAReactAgent(get_tool_box(),
-                  QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct"),
-                  system_prompt,
-                  )
+    import json
+    
+    data = json.load(open("./data/EQA-Traj-0611/trajectory.json"))
+    print(data[1]["question"])
+    print(data[1]["proposals"])
+    print(data[1]["answer"])
+    
+    SAFE_MODULES = list(set(LIST_SAFE_MODULES + [
+        "requests", "zipfile", "os", "pandas", "numpy", "sympy",
+        "json", "bs4", "sklearn", "scipy", "pydub", "io", "PIL",
+        "torch", "datetime", "csv", "matplotlib", "pickle", "cv2"
+    ]))
 
-    eqa_react_agent.run("Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink?")
+
+    system_prompt = open("data/ToolTrajectory/prompts/react_system_prompt.txt", "r").read()
+    eqa_react_agent = EQAReactAgent(
+        tools=get_tool_box(),
+        llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct"),
+        system_prompt=system_prompt,
+        add_base_tools=False,
+        additional_authorized_imports=SAFE_MODULES,
+        planning_interval=1,
+        )
+    eqa_react_agent.run(data[1])

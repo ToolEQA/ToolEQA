@@ -20,7 +20,7 @@ import base64
 import random
 from src.utils.navigate import path_to_actions
 
-save_dir = "/mynvme1/EQA-Traj-0611"
+save_dir = "/mynvme1/EQA-Traj-0714"
 
 
 def short_uuid():
@@ -128,6 +128,7 @@ def get_navigable_path_safe(simulator, start_pos, goal_pos, verbose=False,
 
 
 def objstr2list(objs_str):
+    objs_str = objs_str.replace("object_id ", "")
     pattern = r'^(?P<name>.+?)\s+\((?P<id>\d+)\):\s+\[(?P<position>[-\d.,\s]+)\]'
     objs_list = objs_str.split("; ")
     objs_data = []
@@ -331,15 +332,15 @@ def get_sample_obs(scene_dir, objs_data, init_pos, init_rot, save_root="./"):
 if __name__ == "__main__":
     scene_root = "data/HM3D"
     question_files = [
-        "data/ToolTrajectory/questions/final_question/attribute/color.csv",
-        "data/ToolTrajectory/questions/final_question/attribute/size.csv",
-        "data/ToolTrajectory/questions/final_question/attribute/special.csv",
-        "data/ToolTrajectory/questions/final_question/counting/counting.csv",
-        "data/ToolTrajectory/questions/final_question/distance/distance.csv",
+        # "data/ToolTrajectory/questions/final_question/attribute/color.csv",
+        # "data/ToolTrajectory/questions/final_question/attribute/size.csv",
+        # "data/ToolTrajectory/questions/final_question/attribute/special.csv",
+        # "data/ToolTrajectory/questions/final_question/counting/counting.csv",
+        # "data/ToolTrajectory/questions/final_question/distance/distance.csv",
         "data/ToolTrajectory/questions/final_question/location/location.csv",
-        "data/ToolTrajectory/questions/final_question/location/special.csv",
-        "data/ToolTrajectory/questions/final_question/relationship/relationship.csv",
-        "data/ToolTrajectory/questions/final_question/status/status.csv"
+        # "data/ToolTrajectory/questions/final_question/location/special.csv",
+        # "data/ToolTrajectory/questions/final_question/relationship/relationship.csv",
+        # "data/ToolTrajectory/questions/final_question/status/status.csv"
     ]
     init_file = "data/HM3D/scene_init_poses_with_floor.csv"
     floor_file = "data/HM3D/scene_floor_info.json"
@@ -364,7 +365,7 @@ if __name__ == "__main__":
         question_cate = question_file.split("/")[-2]
         question_sub_cat = question_file.split("/")[-1].split(".")[0]
         # print(f"Processing {question_cate} - {question_sub_cat}...")
-        
+
         csv_data = pd.read_csv(question_file)
         for index, row in csv_data.iterrows():
             count += 1
@@ -379,6 +380,7 @@ if __name__ == "__main__":
             scene_id = row["scene_id"]
             scene_dir = os.path.join(scene_root, row["scene_id"])
             objs_data = objstr2list(row["locations"])
+            
             if objs_data is None:
                 continue
             try:

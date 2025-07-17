@@ -137,8 +137,8 @@ class Filter():
             for index, row in question_csv.iterrows():
                 data = dict(row)
                 if self.check(data):
-                    filtered_data.append(data) 
-            
+                    filtered_data.append(data)
+
             # 保存筛选后的样本文件
             # self.write_csv(file + ".filtered", filtered_data)
             self.save_csv("data/ToolTrajectory/questions/final_question", filtered_data)
