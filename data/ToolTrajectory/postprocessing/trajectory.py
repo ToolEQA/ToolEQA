@@ -20,7 +20,7 @@ import base64
 import random
 from src.utils.navigate import path_to_actions
 
-save_dir = "/mynvme1/EQA-Traj-0714"
+save_dir = "/mynvme1/EQA-Traj-counting"
 
 
 def short_uuid():
@@ -335,9 +335,9 @@ if __name__ == "__main__":
         # "data/ToolTrajectory/questions/final_question/attribute/color.csv",
         # "data/ToolTrajectory/questions/final_question/attribute/size.csv",
         # "data/ToolTrajectory/questions/final_question/attribute/special.csv",
-        # "data/ToolTrajectory/questions/final_question/counting/counting.csv",
+        "data/ToolTrajectory/questions/final_question/counting/counting.csv",
         # "data/ToolTrajectory/questions/final_question/distance/distance.csv",
-        "data/ToolTrajectory/questions/final_question/location/location.csv",
+        # "data/ToolTrajectory/questions/final_question/location/location.csv",
         # "data/ToolTrajectory/questions/final_question/location/special.csv",
         # "data/ToolTrajectory/questions/final_question/relationship/relationship.csv",
         # "data/ToolTrajectory/questions/final_question/status/status.csv"

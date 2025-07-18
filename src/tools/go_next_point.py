@@ -14,25 +14,31 @@ class GoNextPointTool(Tool):
     }
     output_type = "image"
 
-    # def __init__(self, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-
-    #     cfg = OmegaConf.load("/home/zml/algorithm/ReactEQA/config/react-eqa.yaml")
-    #     OmegaConf.resolve(cfg)
-    #     self.eqa_modeling = EQA_Modeling(cfg)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.debug = kwargs.get("debug", False)
+        if self.debug:
+            return
         
-    #     self.base_path = "./cache/next_point_{}.jpg"
-    #     self.step_idx = -1
+        cfg = OmegaConf.load("/home/zml/algorithm/ReactEQA/config/react-eqa.yaml")
+        OmegaConf.resolve(cfg)
+        self.eqa_modeling = EQA_Modeling(cfg)
+        
+        self.base_path = "./cache/next_point_{}.jpg"
+        self.step_idx = -1
 
-    #     self.cur_rgb_path = None
+        self.cur_rgb_path = None
 
-    # def initialize(self, data):
-    #     self.cur_rgb_path = self.eqa_modeling.initialize(data)
+    def initialize(self, data):
+        self.cur_rgb_path = self.eqa_modeling.initialize(data)
 
-    # def forward(self, command):
-    #     self.step_idx += 1
-    #     save_path = self.base_path.format(self.step_idx)
-    #     self.eqa_modeling.go_next_point(command)
-    #     cv2.imwrite(save_path, cv2.cvtColor(self.eqa_modeling.cur_rgb, cv2.COLOR_RGB2BGR))
-    #     self.cur_rgb_path = save_path
-    #     return save_path
+    def forward(self, command):
+        if self.debug:
+            return "./cache/init_rgb.png"
+        
+        self.step_idx += 1
+        save_path = self.base_path.format(self.step_idx)
+        self.eqa_modeling.go_next_point(command)
+        cv2.imwrite(save_path, cv2.cvtColor(self.eqa_modeling.cur_rgb, cv2.COLOR_RGB2BGR))
+        self.cur_rgb_path = save_path
+        return save_path

@@ -8,16 +8,37 @@ from src.tools.crop import ObjectCrop
 
 from transformers.agents.tools import get_tool_description_with_args
 
-def get_tool_box():
-    MODEL_TOOLBOX = [
-        VisualQATool(),
-        ObjectLocation2D(),
-        ObjectLocation3D(),
-        GoNextPointTool(),
-        SegmentInstanceTool(),
-        FinalAnswerTool(),
-        ObjectCrop()
-    ]
+def get_tool_box(debug=False, tool_box_selected = None):
+    if debug:
+        if tool_box_selected is None:
+            MODEL_TOOLBOX = [
+                VisualQATool(debug=debug),
+                ObjectLocation2D(debug=debug),
+                ObjectLocation3D(debug=debug),
+                GoNextPointTool(debug=debug),
+                SegmentInstanceTool(debug=debug),
+                FinalAnswerTool(debug=debug),
+                ObjectCrop(debug=debug)
+            ]
+        else:
+            MODEL_TOOLBOX = []
+            for tb in tool_box_selected:
+                MODEL_TOOLBOX.append(type(tb)(debug=debug))
+    else:
+        if tool_box_selected is None:
+            MODEL_TOOLBOX = [
+                VisualQATool(),
+                ObjectLocation2D(),
+                ObjectLocation3D(),
+                GoNextPointTool(),
+                SegmentInstanceTool(),
+                FinalAnswerTool(),
+                ObjectCrop()
+            ]
+        else:
+            MODEL_TOOLBOX = []
+            for tb in tool_box_selected:
+                MODEL_TOOLBOX.append(tb)
     return MODEL_TOOLBOX
 
 

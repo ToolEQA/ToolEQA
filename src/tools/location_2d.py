@@ -21,10 +21,16 @@ class ObjectLocation2D(Tool):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.debug = kwargs.get("debug", False)
+        if self.debug:
+            return
 
         self.endpoint = "location_2d"
 
     def forward(self, object: str, image_path: str) -> list:
+        if self.debug:
+            return [0, 0, 0, 0]
+        
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {
