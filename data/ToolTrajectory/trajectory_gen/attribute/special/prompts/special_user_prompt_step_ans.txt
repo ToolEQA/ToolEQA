@@ -11,8 +11,6 @@ a flag found — whether a target object has been found at this step (true or fa
 
 the current found object — provided only if found is true
 
-the information of object - bounding box of the found object, provided if found is true
-
 a flag all_found — whether all required objects have already been found so far (true or false)
 
 Your job is to output your reasoning for the current step as a JSON array of reasoning triples, where each triple consists of:

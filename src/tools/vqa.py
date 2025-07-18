@@ -1,4 +1,5 @@
 from transformers import Tool
+from src.llm_engine.qwen import QwenEngine
 
 class VisualQATool(Tool):
     name = "VisualQATool"
@@ -12,8 +13,13 @@ class VisualQATool(Tool):
     }
     output_type = "string"
 
-    from src.llm_engine.qwen import QwenEngine
-    client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct")
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.debug = kwargs.get("debug", False)
+        if self.debug:
+            return
+        
+        self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct")
 
     def forward_qwen(self, question, image_paths: str) -> str:
         add_note = False
@@ -45,4 +51,6 @@ class VisualQATool(Tool):
         return output
 
     def forward(self, question, prompt):
+        if self.debug:
+            return "This is a debug context."
         return self.forward_qwen(question, prompt)

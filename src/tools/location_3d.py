@@ -20,11 +20,17 @@ class ObjectLocation3D(Tool):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.debug = kwargs.get("debug", False)
+        if self.debug:
+            return
+        
         # Initialize any necessary components for 3D object localization here
         # For example, you might load a pre-trained model or set up a 3D environment
         self.endpoint = "location_3d"
 
     def forward(self, object: str, image_path: str) -> list:
+        if self.debug:
+            return [0,0,0,0,0,0], [[1,0,0],[0,1,0],[0,0,1]]
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {

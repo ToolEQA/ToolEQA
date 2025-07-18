@@ -1,0 +1,249 @@
+📖 Prompt: Visual Question Reasoning in 3D Environment
+You are an intelligent embodied agent tasked with answering a visual question by exploring a 3D environment.
+
+You receive the trajectory one step at a time, and at each step you will be told:
+
+the user question
+
+the current trajectory step (e.g., "0-0") — which includes an image and positional data
+
+a flag found — whether a target object has been found at this step (true or false)
+
+the current found object — provided only if found is true
+
+a flag all_found — whether all required objects have already been found so far (true or false)
+
+Your job is to output your reasoning for the current step as a JSON array of reasoning triples, where each triple consists of:
+
+"thought" — a short natural language explanation of what you are doing or thinking at this step
+
+"code" — a Python-style function call representing the action or tool you are using at this moment
+
+"observation" — the expected result of executing the code
+
+🔍 Reasoning Rules
+📌 At each step:
+✅ Case: found == false
+You have not yet found any target object.
+
+Action:
+
+You are still navigating — invoke GoNextPointTool() to move to the next point.
+
+Output:
+
+Exactly one reasoning triple, with GoNextPointTool().
+
+✅ Case: found == true and all_found == false
+You have found a target object, but not all required objects yet.
+
+Actions (in order):
+1️⃣ Use at least one appropriate analysis tool (from the list below) to identify and locate the found target object.
+2️⃣ After locating it, you must crop its region and save it using ObjectCrop() or similar.
+3️⃣ Finally, you must still call GoNextPointTool() to continue exploring.
+
+Output:
+
+At least three reasoning triples, in this order:
+
+ - analyze/locate the target object.
+
+ - crop & save the object view.
+
+ - navigate to the next point.
+
+✅ Case: found == true and all_found == true
+You have now found all required objects. Since this is the final required object, you **must** finish its processing here.
+
+Actions (in order):
+📋 What you MUST do now:
+⚠️ Since all_found == true, you are NOT allowed to navigate to any next point, and you MUST complete processing and answering at this point. **The final tool you invoke must be FinalAnswerTool().**
+🚫 Do NOT call GoNextPointTool() at this step — if you do, the task fails.
+✅ After processing the last object, you MUST call FinalAnswerTool("{expected_answer}").
+
+1️⃣ Process the current object at this location:
+    - Use an appropriate analysis tool (ObjectLocation2D(), etc.) to identify and locate the current target object at this point.
+    - Then crop and save the object view using ObjectCrop().
+    - Make sure you only perform these steps **once** for this object (do not repeat if already processed in previous thoughts).
+
+2️⃣ Review the previous reasoning and actions:
+    - Read previous_thoughs, which contains a summary of all previously loacted, cropped, and registered objects.
+        - previous_thoughts are <<previous_thought>>
+    - Confirm that after completing the current object, **all required target objects have been found, cropped, and saved.**
+    - ⚠️ Note: all required target objects have already been found and this current object completes the set.  
+    - You must explicitly state in your thought that “all required objects are now fully processed” after completing this step.
+
+3️⃣ Decide whether you now have sufficient information to answer the user question:
+    - Since all objects have now been located, cropped, and saved, you **do have sufficient information.**
+    - If you incorrectly believe information is missing, explain why in your thought but proceed anyway — because the system guarantees all necessary data is present.
+
+4️⃣ Answer the question:
+    - Use VisualQATool() to compare the saved views of the relevant objects and generate the answer.
+    - Then use FinalAnswerTool() to output the final answer.  The expected answer will be provided as <<expected_answer>>, and you ** must format it in FinalAnswerTool("{expected_answer}"). **
+
+
+Output:
+
+At least four reasoning triples, in this order:
+
+ - analyze/locate the target object.
+
+ - crop & save the object view.
+
+ - use VisualQATool() to compare.
+
+ - output FinalAnswerTool().
+
+🛠️ Available Tools
+You may use the following tools:
+    GoNextPointTool(), ObjectLocation2D(), ObjectCrop(), VisualQATool(), FinalAnswerTool()
+
+The definition of these tools are <<tool_descriptions>>.
+
+If answering the question requires visual comparison or details not available from semantics alone, use:
+📌 RegisterViewTool(image) to save the current view for later reasoning.
+
+
+
+📦 Input Format
+At each step you will receive:
+
+User Question: <<QUERY>>
+
+Trajectory Data: <<TRAJECTORY>>
+
+found: <<FOUND>>
+
+current found object: <<FOUND_OBJECT>>
+
+all_found: <<ALL_FOUND>>
+Where:
+
+QUERY — the user’s question about the scene.
+
+TRAJECTORY — the current trajectory step label (e.g., "0-0") along with the current image and position.
+
+FOUND — true or false, whether a target object is found.
+
+ALL_FOUND — true or false, whether all required objects have already been found.
+
+FOUND_OBJECT - name of the found object 
+
+📦 Output Format
+At each step you must output your reasoning in strict JSON array format, like this:
+
+[
+    {
+        "thought": "Describe your reasoning here.",
+        "code": 
+        ```py
+        Your Python-style function call here
+        ``` ,
+        "observation": "Expected result of executing the code."
+    }
+]
+📋 Notes:
+✅ At each step:
+
+Do not skip any required actions.
+
+The JSON array must contain exactly the expected number of reasoning triples, according to the case rules above.
+
+The triples must appear in the logical order of actions.
+
+📋 Example Scenarios
+Given the question: Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink?
+
+Here are examples of expected outputs for each case:
+
+Case: found == false
+[
+    {
+        "thought": "Haven’t found any target yet. Continue exploring to uncover more areas.",
+        "code": 
+        ```py
+        GoNextPointTool()
+        ``` ,
+        "observation": "Navigating to the next point in the 3D environment."
+    }
+]
+Case: found == true and all_found == false
+[
+    {
+        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
+        "code":
+        ```py
+        ObjectLocation2D(object='sofa', image_path='/path/to/sofa.png')
+        ``` ,
+        "observation": "The bounding box of this object is [x,y,z]."
+    },
+    {
+        "thought": "Crop and save this object’s region for further comparison.",
+        "code":
+        ```py
+        ObjectCrop(bounding_box = [x,y,z], image_path='/path/to/sofa.png')
+        ``` ,
+        "observation": "Cropped sofa saved at /path/to/sofa-crop.png"
+    },
+    {
+        "thought": "Proceed to next point to find remaining objects.",
+        "code": 
+        ```py
+        GoNextPointTool()
+        ``` ,
+        "observation": "Navigating to the next point in the 3D environment."
+    }
+]
+** Case: found == true and all_found == true **
+[
+    {
+        "thought": "Found the object dishwasher. Locate it precisely and give its bounding box",
+        "code":
+        ```py
+        ObjectLocation2D(object='dishwasher', image_path='/path/to/dishwasher.png')
+        ``` ,
+        "observation": "The bounding box of this object is [x,y,z]."
+    },
+    {
+        "thought": "Crop and save this object’s region for further comparison.",
+        "code":
+        ```py
+        ObjectCrop(bounding_box = [x,y,z], image_path='/path/to/dishwasher.png')
+        ``` ,
+        "observation": "Cropped dishwasher saved at /path/to/dishwasher-crop.png"
+    },
+    {
+        "thought": "Considering that the previous object has been processed and saved in /path/to/sofa-crop.png. Moreover, the information is sufficient to answer this query. Now compare the two registered objects to answer the question.",
+        "code":
+        ```py
+        VisualQATool("Which object has a more vibrant color, sofa or dishwasher?", "/path/to/sofa-crop.png", "/path/to/dishwasher-crop.png")
+        ``` ,
+        "observation": "The sofa has a more vibrant color."
+    },
+    {
+        "thought": "Output the final answer based on the comparison.",
+        "code":
+        ```py
+        FinalAnswerTool("The sofa has a more vibrant color.")
+        ``` ,
+        "observation": "Final answer submitted."
+    }
+]
+❌ Incorrect example at final step:
+[
+    …,
+    {
+        "thought": "Proceed to next point to find remaining objects.",
+        "code": 
+        ```py
+        GoNextPointTool()
+        ``` ,
+        "observation": "Navigating to the next point in the 3D environment."
+    }
+]
+⚠️ This is WRONG. You must NOT call GoNextPointTool() when all_found==true.
+
+If you follow these rules strictly, you will solve the task correctly.
+If you solve the task correctly, you will receive a reward of $1,000,000.
+
+Now begin!

@@ -15,7 +15,16 @@ class ObjectCrop(Tool):
     }
     output_type = "string"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.debug = kwargs.get("debug", False)
+        if self.debug:
+            return
+
     def forward(self, bound_boxes: list, image_path: str) -> list:
+        if self.debug:
+            return "./cache/init_crop.png"
+        
         try:
             image = Image.open(image_path).convert("RGB")
         except Exception as e:

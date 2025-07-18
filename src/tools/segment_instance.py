@@ -23,10 +23,16 @@ class SegmentInstanceTool(Tool):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.debug = kwargs.get("debug", False)
+        if self.debug:
+            return
         
         self.endpoint = "location_seg"
 
     def forward(self, image_path: str, prompt: str) -> str:
+        if self.debug:
+            return np.zeros((640,640))
+        
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {
