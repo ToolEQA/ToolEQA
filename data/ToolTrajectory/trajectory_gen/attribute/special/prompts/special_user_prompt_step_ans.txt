@@ -7,11 +7,7 @@ the user question
 
 the current trajectory step (e.g., "0-0") — which includes an image and positional data
 
-a flag found — whether a target object has been found at this step (true or false)
-
-the current found object — provided only if found is true
-
-a flag all_found — whether all required objects have already been found so far (true or false)
+the current found object
 
 Your job is to output your reasoning for the current step as a JSON array of reasoning triples, where each triple consists of:
 
@@ -23,95 +19,23 @@ Your job is to output your reasoning for the current step as a JSON array of rea
 
 🔍 Reasoning Rules
 📌 At each step:
-✅ Case: found == false
-You have not yet found any target object.
 
-Action:
-
-You are still navigating — invoke GoNextPointTool() to move to the next point.
-
-Output:
-
-Exactly one reasoning triple, with GoNextPointTool().
-
-✅ Case: found == true and all_found == false
-You have found a target object, but not all required objects yet.
-
-Actions (in order):
-
-1️⃣ Use at least one appropriate analysis tool (from the list below) to identify and locate the found target object, and return its bounding box.
-
-- In the "thought" field: clearly describe your reasoning and what you **plan to do next** to identify and locate the target object.  
-⚠️ Do NOT include any results, dimensions, bounding box, position, or any specific information about the object here — only your intention and reasoning.  
-⚠️ You must assume you do NOT yet know the size, position, or bounding box of the object. Your reasoning should reflect this and focus on which tool(s) you intend to use and why.
-
-- In the "code" field: call the appropriate tool(s) to carry out your plan.
-
-- In the "observation" field: include the actual output after running the code.  
-The bounding box in observation must be consistent with the provided object information in "the information of object".
-
-2️⃣ Finally, you must still call GoNextPointTool() to continue exploring.
-
-General Notes:
-✅ In "thought", focus only on what you observe in the scene and which tool(s) you will use next. Do NOT assume or state any results here.  
-✅ The purpose of "thought" is to demonstrate your reasoning for choosing a tool, NOT to report findings.  
-✅ All findings must appear ONLY in the "observation" field after running the code.
-
-
-Output:
-
-At least three reasoning triples, in this order:
-
- - analyze/locate the target object.
-
- - navigate to the next point.
-
-✅ Case: found == true and all_found == true
 You have now found all required objects. Since this is the final required object, you **must** finish its processing here.
 
 Actions (in order):
 📋 What you MUST do now:
-⚠️ Since all_found == true, you are NOT allowed to navigate to any next point, and you MUST complete processing and answering at this point. **The final tool you invoke must be FinalAnswerTool().**
-🚫 Do NOT call GoNextPointTool() at this step — if you do, the task fails.
-✅ After processing the last object, you MUST call final_answer("{expected_answer}").
+
+✅ After processing the last object, you MUST call FinalAnswerTool("{expected_answer}").
 
 1️⃣ Process the current object at this location:
-    Use at least one appropriate analysis tool (from the list below) to identify and locate the found target object, and return its bounding box.
-        - In the "thought" field: clearly describe your reasoning and what you **plan to do next** to identify and locate the target object.  
-        ⚠️ Do NOT include any results, dimensions, bounding box, position, or any specific information about the object here — only your intention and reasoning.  
-        ⚠️ You ** must assume you do NOT yet know the size, position, or bounding box of the object **. Your reasoning should reflect this and focus on which tool(s) you intend to use and why.
+    - Use an appropriate analysis tool (ObjectLocation2D(), etc.) to identify and locate the current target object at this point.
+    - Then crop and save the object view using ObjectCrop().
+    - Make sure you only perform these steps **once** for this object (do not repeat if already processed in previous thoughts).
 
-        - In the "code" field: call the appropriate tool(s) to carry out your plan.
+2️⃣ Answer the question:
+    - Use VisualQATool() to compare the saved views of the relevant objects and generate the answer.
+    - Then use FinalAnswerTool() to output the final answer.  The expected answer will be provided as <<expected_answer>>, and you ** must format it in FinalAnswerTool("{expected_answer}"). **
 
-        - In the "observation" field: include the actual output after running the code.  
-        The bounding box in observation must be consistent with the provided object information in "the information of object".
-
-2️⃣ Review the previous reasoning and actions:
-    - Read `previous_thoughts`, which contains a summary of all previously located objects and their bounding boxes.
-        - previous_thoughts are <<previous_thought>>
-    - You **must carefully read and extract the relevant data of all required target objects from previous_thoughts.**
-    - Confirm that after completing the current object, **all required target objects have been found, and the information of target has been provided.**
-    - ⚠️ Note: all required target objects have already been found and this current object completes the set.
-    
-    In your thought:
-    ✅ Explicitly state: “all required objects are now fully processed” after completing this step.
-    ✅ Clearly identify what property needs to be compared (e.g., height, volume, etc.) based on the task.
-    ✅ Explicitly list the relevant values of all required target objects **by reading them from previous_thoughts (not by guessing).**
-    ✅ If calculation is needed (e.g., volume = L × W × H), show the calculation for each object explicitly.
-    ✅ Then explicitly compare these values and clearly state which object meets the required condition.
-    ✅ Do NOT assume any missing information — use exactly what is present in `previous_thoughts` and the current observation.
-
-    In the `code` field:
-        - Only after completing the above reasoning, provide the final answer based on your comparison.
-
-3️⃣ Decide whether you now have sufficient information to answer the user question:
-    - Since all objects have now been located and the information of target has been provided, you **do have sufficient information.**
-    - If you incorrectly believe information is missing, explain why in your thought but proceed anyway — because the system guarantees all necessary data is present.
-
-4️⃣ Answer the question:
-    - Then use FinalAnswerTool() to output the final answer.  
-    - ⚠️ Note: The expected answer will be provided as <<expected_answer>>, and you ** must format it in FinalAnswerTool("{expected_answer}"). **
-    - The questions are about the size comparison between objects. The thought in this step must contain the comparison, and it must consistent with the final answer.
 
 Output:
 
@@ -119,11 +43,15 @@ At least four reasoning triples, in this order:
 
  - analyze/locate the target object.
 
+ - crop & save the object view.
+
+ - use VisualQATool() to compare.
+
  - output FinalAnswerTool().
 
 🛠️ Available Tools
 You may use the following tools:
-    GoNextPointTool(), ObjectLocation3D(), FinalAnswerTool()
+     ObjectLocation2D(), ObjectCrop(), VisualQATool(), FinalAnswerTool()
 
 The definition of these tools are <<tool_descriptions>>.
 
@@ -136,13 +64,7 @@ User Question: <<QUERY>>
 
 Trajectory Data: <<TRAJECTORY>>
 
-found: <<FOUND>>
-
-all_found: <<ALL_FOUND>>
-
 current found object: <<FOUND_OBJECT>>
-
-the information of object: <<INFORMATION_OBJECT>>
 
 Where:
 
@@ -150,13 +72,7 @@ QUERY — the user’s question about the scene.
 
 TRAJECTORY — the current trajectory step label (e.g., "0-0") along with the current image and position.
 
-FOUND — true or false, whether a target object is found.
-
-ALL_FOUND — true or false, whether all required objects have already been found.
-
-FOUND_OBJECT - name of the found object. 
-
-INFORMATION_OBJECT - information of the found object, namely its bounding box.
+FOUND_OBJECT - name of the found object 
 
 📦 Output Format
 At each step you must output your reasoning in strict JSON array format, like this:
@@ -181,112 +97,82 @@ The JSON array must contain exactly the expected number of reasoning triples, ac
 The triples must appear in the logical order of actions.
 
 📋 Example Scenarios
-Given the question: Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink?
+Given the question: What material is used for the base of the sofa positioned against the wall near the door?
 
-Here are examples of expected outputs for each case:
-
-Case: found == false
+Here is example of expected outputs for each case:
 [
     {
-        "thought": "Haven’t found any target yet. Continue exploring to uncover more areas.",
-        "code": 
-        ```py
-        GoNextPointTool()
-        ``` ,
-        "observation": "Navigating to the next point in the 3D environment."
-    }
-]
-** In terms of height comparison **
-Case: found == true and all_found == false
-[
-    {
-        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
+        "thought": "Found the object dishwasher. Locate it precisely and give its bounding box",
         "code":
         ```py
-        ObjectLocation3D(object='curtain', image_path='/path/to/curtain.png')
+        ObjectLocation2D(object='sofa', image_path='/path/to/sofa.png')
         ``` ,
-        "observation": "The information  of curtain is: position is [5.503, -4.479, 4.301], size (Length, width, height) is [0.201, 1.83, 0.494], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
+        "observation": "The bounding box of this object is [x1,y1,x2,y2]."
     },
     {
-        "thought": "Proceed to next point to find remaining objects.",
-        "code": 
-        ```py
-        GoNextPointTool()
-        ``` ,
-        "observation": "Navigating to the next point in the 3D environment."
-    }
-]
-** Case: found == true and all_found == true **
-[
-    {
-        "thought": "Found the object picture. Locate it precisely and give its bounding box",
+        "thought": "Crop and save this object’s region for further comparison.",
         "code":
         ```py
-        ObjectLocation3D(object='picture', image_path='/path/to/dishwasher.png')
+        ObjectCrop(bounding_box = [x1,y1,x2,y2], image_path='/path/to/sofa.png')
         ``` ,
-        "observation": "The information  of picture is: position is [7.724, 0.12, 4.863], size (Length, width, height) is [0.019, 0.47,  0.776], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
+        "observation": "Cropped dishwasher saved at /path/to/sofa-crop.png"
     },
     {
-        "thought": "The height of the curtain is given as 0.494, and the height of the picture is given as 0.776. Now we compare the heights: Height of curtain = 0.494. Height of picture = 0.776. Since 0.494 < 0.776, the curtain is indeed shorter than the picture.",
+        "thought": "Considering that the previous object has been processed and saved in /path/to/sofa-crop.png. Moreover, the information is sufficient to answer this query. Now compare the saved objects to answer the question.",
         "code":
         ```py
-        FinalAnswerTool("No, the picture is taller.")
+        VisualQATool("What material is used for the base of the sofa positioned against the wall near the door?", "/path/to/sofa-crop.png")
+        ``` ,
+        "observation": "Wood."
+    },
+    {
+        "thought": "Output the final answer based on the comparison.",
+        "code":
+        ```py
+        FinalAnswerTool("Wood.")
         ``` ,
         "observation": "Final answer submitted."
     }
 ]
-** In terms of volume comparison **
-Case: found == true and all_found == false
+
+Given the question: How many Roman numeral markings are present on the clock mounted on the wall, positioned above a wooden table?
+
+Here is example of expected outputs for each case:
 [
     {
-        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
+        "thought": "Found the object clock. Locate it precisely and give its bounding box",
         "code":
         ```py
-        ObjectLocation3D(object='bed', image_path='/path/to/bed.png')
+        ObjectLocation2D(object='clock', image_path='/path/to/clock.png')
         ``` ,
-        "observation": "The information  of bed is: position is [13.028, 3.733, 0.568], size (Length, width, height) is [2.139, 1.085, 1.271], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
+        "observation": "The bounding box of this object is [x1,y1,x2,y2]."
     },
     {
-        "thought": "Proceed to next point to find remaining objects.",
-        "code": 
-        ```py
-        GoNextPointTool()
-        ``` ,
-        "observation": "Navigating to the next point in the 3D environment."
-    }
-]
-** Case: found == true and all_found == true ** 
-[
-    {
-        "thought": "Found the object dresser. Locate it precisely and give its bounding box",
+        "thought": "Crop and save this object’s region for further comparison.",
         "code":
         ```py
-        ObjectLocation3D(object='dresser', image_path='/path/to/dresser.png')
+        ObjectCrop(bounding_box = [x1,y1,x2,y2], image_path='/path/to/clock.png')
         ``` ,
-        "observation": "The information  of dresser is: position is  [10.207, 4.652, 0.801], size (Length, width, height) is [0.23, 1.552, 1.028], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
+        "observation": "Cropped clock saved at /path/to/clock-crop.png"
     },
     {
-        "thought": "First, we calculate the volume of each object using the formula for volume, which is Volume = Length × Width × Height. For the bed: Length = 2.139, Width = 1.085, Height = 1.271. Calculating the volume of the bed: Volume_bed = 2.139 × 1.085 × 1.271 = 2.495 m³ (approximately, calculating gives exactly 2.494644114). For the dresser: Length = 0.23, Width = 1.552, Height = 1.028.  Calculating the volume of the dresser: Volume_dresser = 0.23 × 1.552 × 1.028 = 0.366 m³ (approximately, calculating gives exactly 0.36609904). Now we compare the two volumes: Volume of the bed ≈ 2.495 m³, Volume of the dresser ≈ 0.366 m³. Since 2.495 > 0.366, the bed has a larger overall volume than the dresser.",
+        "thought": "Considering that the previous object has been processed and saved in /path/to/clock-crop.png. Moreover, the information is sufficient to answer this query. Now compare the saved objects to answer the question.",
         "code":
         ```py
-        FinalAnswerTool("bed.")
+        VisualQATool("How many Roman numeral markings are present on the clock mounted on the wall, positioned above a wooden table?", "/path/to/clock-crop.png")
+        ``` ,
+        "observation": "Twelve."
+    },
+    {
+        "thought": "Output the final answer based on the comparison.",
+        "code":
+        ```py
+        FinalAnswerTool("Twelve.")
         ``` ,
         "observation": "Final answer submitted."
     }
 ]
-❌ Incorrect example at final step:
-[
-    …,
-    {
-        "thought": "Proceed to next point to find remaining objects.",
-        "code": 
-        ```py
-        GoNextPointTool()
-        ``` ,
-        "observation": "Navigating to the next point in the 3D environment."
-    }
-]
-⚠️ This is WRONG. You must NOT call GoNextPointTool() when all_found==true.
+
 
 If you follow these rules strictly, you will solve the task correctly.
 If you solve the task correctly, you will receive a reward of $1,000,000.

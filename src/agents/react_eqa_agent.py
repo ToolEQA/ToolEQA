@@ -166,7 +166,7 @@ class EQAReactAgent(ReactCodeAgent):
             if "'dict' object has no attribute 'read'" in str(e):
                 error_msg += "\nYou get this error because you passed a dict as input for one of the arguments instead of a string."
             raise AgentExecutionError(error_msg)
-        # import pdb; pdb.set_trace()
+
         for line in code_action.split("\n"):
             if line[: len("final_answer")] == "final_answer":
                 self.logger.warning(">>> Final answer:")

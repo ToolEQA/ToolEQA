@@ -88,9 +88,32 @@ def main(excel_path, data_path, output_path, question_type):
             updated_data.append(item)
 
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(updated_data, f, ensure_ascii=False, indent=2)
+        json.dump(updated_data, f, ensure_ascii=False, indent=4)
 
     print(f"\n🎉 更新完成，保存为 {output_path}")
+
+
+
+def check_all_single_locations(file_path, column='locations'):
+    """
+    检查 Excel 中指定列是否所有行提取出来的数字只有一个。
+    提取规则：匹配 'stair (数字)' 中的数字。
+    """
+    df = pd.read_csv(file_path)
+
+    for val in df[column]:
+        # 确保是字符串
+        if not isinstance(val, str):
+            return False
+
+        # 用正则提取括号里的数字
+        matches = re.findall(r'\((\d+)\)', val)
+
+        if len(matches) != 1:
+            return False
+
+    return True
+
 
 
 
@@ -132,31 +155,11 @@ if __name__=="__main__":
     # output_path = "output/trajectory_update.json"
     # main(excel_path_distance, output_path_temp, output_path, question_type)
 
-
-
-    # json_path_1  = "trajectory.json"
-    
-    json_path_2  = "output/trajectory_update.json"
-
-    json_path_3  = "output/trajectory_update_intent4.json"
-    # count1 = count_json_items(json_path_1)
-    # count2 = count_json_items(json_path_2)
-
-    # print(f"{json_path_1} 中有 {count1} 条数据")
-    # print(f"{json_path_2} 中有 {count2} 条数据")    
+    result = check_all_single_locations("special.csv")
+    if result:
+        print("✅ 所有行的 locations 都是单元素 list。")
+    else:
+        print("❌ 有些行不是单元素 list。")
 
 
 
-    # required_fields = ["sample_id", "scene", "question", "proposals", "answer", "question_type", "floor", "floor_index", "init_pos", "init_rot", "related_objects", "traj_length", "trajectory"]  # 你的字段列表
-
-    # check_fields_in_json(json_path_2, required_fields)
-
-    with open(json_path_2, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-
-
-    with open(json_path_3, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-    print(f"✅ JSON 保存完成，格式化输出到: {json_path_3}")

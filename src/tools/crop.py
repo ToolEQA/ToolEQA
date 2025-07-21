@@ -21,7 +21,7 @@ class ObjectCrop(Tool):
         if self.debug:
             return
 
-    def forward(self, bound_boxes: list, image_path: str) -> list:
+    def forward(self, bounding_box: list, image_path: str) -> list:
         if self.debug:
             return "./cache/init_crop.png"
         
@@ -32,11 +32,11 @@ class ObjectCrop(Tool):
 
         # # 解析 bounding boxes
         # try:
-        #     boxes = json.loads(bound_boxes)
+        #     boxes = json.loads(boubounding_boxnd_box)
         # except Exception as e:
         #     raise ValueError(f"Bounding box string is not valid JSON: {e}")
 
-        if not isinstance(bound_boxes, list) or not all(len(box) == 4 for box in bound_boxes):
+        if not isinstance(bounding_box, list) or not all(len(box) == 4 for box in bounding_box):
             raise ValueError("Bounding boxes must be a list of [x1, y1, x2, y2]")
 
         # 裁剪图像并保存
@@ -45,8 +45,8 @@ class ObjectCrop(Tool):
         # os.makedirs(output_dir, exist_ok=True)
 
         output_paths = []
-        for idx, (x1, y1, x2, y2) in enumerate(bound_boxes):
-            cropped = image.crop((x1, y1, x2, y2))
+        for idx, bbox in enumerate(bounding_box):
+            cropped = image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
             output_path = f"./cache/{base_name}_obj_{idx}.jpg"
             cropped.save(output_path)
             output_paths.append(output_path)

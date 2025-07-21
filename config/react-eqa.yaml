@@ -2,7 +2,7 @@
 seed: 42
 exp_name: MT-HM3D
 output_parent_dir: results/explore-eqa
-question_data_path: ./data/EQA-Traj-0611/trajectory.json
+question_data_path: ./data/EQA-Traj-0720/trajectory.json
 scene_data_path: [./data/HM3D]
 output_dir: ./results
 save_obs: true

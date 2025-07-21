@@ -30,7 +30,7 @@ class ObjectLocation3D(Tool):
 
     def forward(self, object: str, image_path: str) -> list:
         if self.debug:
-            return [0,0,0,0,0,0], [[1,0,0],[0,1,0],[0,0,1]]
+            return [0,0,0], [0,0,0], [[1,0,0],[0,1,0],[0,0,1]]
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {

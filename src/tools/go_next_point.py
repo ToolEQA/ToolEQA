@@ -31,6 +31,7 @@ class GoNextPointTool(Tool):
 
     def initialize(self, data):
         self.cur_rgb_path = self.eqa_modeling.initialize(data)
+        self.step_idx = 0
 
     def forward(self, command):
         if self.debug:
