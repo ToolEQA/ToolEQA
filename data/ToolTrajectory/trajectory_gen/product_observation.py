@@ -7,6 +7,8 @@ from transformers.agents.agents import AgentGenerationError, AgentParsingError, 
 from transformers.agents import ReactCodeAgent
 from src.tools.tool_box import get_tool_box
 from src.llm_engine.qwen import QwenEngine
+import re
+import ast
 
 class ObservationProductor():
     def __init__(self, data_path: str, tools: dict = None):
@@ -15,7 +17,15 @@ class ObservationProductor():
         with open(data_path, 'r') as f:
             self.data = json.load(f)
 
+        self.state = {}
         self.templete = "```py\n{}\n```<end_action>"
+
+    def init(self, data):
+        for tool_name in self._tools:
+            tool = self._tools[tool_name]
+            if hasattr(tool, "initialize"):
+                tool.initialize(data)
+
 
     def run_code(self, raw_code: str):
         if not raw_code:
@@ -26,7 +36,6 @@ class ObservationProductor():
         except Exception as e:
             error_msg = f"Error in code parsing: {e}. Make sure to provide correct code"
             raise AgentParsingError(error_msg)
-        
         if not code:
             return None
         
@@ -38,13 +47,20 @@ class ObservationProductor():
                     **self._tools,
                 },
                 custom_tools={},
-                state=None,
+                state=self.state,
                 authorized_imports=LIST_SAFE_MODULES
             )
+            if "print_outputs" in self.state.keys():
+                output = self.state["print_outputs"]
         except (AgentGenerationError, AgentParsingError, AgentExecutionError, AgentMaxIterationsError, AgentError) as e:
             print(f"Error evaluating code: {e}")
             return None
-        return result
+        
+        for line in code.split("\n"):
+            if line[: len("FinalAnswerTool")] == "FinalAnswerTool":
+                return result
+
+        return output
     
     def run_sample(self, sample: dict):
         trajectory = sample["trajectory"]
@@ -52,40 +68,43 @@ class ObservationProductor():
             react = traj["react"]
             for i in range(len(react)):
                 code = react[i]["code"]
-                # if "turn_left" in code:
-                #     code = code.replace("turn_left", "\"turn_left\"")
-                # elif "turn_right" in code:
-                #     code = code.replace("turn_right", "\"turn_right\"")
-                # elif "move_forward" in code:
-                #     code = code.replace("move_forward", "\"move_forward\"")
-
                 if "ObjectCrop" in code:
                     continue
-                
+
                 obs = self.run_code(code)
                 react[i]["observation"] = obs
 
-                if "ObjectLocation3D" in code and i + 1< len(react):
+                if "ObjectLocation2D" in code and i + 1< len(react):
+                    pattern = r'\{.*\}'
+                    match = re.search(pattern, obs)
+                    if match:
+                        dict_str = match.group()
+                        bboxs = ast.literal_eval(dict_str)['bboxes_2d']
                     code = react[i+1]["code"]
-                    obs = self.run_code(code)
-                    react[i+1]["observation"] = obs
+                    if "ObjectCrop" in code:
+                        code = code.replace("[x1,y1,x2,y2]", str(bboxs))
+                        code = code.replace("[x1, y1, x2, y2]", str(bboxs))
+                        obs = self.run_code(code)
+                        react[i+1]["code"] = code
+                        react[i+1]["observation"] = obs
 
         return sample
 
     def run(self):
         output = []
         for item in self.data:
+            self.init(item)
             result = self.run_sample(item)
             output.append(result)
-            break
         return output
 
-
 if __name__=="__main__":
-    data_path = "tmp/size_output_ans_with_plan_3.json"
+    data_path = "tmp/special_output_ans_with_plan_nonkey.json"
     op = ObservationProductor(
         data_path,
-        get_tool_box(debug=True)
+        get_tool_box()
     )
     res = op.run()
-    print(res[0]["trajectory"]["react"][0]["observation"])
+    
+    with open("tmp/special_output_ans_with_plan_nonkey-obs.json", "w") as f:
+        json.dump(res, f, indent=4)

@@ -18,8 +18,7 @@ def convert_image_to_base64(image):
     elif isinstance(image, np.ndarray):
         _, buffer = cv2.imencode('.jpg', image)
         return base64.b64encode(buffer).decode('utf-8')
-    elif isinstance(image, str):
-        return image
+    return None
 
 def requests_api(images, prompt, system=None):
     if images is not None:
@@ -64,9 +63,9 @@ def requests_api(images, prompt, system=None):
             conn = http.client.HTTPSConnection('api.deerapi.com')
             conn.request("POST", "/v1/chat/completions", payload, headers)
             res = conn.getresponse()
-
+            data = json.loads(res.read().decode("utf-8"))
             if res.status == 200:
-                data = json.loads(res.read().decode("utf-8"))
+                # data = json.loads(res.read().decode("utf-8"))
                 break  # 成功则跳出循环
             else:
                 print(f"Attempt {attempt + 1} failed with status code: {res.status}")
@@ -116,7 +115,7 @@ def save_csv(csv_file_path, csv_columns, generated_data):
 
 if __name__=="__main__":
     # img = cv2.imread("tmp/test.jpg")
-    data = requests_api(None, "who am I?")
+    data = requests_api(None, "who are you?")
     print(data)
 
 # if __name__ == "__main__":

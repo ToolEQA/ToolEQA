@@ -31,11 +31,69 @@ def get_prompt(path):
         prompt = file.read()
     return prompt
 
-def parse_blocks(response_text, action = None):
+
+def detect_tool_or_closest(s):
+
+      # MODEL_TOOLBOX = [
+    #             VisualQATool(),
+    #             ObjectLocation2D(),
+    #             ObjectLocation3D(),
+    #             GoNextPointTool(),
+    #             SegmentInstanceTool(),
+    #             FinalAnswerTool(),
+    #             ObjectCrop()
+    #         ]
+
+    tools = [
+        'VisualQATool',
+        'ObjectLocation2D',
+        'ObjectLocation2D',
+        'GoNextPointTool',
+        'SegmentInstanceTool',
+        'FinalAnswerTool',
+        'ObjectCrop'
+    ]
+
+    # 严格匹配
+    for tool in tools:
+        if tool in s:
+            return tool
+
+    # 模糊关键词到工具名的映射
+    keyword_map = {
+        'Location2D': 'ObjectLocation2D',
+        'Location3D': 'ObjectLocation3D',
+        'VisualQA': 'VisualQATool',
+        'GoNextPoint': 'GoNextPointTool',
+        'SegmentInstance': 'SegmentInstanceTool',
+        'FinalAnswer': 'FinalAnswerTool',
+        'Crop': 'ObjectCrop'
+    }
+
+    for kw, tool in keyword_map.items():
+        if kw in s:
+            return tool
+
+    # 都找不到
+    return None
+
+# tool print:
+    #             VisualQATool(), :  print(f'The question is ...., The answer is {}.')
+    #             ObjectLocation2D(), print(f'The bounding box of cropped dishwasher is [x1,y1,x2,y2]')
+    #             ObjectLocation3D(), print(f'The cropped dishwasher is {root}')
+    #             GoNextPointTool(), print(f'In this point, the current landscape is {root}')
+    #             SegmentInstanceTool(), print(f'In this point, the current landscape is {root}')
+    #             FinalAnswerTool(),: 
+    #             ObjectCrop(),: print(f'') 保存一个地址
+
+
+def parse_blocks(response_text, object_current, question_current, action = None):
     """
     把 response 文本按 block 提取成合法 dict 列表，并保存为 json。
     """
     results = []
+
+    results_nonprocess = []
 
     # 去掉外层 ```json 和 ```
     response_text = re.sub(r"^```json", "", response_text.strip(), flags=re.MULTILINE)
@@ -47,45 +105,71 @@ def parse_blocks(response_text, action = None):
     for block in blocks:
         item = {}
 
+        item_nonprocess = {}
+
         # thought
         m = re.search(r'"thought"\s*:\s*"([^"]+)"', block)
         if m:
             item['thought'] = m.group(1)
+            item_nonprocess['thought'] = m.group(1)
+
+
         m = re.search(
             r'"code"\s*:\s*`{3}py\s*(.*?)`{3}',
             block,
             re.DOTALL
         )
+
         if m:
             code_content = m.group(1)
             # 清理多余的 ```py 和 ```
             code_content = code_content.replace("```py", "").replace("```", "").strip()
-            if code_content == 'GoNextPointTool()':
-                if action is not None:
-                    item["code"] = 'GoNextPointTool("' + action + '")'
+            keytool = detect_tool_or_closest(code_content)
+            item_nonprocess["code"] = code_content
+            if keytool is not None:
+                if keytool == 'GoNextPointTool':
+                    if action is not None:
+                        item["code"] = 'path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
+                    else:
+                        action = "move_forward"
+                        item["code"] ='path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
+                        print('Error! Should subplace but donot provide action!')
+                elif keytool == 'ObjectLocation2D':
+                    item["code"] = '[x1,y1,x2,y2] = ' + code_content + "\n" + "print(f'The bounding box of " + object_current + " is [x1,y1,x2,y2].')"
+                elif keytool == 'ObjectLocation3D':
+                    item["code"] = "position, size, rot = " + code_content +  "\n" + "print(f'The information of " + object_current + " is: position is {position},  size (Length, width, height) is {size}, and the rotation is {rot}.')"
+                elif keytool == 'VisualQATool':
+                    item["code"] = "answer = " + code_content  +  "\n" + "print(f'The question is " + question_current + ". The answer is {answer}.')"
+                elif keytool == 'SegmentInstanceTool':
+                    item["code"] = 'path = ' + code_content +  "\n" + "print(f'The semantic segmentation of " +  object_current + " is saved in {path}." 
+                elif keytool == 'FinalAnswerTool':
+                    item["code"] = code_content
+                elif keytool == 'ObjectCrop':
+                    item["code"] = 'path = ' + code_content + "\n" + "print(f'The cropped result of " +  object_current + " is saved in {path}." 
                 else:
                     item["code"] = code_content
-                    print('Error! Should subplace but donot provide action!')
             else:
                 item["code"] = code_content
-            # item['code'] = code_content
+                print('Error! The tool is wrong!')
+         
 
         # observation
         m = re.search(r'"observation"\s*:\s*"([^"]+)"', block, re.DOTALL)
         if m:
             item['observation'] = m.group(1)
-
+            item_nonprocess['observation'] = m.group(1)
         if item:
             results.append(item)
+            results_nonprocess.append(item_nonprocess)
         
-    return results
+    return results, results_nonprocess
         
-
 def parse_block_nonkey(response_text, action):
     results = []
     item = {}
     item["thought"] = response_text
-    item["code"] = 'GoNextPointTool("' + action + '")'
+    # item["code"] = 'GoNextPointTool("' + action + '")'
+    item["code"] = 'path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
     item["observation"] = "Navigating to the next point in the 3D environment."
     results.append(item)
 
@@ -233,8 +317,8 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     rotation_matrix = [[1,0,0],[0,1,0], [0,0,1]] # 旋转矩阵
 
     for index, item in enumerate(data):
-        # if index < 2:
-        #     continue
+        if index > 2:
+            exit()
         question = item["question"]
         choices = item["proposals"]
         answer = choices[proposal_choice.index(item["answer"][0].upper())]
@@ -324,17 +408,17 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     else:
                         action_current = traj_i["action"][0][0]
 
-                react_results = parse_blocks(response["choices"][0]["message"]["content"], action_current)
+                react_results, react_results_nonprocess = parse_blocks(response["choices"][0]["message"]["content"], object_name_current, question, action_current)
                 traj_i = write_in_json(traj_i, react_results)
                 traj_i["is_key"] = "true"
                 if all_found == "False":
-                    react_key_results.append(react_results)
+                    react_key_results.append(react_results_nonprocess)
                 
             else: # 代表 中间的过程只是需要调用 gonextpoint工具
                 print('=================================================Current Step:' + step_i +'==============================================================')
-                images = os.path.join("/mynvme1/EQA-Traj-0611/", traj_i["image_path"])
+                # images = os.path.join("/mynvme1/EQA-Traj-0720/", traj_i["image_path"])
                 # user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found)
-                
+                images = traj_i["image_path"].replace("/mynvme1/EQA-Traj-0611/", "/mynvme1/EQA-Traj-0720/")
                 object_name_current = objects_name[int(step_i[0])]
                 # action_current = traj_i["action"][0][0]
                 if len(traj_i["action"]) == 0: # 判断一下是否为空，为空的话，则需要给一个默认值，即move_forward
@@ -391,7 +475,7 @@ if __name__=="__main__":
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
     data_path = "data/data_size.json"
-    output_path = "output/size_output_ans_with_plan_nonkey-t.json"
+    output_path = "output/size_output_ans_with_plan_nonkey-toolnormal.json"
     excel_path = "data/size_cleaned_ans.csv"
     update_answer(excel_path, data_path)
     gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path)

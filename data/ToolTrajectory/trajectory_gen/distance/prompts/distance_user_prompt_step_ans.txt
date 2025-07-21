@@ -73,7 +73,7 @@ You have now found all required objects. Since this is the final required object
 
 Actions (in order):
 📋 What you MUST do now:
-⚠️ Since all_found == true, you are NOT allowed to navigate to any next point, and you MUST complete processing and answering at this point. **The final tool you invoke must be FinalAnswerTool().**
+⚠️ Since all_found == true, you are NOT allowed to navigate to any next point, and you MUST complete processing and answering at this point. **The final tool you invoke must be final_answer().**
 🚫 Do NOT call GoNextPointTool() at this step — if you do, the task fails.
 ✅ After processing the last object, you MUST call final_answer("{expected_answer}").
 
@@ -97,11 +97,13 @@ Actions (in order):
     
     In your thought:
     ✅ Explicitly state: “all required objects are now fully processed” after completing this step.
-    ✅ Clearly identify what property needs to be compared (e.g., height, volume, etc.) based on the task.
-    ✅ Explicitly list the relevant values of all required target objects **by reading them from previous_thoughts (not by guessing).**
-    ✅ If calculation is needed (e.g., volume = L × W × H), show the calculation for each object explicitly.
-    ✅ Then explicitly compare these values and clearly state which object meets the required condition.
-    ✅ Do NOT assume any missing information — use exactly what is present in `previous_thoughts` and the current observation.
+    ✅ Clearly identify that the property to be computed or compared is distance between objects, and specify all object pairs or sets involved according to the question.
+    ✅ Explicitly list the positions (coordinates) of all required target objects by reading them from previous_thoughts (not by guessing).
+    ✅ Based on the question, clearly determine and list all distances that need to be computed — including all relevant pairs or comparisons required.
+    ✅ For each required distance, explicitly calculate it using the Euclidean distance formula:
+       distance = √((x₂−x₁)² + (y₂−y₁)² + (z₂−z₁)²) and show the calculation steps for each pair.
+    ✅ Then explicitly compare these computed distances and clearly state which object(s) meet the required condition (e.g., which is closer or farther).
+    ✅ Do NOT assume any missing information — use exactly what is present in previous_thoughts and the current observation.
 
     In the `code` field:
         - Only after completing the above reasoning, provide the final answer based on your comparison.
@@ -111,8 +113,8 @@ Actions (in order):
     - If you incorrectly believe information is missing, explain why in your thought but proceed anyway — because the system guarantees all necessary data is present.
 
 4️⃣ Answer the question:
-    - Then use FinalAnswerTool() to output the final answer.  
-    - ⚠️ Note: The expected answer will be provided as <<expected_answer>>, and you ** must format it in FinalAnswerTool("{expected_answer}"). **
+    - Then use final_answer() to output the final answer.  
+    - ⚠️ Note: The expected answer will be provided as <<expected_answer>>, and you ** must format it in final_answer("{expected_answer}"). **
     - The questions are about the size comparison between objects. The thought in this step must contain the comparison, and it must consistent with the final answer.
 
 Output:
@@ -121,11 +123,11 @@ At least four reasoning triples, in this order:
 
  - analyze/locate the target object.
 
- - output FinalAnswerTool().
+ - output final_answer().
 
 🛠️ Available Tools
 You may use the following tools:
-    GoNextPointTool(), ObjectLocation3D(), FinalAnswerTool()
+    GoNextPointTool(), ObjectLocation3D(), final_answer()
 
 The definition of these tools are <<tool_descriptions>>.
 
@@ -183,7 +185,7 @@ The JSON array must contain exactly the expected number of reasoning triples, ac
 The triples must appear in the logical order of actions.
 
 📋 Example Scenarios
-Given the question: Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink?
+Given the question: Which object (pillow on the black leather couch next to a pink chair or towel hanging above the beige cabinet near the tiled floor) is closer to the platform under a distressed overpass with visible train tracks?
 
 Here are examples of expected outputs for each case:
 
@@ -205,9 +207,9 @@ Case: found == true and all_found == false
         "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
         "code":
         ```py
-        ObjectLocation3D(object='curtain', image_path='/path/to/curtain.png')
+        ObjectLocation3D(object='pillow', image_path='./cache/pillow.png')
         ``` ,
-        "observation": "The information  of curtain is: position is [5.503, -4.479, 4.301], size (Length, width, height) is [0.201, 1.83, 0.494], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
+        "observation": "The information  of pillow is: position is [1.842, 1.872, 0.598], size (Length, width, height) is [0.201, 1.83, 0.494], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
     },
     {
         "thought": "Proceed to next point to find remaining objects.",
@@ -221,32 +223,36 @@ Case: found == true and all_found == false
 ** Case: found == true and all_found == true **
 [
     {
-        "thought": "Found the object picture. Locate it precisely and give its bounding box",
+        "thought": "Found the object platform. Locate it precisely and give its bounding box",
         "code":
         ```py
-        ObjectLocation3D(object='picture', image_path='/path/to/dishwasher.png')
+        ObjectLocation3D(object='platform', image_path='./cache/platform.png')
         ``` ,
-        "observation": "The information  of picture is: position is [7.724, 0.12, 4.863], size (Length, width, height) is [0.019, 0.47,  0.776], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
+        "observation": "The information  of platform is: position is [0, 0, 0], size (Length, width, height) is [0.019, 0.47,  0.776], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
     },
     {
-        "thought": "The height of the curtain is given as 0.494, and the height of the picture is given as 0.776. Now we compare the heights: Height of curtain = 0.494. Height of picture = 0.776. Since 0.494 < 0.776, the curtain is indeed shorter than the picture.",
+        "thought": "The related objects and their coordinates are pillow: [1.842, 1.872, 0.598]; towel: [-11.57, -5.227, 0.946]; platform: [0, 0, 0]. 1. **Calculate the distance from the pillow to the platform:** - Pillow coordinates: [1.842, 1.872, 0.598], - Distance: \[ d_{pillow} = \sqrt{(1.842-0)^2 + (1.872-0)^2 + (0.598-0)^2}  = \sqrt{1.842^2 + 1.872^2 + 0.598^2}  \approx \sqrt{3.395 + 3.504 + 0.358}  \approx \sqrt{7.257}  \approx 2.696 \]. 2. **Calculate the distance from the towel to the platform:** - Towel coordinates: [-11.57, -5.227, 0.946], - Distance: \[ d_{towel} = \sqrt{(-11.57-0)^2 + (-5.227-0)^2 + (0.946-0)^2} = \sqrt{(-11.57)^2 + (-5.227)^2 + (0.946)^2}  \approx \sqrt{133.749 + 27.335 + 0.896}  \approx \sqrt{162.980}  \approx 12.747 \]. Now we have the distances: - Distance from pillow to platform: **≈ 2.696**, - Distance from towel to platform: **≈ 12.747**. Since the distance from the pillow to the platform (2.696 meters) is less than the distance from the towel to the platform (12.747 meters), the pillow is closer.",
         "code":
         ```py
-        FinalAnswerTool("No, the picture is taller.")
+        final_answer("pillow.")
         ``` ,
         "observation": "Final answer submitted."
     }
 ]
-** In terms of volume comparison **
+
+Given the question: What is the distance between the chair next to a table by the wall and the table against the wall near a mirror and staircase?
+
+Here are examples of expected outputs for each case:
+
 Case: found == true and all_found == false
 [
     {
         "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
         "code":
         ```py
-        ObjectLocation3D(object='bed', image_path='/path/to/bed.png')
+        ObjectLocation3D(object='chair', image_path='./cache/chair.png')
         ``` ,
-        "observation": "The information  of bed is: position is [13.028, 3.733, 0.568], size (Length, width, height) is [2.139, 1.085, 1.271], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
+        "observation": "The information  of chair is: position is[3.914, -0.055, 0.371], size (Length, width, height) is [1.109, 0.074, 0.671], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
     },
     {
         "thought": "Proceed to next point to find remaining objects.",
@@ -260,22 +266,23 @@ Case: found == true and all_found == false
 ** Case: found == true and all_found == true ** 
 [
     {
-        "thought": "Found the object dresser. Locate it precisely and give its bounding box",
+        "thought": "Found the object table. Locate it precisely and give its bounding box",
         "code":
         ```py
-        ObjectLocation3D(object='dresser', image_path='/path/to/dresser.png')
+        ObjectLocation3D(object='table', image_path='./cache/table.png')
         ``` ,
-        "observation": "The information  of dresser is: position is  [10.207, 4.652, 0.801], size (Length, width, height) is [0.23, 1.552, 1.028], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
+        "observation": "The information  of table is: position is  [2.299, 5.62, 0.475], size (Length, width, height) is [1.23, 1.652, 1.628], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
     },
     {
-        "thought": "First, we calculate the volume of each object using the formula for volume, which is Volume = Length × Width × Height. For the bed: Length = 2.139, Width = 1.085, Height = 1.271. Calculating the volume of the bed: Volume_bed = 2.139 × 1.085 × 1.271 = 2.495 m³ (approximately, calculating gives exactly 2.494644114). For the dresser: Length = 0.23, Width = 1.552, Height = 1.028.  Calculating the volume of the dresser: Volume_dresser = 0.23 × 1.552 × 1.028 = 0.366 m³ (approximately, calculating gives exactly 0.36609904). Now we compare the two volumes: Volume of the bed ≈ 2.495 m³, Volume of the dresser ≈ 0.366 m³. Since 2.495 > 0.366, the bed has a larger overall volume than the dresser.",
+        "thought": " The related objects and their coordinates are Chair: [3.914, -0.055, 0.371], Table: [2.299, 5.62, 0.475]. Next, I'll compute the Euclidean distance between the chair and the table using the formula: \[ \text{Distance} = \sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2 + (z_2 - z_1)^2} \]. Substituting the coordinates of the chair and table into the formula: 1. \( x_2 - x_1 = 2.299 - 3.914 = -1.615 \); 2. \( y_2 - y_1 = 5.62 - (-0.055) = 5.675 \); 3. \( z_2 - z_1 = 0.475 - 0.371 = 0.104 \); Now, squaring those differences: - \( (-1.615)^2 = 2.616225 \); - \( (5.675)^2 = 32.175625 \) - \( (0.104)^2 = 0.010816 \). Adding them up: \[ 2.616225 + 32.175625 + 0.010816 = 34.802666 \]. Finally, taking the square root: \[ \sqrt{34.802666} \approx 5.9 \, \text{m} \].",
         "code":
         ```py
-        FinalAnswerTool("bed.")
+        final_answer("5–6m.")
         ``` ,
         "observation": "Final answer submitted."
     }
 ]
+
 ❌ Incorrect example at final step:
 [
     …,
