@@ -75,27 +75,27 @@ def visualize(data):
         y = 1.0 * np.sin(np.deg2rad(ang))
         x = 1.0 * np.cos(np.deg2rad(ang))
         horizontalalignment = "center"
-        ax.text(x, y, label, horizontalalignment=horizontalalignment,
-                fontsize=11)
+        ax.text(x, y, label, horizontalalignment=horizontalalignment, fontsize=15)
 
     for wedge, label in zip(wedges_inner, inner_labels):
+        if label.split("\n")[0] in ["distance", "counting", "relationship"]:
+            continue
         ang = (wedge.theta2 - wedge.theta1)/2. + wedge.theta1
         y = 0.7 * np.sin(np.deg2rad(ang))
         x = 0.7 * np.cos(np.deg2rad(ang))
         horizontalalignment = "center"
-        ax.text(x, y, label, horizontalalignment=horizontalalignment,
-                fontsize=9)
+        ax.text(x, y, label, horizontalalignment=horizontalalignment, fontsize=13)
 
     # 添加中心空白
     centre_circle = plt.Circle((0,0), 0.3, fc='white')
     ax.add_artist(centre_circle)
 
-    plt.text(0, 0, f'Data Distribution\nTotal Count: {data["meta"]["all_count"]}', ha='center', va='center', fontsize=16)
+    plt.text(0, 0, f'Data Distribution\nTotal Count: {data["meta"]["all_count"]}', ha='center', va='center', fontsize=20)
     plt.savefig("./data/ToolTrajectory/data_distribution.png", dpi=300, bbox_inches='tight')
 
 
 if __name__=="__main__":
-    data_file = "/mynvme1/EQA-Traj-0715/trajectory.json"
+    data_file = "/mynvme1/EQA-Traj-0720/trajectory.json"
     data = statistic(data_file)
     print(data)
     visualize(data)

@@ -43,16 +43,18 @@ openai_role_conversions = {
 }
 
 class GPTEngine(HfApiEngine):
-    def __init__(self, model="tonggpt"):
-        client, model_name = get_tonggpt_open_ai_client(model)
-        self.model_name= model_name
-        self.client = client
+    def __init__(self, model="gpt-4o-mini"):
+        self.model_name= model
+        self.client = OpenAI(
+            api_key='sk-bty7uDUznmPRiEWdi3YaUaqUpRpwiJmt2K96E0H39UbEtvMt',
+            base_url='https://api.deerapi.com/v1'
+        )
         
     def __call__(self, messages, stop_sequences=[], *args, **kwargs) -> str:
         # print ('----------------raw message',messages)
         image_paths = kwargs.get("image_paths", None)
         messages = get_clean_message_list(messages, role_conversions=openai_role_conversions)
-        print ('----------------processed message',messages)
+        # print ('----------------processed message',messages)
         if len(messages) > 1:
             task = messages[1]
             content = task['content']
@@ -64,27 +66,7 @@ class GPTEngine(HfApiEngine):
                     break
         else:
             raise Exception("No messages found")
-        # print ('contentcontentcontent',content)
 
-        if 'Attached image ' in content:
-            match = re.search(r'Attached image (\d+) paths: ', content)
-            if match:
-                number = int(match.group(1))
-                origin_content = content[:match.start()]
-                paths = content[match.end():].split('; ')
-                path_list_new = paths[:number]
-            else:
-                origin_content = content
-                path_list_new = []
-
-            # print ('path_listpath_listpath_list',path_list_new)
-            messages[1]['content']=[]
-            messages[1]['content'].append(dict(type="text", text=origin_content))
-
-            for path_item in path_list_new:
-                if 'png' in path_item or 'jpg' in path_item or 'jpeg' in path_item:
-                    messages[1]['content'].append(dict(type="image_url", image_url={"url": f"data:image/jpeg;base64,{encode_image(path_item)}"}))
-                
         if image_paths is not None and len(image_paths) > 0:
             origin_content = messages[1]['content']
             messages[1]['content'] = []
@@ -108,3 +90,9 @@ class GPTEngine(HfApiEngine):
                 time.sleep(10)
             
         return response.choices[0].message.content
+
+
+if __name__=="__main__":
+    llm_engine = GPTEngine()
+    response = llm_engine([{'role': "user", "content": "Who are you?"}])
+    print(response)

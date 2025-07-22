@@ -61,6 +61,6 @@ if __name__=="__main__":
     tool = ObjectLocation2D()
     import time
     t = time.time()
-    result = tool.forward("human", "./tmp/human.jpg")
+    result = tool.forward("table", "tmp/1-4.png")
     print("Time taken:", time.time() - t)
-    print(result.keys())
+    print(result)

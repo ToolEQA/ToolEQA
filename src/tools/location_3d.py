@@ -5,6 +5,8 @@ from PIL import Image
 import io
 from src.utils.shared_memory import client_send_image
 import numpy as np
+import cv2
+import torch
 
 class ObjectLocation3D(Tool):
     name = "ObjectLocation3D"
@@ -41,13 +43,21 @@ class ObjectLocation3D(Tool):
         res = client_send_image(data)
 
         if "error" in res.keys():
-            raise Exception(f"Error: {res['error']}")
-        return res
-    
+            print(f"Error: {object}, {image_path}, {res['error']}")
+            return None, None, None
+            # raise Exception(f"Error: {object}, {image_path}, {res['error']}")
+
+        center = [[round(bbox[0], 2), round(bbox[1], 2), round(bbox[2], 2)] for bbox in res["bboxes_3d"].cpu().tolist()]
+        size = [[round(bbox[3], 2), round(bbox[4], 2), round(bbox[5], 2)] for bbox in res["bboxes_3d"].cpu().tolist()]
+        # yaw = [bbox[6] for bbox in res["bboxes_3d"]]
+        rot = res["rot_mat"]
+
+        return center, size, rot
+
 if __name__=="__main__":
     tool = ObjectLocation3D()
     import time
     t = time.time()
-    result = tool.forward("human", "./tmp/human.jpg")
+    result = tool.forward("light", "/mynvme1/EQA-Traj-0720/Z_HvYhe6T6e3msJ7HRsPAg/1-4.png")
     print("Time taken:", time.time() - t)
     print(np.array(result['rot_mat'][0]).shape)

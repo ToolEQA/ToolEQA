@@ -118,7 +118,7 @@ Here is example of expected outputs for each case:
         "observation": "Cropped dishwasher saved at /path/to/sofa-crop.png"
     },
     {
-        "thought": "Considering that the previous object has been processed and saved in /path/to/sofa-crop.png. Moreover, the information is sufficient to answer this query. Now compare the saved objects to answer the question.",
+        "thought": "Considering that the previous object has been processed and saved in /path/to/sofa-crop.png. Moreover, the information is sufficient to answer this query.  Now utilize the VisualQATool to answer the question.",
         "code":
         ```py
         VisualQATool("What material is used for the base of the sofa positioned against the wall near the door?", "/path/to/sofa-crop.png")
@@ -156,7 +156,7 @@ Here is example of expected outputs for each case:
         "observation": "Cropped clock saved at /path/to/clock-crop.png"
     },
     {
-        "thought": "Considering that the previous object has been processed and saved in /path/to/clock-crop.png. Moreover, the information is sufficient to answer this query. Now compare the saved objects to answer the question.",
+        "thought": "Considering that the previous object has been processed and saved in /path/to/clock-crop.png. Moreover, the information is sufficient to answer this query. Now utilize the VisualQATool to answer the question.",
         "code":
         ```py
         VisualQATool("How many Roman numeral markings are present on the clock mounted on the wall, positioned above a wooden table?", "/path/to/clock-crop.png")

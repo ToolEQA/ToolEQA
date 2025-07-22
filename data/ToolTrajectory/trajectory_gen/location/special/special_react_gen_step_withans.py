@@ -31,61 +31,197 @@ def get_prompt(path):
         prompt = file.read()
     return prompt
 
-def parse_blocks(response_text, action = None):
+
+def detect_tool_or_closest(s):
+
+      # MODEL_TOOLBOX = [
+    #             VisualQATool(),
+    #             ObjectLocation2D(),
+    #             ObjectLocation3D(),
+    #             GoNextPointTool(),
+    #             SegmentInstanceTool(),
+    #             FinalAnswerTool(),
+    #             ObjectCrop()
+    #         ]
+
+    tools = [
+        'VisualQATool',
+        'ObjectLocation2D',
+        'ObjectLocation2D',
+        'GoNextPointTool',
+        'SegmentInstanceTool',
+        'final_answer',
+        'ObjectCrop'
+    ]
+
+    # 严格匹配
+    for tool in tools:
+        if tool in s:
+            return tool
+
+    # 模糊关键词到工具名的映射
+    keyword_map = {
+        'Location2D': 'ObjectLocation2D',
+        'Location3D': 'ObjectLocation3D',
+        'VisualQA': 'VisualQATool',
+        'GoNextPoint': 'GoNextPointTool',
+        'SegmentInstance': 'SegmentInstanceTool',
+        'final_answer': 'final_answer',
+        'Crop': 'ObjectCrop'
+    }
+
+    for kw, tool in keyword_map.items():
+        if kw in s:
+            return tool
+
+    # 都找不到
+    return None
+
+
+
+def blocks_extract(text):
+    """
+    从 text 中提取出按顺序排列的 block 列表。
+    每个 block 必须包含 thought、code、observation。
+    """
+    # 匹配三个字段的位置
+    field_pattern = re.compile(r'"(thought|code|observation)"\s*:', re.IGNORECASE)
+    matches = list(field_pattern.finditer(text))
+
+    if not matches:
+        raise ValueError("文本里没有找到任何 thought/code/observation")
+
+    blocks = []
+    i = 0
+    while i < len(matches):
+        if matches[i].group(1) != 'thought':
+            i += 1
+            continue
+
+        if i+2 >= len(matches):
+            raise ValueError(f"第 {len(blocks)+1} 个 block 不完整（缺少 code 或 observation）")
+
+        # 确保顺序正确
+        if matches[i+1].group(1) != 'code' or matches[i+2].group(1) != 'observation':
+            raise ValueError(f"第 {len(blocks)+1} 个 block 字段顺序不对")
+
+        thought_start = matches[i].end()
+        code_start = matches[i+1].start()
+        block_text_thought = text[thought_start:code_start].strip().rstrip(',')
+
+        code_start = matches[i+1].end()
+        obs_start = matches[i+2].start()
+        block_text_code = text[code_start:obs_start].strip().rstrip(',')
+
+        obs_start = matches[i+2].end()
+        next_start = matches[i+3].start() if i+3 < len(matches) else len(text)
+        block_text_obs = text[obs_start:next_start].strip().rstrip(',')
+
+        blocks.append({
+            'thought': block_text_thought,
+            'code': block_text_code,
+            'observation': block_text_obs
+        })
+
+        i += 3
+
+    return blocks
+
+def parse_blocks(response_text, object_current, question_current, action = None):
     """
     把 response 文本按 block 提取成合法 dict 列表，并保存为 json。
     """
     results = []
+
+    results_nonprocess = []
 
     # 去掉外层 ```json 和 ```
     response_text = re.sub(r"^```json", "", response_text.strip(), flags=re.MULTILINE)
     response_text = re.sub(r"```$", "", response_text.strip(), flags=re.MULTILINE).strip()
 
     # 切出每个对象块，用大括号对齐
-    blocks = re.findall(r"\{(.*?)\}", response_text, re.DOTALL)
+    # blocks = re.findall(r"\{(.*?)\}", response_text, re.DOTALL)
+    blocks = blocks_extract(response_text)
 
     for block in blocks:
         item = {}
 
+        item_nonprocess = {}
+
+
+        # 第三种 
+        thought_part = block['thought']
+
+        code_part = block['code'].replace("```py", "").replace("```", "").strip()
+
+        observation_part = block['observation']
+
+        if thought_part.startswith('"') and thought_part.endswith('"'):
+            thought_part = thought_part[1:-1].strip()
+
+        idx = observation_part.find('\n')
+        if idx != -1:
+            observation_part = observation_part[:idx]
+
+        if observation_part.startswith('"') and observation_part.endswith('"'):
+            observation_part = observation_part[1:-1].strip()
+
+
         # thought
-        m = re.search(r'"thought"\s*:\s*"([^"]+)"', block)
-        if m:
-            item['thought'] = m.group(1)
-        m = re.search(
-            r'"code"\s*:\s*`{3}py\s*(.*?)`{3}',
-            block,
-            re.DOTALL
-        )
-        if m:
-            code_content = m.group(1)
-            # 清理多余的 ```py 和 ```
-            code_content = code_content.replace("```py", "").replace("```", "").strip()
-            if code_content == 'GoNextPointTool()':
+        item['thought'] = thought_part
+        item_nonprocess['thought'] = thought_part
+
+        # code
+        code_content = code_part
+
+            
+        keytool = detect_tool_or_closest(code_content)
+        item_nonprocess["code"] = code_content
+        if keytool is not None:
+            if keytool == 'GoNextPointTool':
                 if action is not None:
-                    item["code"] = 'GoNextPointTool("' + action + '")'
+                    item["code"] = 'path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
                 else:
-                    item["code"] = code_content
+                    action = "move_forward"
+                    item["code"] ='path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
                     print('Error! Should subplace but donot provide action!')
+            elif keytool == 'ObjectLocation2D':
+                item["code"] = '[x1,y1,x2,y2] = ' + code_content + "\n" + "print(f'The bounding box of " + object_current + " is [x1,y1,x2,y2].')"
+            elif keytool == 'ObjectLocation3D':
+                item["code"] = "position, size, rot = " + code_content +  "\n" + "print(f'The information of " + object_current + " is: position is {position},  size (Length, width, height) is {size}, and the rotation is {rot}.')"
+            elif keytool == 'VisualQATool':
+                item["code"] = "answer = " + code_content  +  "\n" + "print(f'The question is " + question_current + ". The answer is {answer}.')"
+            elif keytool == 'SegmentInstanceTool':
+                item["code"] = 'path = ' + code_content +  "\n" + "print(f'The semantic segmentation of " +  object_current + " is saved in {path}.')" 
+            elif keytool == 'final_answer':
+                item["code"] = code_content
+            elif keytool == 'ObjectCrop':
+                item["code"] = 'path = ' + code_content + "\n" + "print(f'The cropped result of " +  object_current + " is saved in {path}.')" 
             else:
                 item["code"] = code_content
-            # item['code'] = code_content
-
+        else:
+            item["code"] = code_content
+            print('Error! The tool is wrong!')
+        
         # observation
-        m = re.search(r'"observation"\s*:\s*"([^"]+)"', block, re.DOTALL)
-        if m:
-            item['observation'] = m.group(1)
 
-        if item:
-            results.append(item)
-        
-    return results
-        
+        item['observation'] = observation_part
+        item_nonprocess['observation'] = observation_part
+
+        results.append(item)
+        results_nonprocess.append(item_nonprocess)
+         
+
+
+    return results, results_nonprocess
+         
 
 def parse_block_nonkey(response_text, action):
     results = []
     item = {}
     item["thought"] = response_text
-    item["code"] = 'GoNextPointTool("' + action + '")'
+    # item["code"] = 'GoNextPointTool("' + action + '")'
+    item["code"] = 'path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
     item["observation"] = "Navigating to the next point in the 3D environment."
     results.append(item)
 
@@ -233,7 +369,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     rotation_matrix = [[1,0,0],[0,1,0], [0,0,1]] # 旋转矩阵
 
     for index, item in enumerate(data):
-        # if index < 2:
+        # if index >= 5:
         #     continue
         question = item["question"]
         choices = item["proposals"]
@@ -324,15 +460,16 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     else:
                         action_current = traj_i["action"][0][0]
 
-                react_results = parse_blocks(response["choices"][0]["message"]["content"], action_current)
+                react_results, react_results_nonprocess = parse_blocks(response["choices"][0]["message"]["content"], object_name_current, question, action_current)
+
                 traj_i = write_in_json(traj_i, react_results)
                 traj_i["is_key"] = "true"
                 if all_found == "False":
-                    react_key_results.append(react_results)
+                    react_key_results.append(react_results_nonprocess)
                 
             else: # 代表 中间的过程只是需要调用 gonextpoint工具
                 print('=================================================Current Step:' + step_i +'==============================================================')
-                images = os.path.join("/mynvme1/EQA-Traj-0611/", traj_i["image_path"])
+                images = traj_i["image_path"].replace("/mynvme1/EQA-Traj-0611/", "/mynvme1/EQA-Traj-0720/")
                 # user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found)
                 
                 object_name_current = objects_name[int(step_i[0])]
@@ -391,7 +528,7 @@ if __name__=="__main__":
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
     data_path = "data/data_special.json"
-    output_path = "output/special_output_ans_with_plan_nonkey_3.json"
+    output_path = "output/special_output_ans_with_plan_nonkey.json"
     gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path)
 
 

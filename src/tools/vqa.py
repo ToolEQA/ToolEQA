@@ -21,7 +21,7 @@ class VisualQATool(Tool):
         
         self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct")
 
-    def forward_qwen(self, question, image_paths: str) -> str:
+    def forward_qwen(self, question, image_paths) -> str:
         add_note = False
         if type(question) is not str:
             raise Exception("parameter question should be a string.")
@@ -34,7 +34,7 @@ class VisualQATool(Tool):
         elif isinstance(image_paths, list):
             image_paths = image_paths
         else:
-            print ('The type of input image is ', type(image_path))
+            print ('The type of input image is ', type(image_paths))
             raise Exception("The type of input image should be string (image path)")
 
         messages = [
@@ -50,7 +50,7 @@ class VisualQATool(Tool):
 
         return output
 
-    def forward(self, question, prompt):
+    def forward(self, question, image_paths):
         if self.debug:
             return "This is a debug context."
-        return self.forward_qwen(question, prompt)
+        return self.forward_qwen(question, image_paths)

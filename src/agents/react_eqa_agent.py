@@ -5,6 +5,8 @@ from transformers.agents.agents import AgentGenerationError, AgentParsingError, 
 from transformers.agents import ReactCodeAgent
 from src.tools.tool_box import get_tool_box
 from src.llm_engine.qwen import QwenEngine
+from src.llm_engine.gpt import GPTEngine
+import random
 
 class AgentToleranceError(AgentError):
     pass
@@ -30,6 +32,7 @@ class EQAReactAgent(ReactCodeAgent):
                         )
         self.image = []
         self.error_tolerance_count = error_tolerance_count
+        self.letter = ["A", "B", "C", "D"]
 
     def set_image_path(self, image):
         self.image.clear()
@@ -189,10 +192,17 @@ class EQAReactAgent(ReactCodeAgent):
                 self.max_iterations = self.toolbox._tools["GoNextPointTool"].eqa_modeling.max_step
 
     def run(self, data = None, reset: bool = True, **kwargs):
-        self.task = data["question"]
-        if len(kwargs) > 0:
-            self.task += f"\nYou have been provided with these initial arguments: {str(kwargs)}."
-        self.state = kwargs.copy()
+        oepn_vocab = kwargs.get("oepn_vocab", True)
+        if oepn_vocab:
+            self.task = data["question"]
+        else:
+            proposals = data["proposals"]
+            random.shuffle(proposals)
+            self.task = data["question"] + str([f"{self.letter[i]}. {p}" for i, p in enumerate(proposals)])
+        # if len(kwargs) > 0:
+        #     self.task += f"\nYou have been provided with these initial arguments: {str(kwargs)}."
+        # self.state = kwargs.copy()
+        self.state = {}
         if reset:
             self.initialize_for_run(data)
         else:
@@ -204,25 +214,28 @@ class EQAReactAgent(ReactCodeAgent):
 if __name__=="__main__":
     import json
     
-    data = json.load(open("./data/EQA-Traj-0611/trajectory.json"))
-    print(data[1]["question"])
-    print(data[1]["proposals"])
-    print(data[1]["answer"])
+    data = json.load(open("./data/EQA-Traj-0720/trajectory.json"))
+    print(data[0]["question"])
+    print(data[0]["proposals"])
+    print(data[0]["answer"])
     
     SAFE_MODULES = list(set(LIST_SAFE_MODULES + [
         "requests", "zipfile", "os", "pandas", "numpy", "sympy",
-        "json", "bs4", "sklearn", "scipy", "pydub", "io", "PIL",
-        "torch", "datetime", "csv", "matplotlib", "pickle", "cv2"
+        "json", "bs4", "sklearn", "scipy", "pydub", "io",
+        "torch", "datetime", "csv"
     ]))
 
 
     system_prompt = open("data/ToolTrajectory/prompts/react_system_prompt.txt", "r").read()
     eqa_react_agent = EQAReactAgent(
         tools=get_tool_box(),
-        llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct"),
+        # llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct"),
+        llm_engine=GPTEngine("gpt-4o-mini"),
         system_prompt=system_prompt,
         add_base_tools=False,
         additional_authorized_imports=SAFE_MODULES,
         planning_interval=1,
         )
-    eqa_react_agent.run(data[1])
+    for item in data:
+        eqa_react_agent.run(item, oepn_vocab=True)
+        break
