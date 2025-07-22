@@ -59,6 +59,8 @@ class ObservationProductor():
         for line in code.split("\n"):
             if line[: len("FinalAnswerTool")] == "FinalAnswerTool":
                 return result
+            if line[: len("final_answer")] == "final_answer":
+                return result
 
         return output
     
@@ -70,8 +72,12 @@ class ObservationProductor():
                 code = react[i]["code"]
                 if "ObjectCrop" in code:
                     continue
+                if "Location3D" in code:
+                    continue
 
                 obs = self.run_code(code)
+                # import pdb; pdb.set_trace()
+
                 react[i]["observation"] = obs
 
                 if "ObjectLocation2D" in code and i + 1< len(react):
@@ -96,15 +102,16 @@ class ObservationProductor():
             self.init(item)
             result = self.run_sample(item)
             output.append(result)
+            
         return output
 
 if __name__=="__main__":
-    data_path = "tmp/special_output_ans_with_plan_nonkey.json"
+    data_path = "tmp/data/size_output_ans_with_plan_nonkey-toolnormal.json"
     op = ObservationProductor(
         data_path,
         get_tool_box()
     )
     res = op.run()
     
-    with open("tmp/special_output_ans_with_plan_nonkey-obs.json", "w") as f:
+    with open("tmp/data/size-obs.json", "w") as f:
         json.dump(res, f, indent=4)

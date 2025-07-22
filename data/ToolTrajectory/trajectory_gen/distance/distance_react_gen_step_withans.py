@@ -14,6 +14,18 @@ from src.tools.go_next_point import GoNextPointTool
 from src.tools.segment_instance import SegmentInstanceTool
 from src.tools.final_answer import FinalAnswerTool
 from src.tools.crop import ObjectCrop
+from pydantic import BaseModel
+
+class Planing(BaseModel):
+    plan: str
+
+class Step(BaseModel):
+    thought: str
+    code: str
+    observation: str
+
+class React(BaseModel):
+    steps: list[Step]
 
 def load_data(path):
     data_list = []
@@ -176,14 +188,14 @@ def parse_blocks(response_text, object_current, question_current, action = None)
     results_nonprocess = []
 
     # 去掉外层 ```json 和 ```
-    response_text = re.sub(r"^```json", "", response_text.strip(), flags=re.MULTILINE)
-    response_text = re.sub(r"```$", "", response_text.strip(), flags=re.MULTILINE).strip()
+    # response_text = re.sub(r"^```json", "", response_text.strip(), flags=re.MULTILINE)
+    # response_text = re.sub(r"```$", "", response_text.strip(), flags=re.MULTILINE).strip()
 
     # 切出每个对象块，用大括号对齐
     # blocks = re.findall(r"\{(.*?)\}", response_text, re.DOTALL)
-    blocks = blocks_extract(response_text)
+    # blocks = blocks_extract(response_text)
 
-    for block in blocks:
+    for block in response_text:
         item = {}
 
         item_nonprocess = {}
@@ -239,22 +251,42 @@ def parse_blocks(response_text, object_current, question_current, action = None)
         #     observation_part = observation_part[1:-1].strip()
 
         # 第三种 
-        thought_part = block['thought']
+        # thought_part = block['thought']
 
-        code_part = block['code'].replace("```py", "").replace("```", "").strip()
+        # code_part = block['code'].replace("```py", "").replace("```", "").strip()
 
-        observation_part = block['observation']
+        # observation_part = block['observation']
 
-        if thought_part.startswith('"') and thought_part.endswith('"'):
-            thought_part = thought_part[1:-1].strip()
+        # if thought_part.startswith('"') and thought_part.endswith('"'):
+        #     thought_part = thought_part[1:-1].strip()
 
-        idx = observation_part.find('\n')
-        if idx != -1:
-            observation_part = observation_part[:idx]
+        # idx = observation_part.find('\n')
+        # if idx != -1:
+        #     observation_part = observation_part[:idx]
 
-        if observation_part.startswith('"') and observation_part.endswith('"'):
-            observation_part = observation_part[1:-1].strip()
+        # if observation_part.startswith('"') and observation_part.endswith('"'):
+        #     observation_part = observation_part[1:-1].strip()
 
+
+        # # thought
+        # item['thought'] = thought_part
+        # item_nonprocess['thought'] = thought_part
+
+        # # code
+        # code_content = code_part
+
+        # # observation
+
+        # item['observation'] = observation_part
+        # item_nonprocess['observation'] = observation_part
+
+        # 第四种方式，使用标准化的输出，来进行 格式化
+        
+        thought_part = block["thought"]
+
+        code_part = block["code"]
+
+        observation_part = block["observation"]
 
         # thought
         item['thought'] = thought_part
@@ -262,6 +294,11 @@ def parse_blocks(response_text, object_current, question_current, action = None)
 
         # code
         code_content = code_part
+
+        # observation
+
+        item['observation'] = observation_part
+        item_nonprocess['observation'] = observation_part
 
             
         keytool = detect_tool_or_closest(code_content)
@@ -292,10 +329,7 @@ def parse_blocks(response_text, object_current, question_current, action = None)
             item["code"] = code_content
             print('Error! The tool is wrong!')
         
-        # observation
-
-        item['observation'] = observation_part
-        item_nonprocess['observation'] = observation_part
+        
 
         results.append(item)
         results_nonprocess.append(item_nonprocess)
@@ -421,6 +455,7 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
 
 
 
+
 def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path):
     system_prompt = get_prompt(system_prompt_path)
 
@@ -458,8 +493,10 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     rotation_matrix = [[1,0,0],[0,1,0], [0,0,1]] # 旋转矩阵
 
     for index, item in enumerate(data):
-        if index >= 2:
+        if index >= 8:
             exit()
+        # if index != 7:
+        #     continue
         question = item["question"]
         choices = item["proposals"]
         answer = choices[proposal_choice.index(item["answer"][0].upper())]
@@ -505,11 +542,13 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
         images = None
         planing_prompt_r = planing_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", object_order)
         response_plan = requests_api(images, planing_prompt_r)
-        item["plan"] = response_plan["choices"][0]["message"]["content"]
-
+        # item["plan"] = response_plan["choices"][0]["message"]["content"]
+        item["plan"] = response_plan
+        print('response_plan', response_plan)
         # 获得关键步骤和非关键步骤的react
 
         react_key_results = [] # 用于保存关键的步骤的react信息
+        object_information_all = []
         for traj_i in traj:
             step_i = traj_i["step"]
             found = "False"
@@ -526,7 +565,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 object_size_infor = extract_object_size(scene ,[object_id_current])
                 object_rotation_infor = "The rotation of Object {} is {}. ".format(object_name_current, str(rotation_matrix))
                 object_information = object_pos_infor + object_size_infor + object_rotation_infor
-
+                object_information_all.append(object_information)
                 prefix, suffix = step_i.split('-')
                 if int(prefix) == obj_num: # 如果是最后一个物体，那么需要将all_found 变为true，来帮助标识
                     all_found = "True"
@@ -537,10 +576,10 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 if all_found == "True":
                     user_prompt_r = user_prompt_r.replace("<<expected_answer>>", answer)
                     user_prompt_r = user_prompt_r.replace("<<previous_thought>>", str(react_key_results))
-                    print(user_prompt_r)
-                response = requests_api(images, user_prompt_r)       
-                print(response["choices"][0]["message"]["content"])
-
+                    user_prompt_r = user_prompt_r.replace("<<provided_positions>>", str(object_information_all))
+                    # print(user_prompt_r)
+                response = requests_api(images, user_prompt_r, React)       
+   
                 if all_found == "True": # 如果 all_found的话，那么不需要给action
                     action_current = None
                 else:
@@ -549,32 +588,33 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     else:
                         action_current = traj_i["action"][0][0]
 
-                react_results, react_results_nonprocess = parse_blocks(response["choices"][0]["message"]["content"], object_name_current, question, action_current)
+                react_results, react_results_nonprocess = parse_blocks(response, object_name_current, question, action_current)
+                print('react_results', react_results)
                 traj_i = write_in_json(traj_i, react_results)
                 traj_i["is_key"] = "true"
                 if all_found == "False":
                     react_key_results.append(react_results_nonprocess)
                 
-            else: # 代表 中间的过程只是需要调用 gonextpoint工具
-                print('=================================================Current Step:' + step_i +'==============================================================')
-                images = traj_i["image_path"].replace("/mynvme1/EQA-Traj-0611/", "/mynvme1/EQA-Traj-0720/")
-                # user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found)
+            # else: # 代表 中间的过程只是需要调用 gonextpoint工具
+            #     print('=================================================Current Step:' + step_i +'==============================================================')
+            #     images = traj_i["image_path"].replace("/mynvme1/EQA-Traj-0611/", "/mynvme1/EQA-Traj-0720/")
+            #     # user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found)
                 
-                object_name_current = objects_name[int(step_i[0])]
-                # action_current = traj_i["action"][0][0]
-                if len(traj_i["action"]) == 0: # 判断一下是否为空，为空的话，则需要给一个默认值，即move_forward
-                    action_current = "move_forward"
-                else:
-                    action_current = traj_i["action"][0][0]
-                print('object_name_current', object_name_current, 'action_current' ,action_current)
-                nonkey_prompt_r = nonkey_prompt.replace("<<object_name>>", object_name_current).replace("<<action_name>>", action_current) 
+            #     object_name_current = objects_name[int(step_i[0])]
+            #     # action_current = traj_i["action"][0][0]
+            #     if len(traj_i["action"]) == 0: # 判断一下是否为空，为空的话，则需要给一个默认值，即move_forward
+            #         action_current = "move_forward"
+            #     else:
+            #         action_current = traj_i["action"][0][0]
+            #     print('object_name_current', object_name_current, 'action_current' ,action_current)
+            #     nonkey_prompt_r = nonkey_prompt.replace("<<object_name>>", object_name_current).replace("<<action_name>>", action_current) 
 
-                # response = requests_api(images, nonkey_prompt_r)
+            #     response = requests_api(images, nonkey_prompt_r)
                 
-                # print(response["choices"][0]["message"]["content"])
-                # react_results = parse_block_nonkey(response["choices"][0]["message"]["content"], action_current)
-                # traj_i = write_in_json(traj_i, react_results)
-                # traj_i["is_key"] = "false"
+            #     print(response["choices"][0]["message"]["content"])
+            #     react_results = parse_block_nonkey(response["choices"][0]["message"]["content"], action_current)
+            #     traj_i = write_in_json(traj_i, react_results)
+            #     traj_i["is_key"] = "false"
 
         with open(output_path, 'r', encoding='utf-8') as f:
             data_output = json.load(f)
@@ -583,6 +623,8 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
 
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(data_output, f, ensure_ascii=False, indent=4)
+        
+        # exit()
 
             
 
@@ -622,7 +664,7 @@ if __name__=="__main__":
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
     data_path = "data/data_distance.json"
-    output_path = "output/distance_output_ans_with_plan_nonkey.json"
+    output_path = "output/distance_output_ans_with_plan_nonkey_stuct_2.json"
     excel_path = "data/distance_cleaned_ans.csv"
     # update_answer(excel_path, data_path)
     gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path)

@@ -12,87 +12,87 @@ In the end you have to return a final answer using the `final_answer` tool.
 Here are a few examples using notional tools:
 
 ---
-Task: "Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink?"
+Task: "Is the height of the curtain framing the doorway near the pink toy storage unit greater than the height of the woven basket under a framed picture near the doorway?"
 
-Thought: Find two objects: (1) the purple sofa positioned centrally, flanked by patterned cushions and  small side table; (2) the dishwasher beneath the countertop next to the sink. The sofa may locate at the living room, and dishwasher may locate at the kitchen. Utilize the `GoNextPointTool` tool to explore in this floor to find living room and kitchen to find these two objects. This tool can help move to a point covering an unknow area to obtain new horizon and information.
+Thought: As I look around the room, I notice that directly to my left, there is a wooden door slightly ajar. The way it stands out with its rich, warm color suggests that it leads to another room, and doorways often indicate spaces where objects like curtains might be found, especially if the adjacent room has windows. In contrast, looking straight ahead presents more walls and appliances that are less likely to house the target object. \n\nGiven this specific clue, the opening of the door captures my attention because it hints at an unexplored area where the curtain might be positioned. Moving toward that space seems more promising than any other direction. Therefore, I choose to turn left.
 Code: 
 ```py
-root = GoNextPointTool("turn_left")
-print(f'In this point, the landscape is {root}')
+path = GoNextPointTool("turn_left")
+print(f'In this point, the current landscape is saved in {path}.')
 ```<end action>
-Observation: In this point, the landscape is <image_path.jpg>
+Observation: In this point, the current landscape is saved in ./cache/next_point_1.jpg.
 
-Thought: This viewpoint doesn’t show the relevant objects. Continue exploring to locate the living room or kitchen.
+Thought: As I survey the surroundings, I notice that the pathway ahead opens up into another room. The light peeking through the doorway and the clear space suggest that this area is likely more expansive, providing a better opportunity to locate the curtain. Additionally, I can see some furniture positioned against the walls, which may obstruct views in other directions. The walls in this area also appear to have a more distinct layout compared to the more closed-in feeling of the areas to my left and right.\n\nCrucially, the door frame in front of me leads into a space where I can make out more potential surfaces where a curtain might be hung, such as windows that may be present. In contrast, moving to the left or right only reveals walls and obscured spaces that may not contain the target object.\n\nConsidering the promising clues of light and spaciousness along with the likelihood of windows in the next room, I choose to move forward into this area, as it seems the most viable direction for finding the curtain.
 Code: 
 ```py
-root = GoNextPointTool("move_forward")
-print(f'In this point, the landscape is {root}')
+path = GoNextPointTool("move_forward")
+print(f'In this point, the current landscape is saved in {path}.')
 ```<end action>
-Observation: In this point, the landscape is <image_path.jpg>
+Observation: In this point, the current landscape is saved in ./cache/next_point_2.jpg.
 
-Thought: This viewpoint doesn’t show the relevant objects. Continue exploring to locate the living room or kitchen.
+Thought: Found the curtain object near the pink toy storage unit. I will locate it precisely and retrieve its bounding box to confirm its dimensions.
 Code: 
 ```py
-root = GoNextPointTool("move_forward")
-print(f'In this point, the landscape is {root}')
+position, size, rot = ObjectLocation3D(object='curtain', image_path='./cache/next_point_2.jpg')
+print(f'The information of curtain is: position is {position},  size (Length, width, height) is {size}.')
 ```<end action>
-Observation: In this point, the landscape is <image_path.jpg>
+Observation: The information of curtain is: position is [5.503, 4.301, 4.479], size (Length, width, height) is [0.201, 1.83, 0.494].
 
-Thought: This appears to be the living room.  I see a centrally positioned sofa with patterned cushions and a small side table—matching the description. Use `ObjectLocationTool()` to crop the sofa.
+Thought: Found the object stair. I will now locate it precisely to give its bounding box.
+Code: 
+```py
+bbox = ObjectLocation2D(object='stair', image_path='/mynvme1/EQA-Traj-0720/syUktnn2RIWFX07abGVZLA/0-8.png')
+print(f'The bounding box of stair is {bbox}.')
+```<end action>
+Observation: The bounding box of stair is {'bboxes_2d': [[171, 266, 420, 639]], 'labels': ['stair'], 'text': 'stair'}.
+
+Thought: Crop and save this object\u2019s region for further comparison.
+Code: 
+```py
+path = ObjectCrop(bounding_box = [[171, 266, 420, 639]], image_path='/mynvme1/EQA-Traj-0720/syUktnn2RIWFX07abGVZLA/0-8.png')
+print(f'The cropped result of stair is saved in {path}.')
+```<end action>
+Observation: The cropped result of stair is saved in ['./cache/0-8_obj_0.jpg'].
+
+Thought: Proceed to next point to find remaining objects.
 Code:
 ```py
-sofa = ObjectLocationTool(object="sofa", image_path="<image_path.jpg>")
-print(f'The cropped sofa is {root}')
+path = GoNextPointTool("turn_left")
+print(f'In this point, the current landscape is saved in {path}.')
 ```<end_action>
-Observation: The cropped sofa is <image_path.jpg>
+Observation: In this point, the current landscape is saved in ./cache/next_point_3.jpg.
 
-Thought: Save this sofa image using `RegisterViewTool()` so it can be used for visual comparison later.
+Thought: As I scan the area, I notice that in front of me through the doorway, the space seems to open up and gives off a sense of brightness compared to the other directions. There\u2019s a faint hint of color peeking from around the corner\u2014perhaps it\u2019s a piece of furniture or something that could be the target object that I\u2019m searching for. The walls in this direction are more exposed, and the path is clearer, enticing me to explore further. \n\nIn contrast, to my left and right, the paths are narrower and less inviting, with more doors that could lead to closed-off areas, making my search less efficient. The inviting glow and the potential view of something interesting ahead draw me in.\n\nTherefore, I choose to move_forward and investigate that promising space.
 Code: 
 ```py
-RegisterViewTool(object="sofa", image_path="<image_path.jpg>")
-print(f'The sofa is saved, and root is {root}')
+path = GoNextPointTool("move_forward")
+print(f'In this point, the current landscape is saved in {path}.')
 ```<end action>
-Observation: The sofa is saved, and root is <image_path.jpg>
+Observation: In this point, the current landscape is saved in ./cache/next_point_4.jpg.
 
-Thought: Now search for the dishwasher, likely in the kitchen. Continue using `GoNextPointTool()` to find it.
+Thought: Found the object picture. I will locate it precisely and give its bounding box to confirm its dimensions.
 Code: 
 ```py
-root = GoNextPointTool("turn_left")
-print(f'In this point, the landscape is {root}')
+position, size, rot = ObjectLocation3D(object='picture', image_path='/mynvme1/EQA-Traj-0720/c_QsabMzTJu6pc3ZvLu9ZA/1-4.png')
+print(f'The information of picture is: position is {position},  size (Length, width, height) is {size}.')
 ```<end action>
-Observation: In this point, the landscape is <image_path.jpg>
+Observation: The information of picture is: position is [7.724, 4.863, -0.12], size (Length, width, height) is [0.019, 0.47, 0.776].
 
-Thought: This viewpoint doesn’t show the dishwasher. Continue using `GoNextPointTool()` for exploring to locate the kitchen.
+Thought: The stair object has been processed and saved in ./cache/next_point_4.jpg. Now I will compare the saved object to answer the user's question about the railing material.
 Code: 
 ```py
-root = GoNextPointTool("turn_right")
-print(f'In this point, the landscape is {root}')
+question = "What material is used for the railing on the staircase leading down to the entrance?"
+answer = VisualQATool(question, ["./cache/next_point_3.jpg", "./cache/next_point_4.jpg"])
+print(question, answer)
 ```<end action>
-Observation: In this point, the landscape is c<image_path.jpg>
+Observation: What material is used for the railing on the staircase leading down to the entrance?. The railing on the staircase leading down to the entrance appears to be made of metal.
 
-Thought: Now, I have arrived at the kitchen and found the dishwasher. I will crop the regions of this dishwasher and save in new files.
-Code:
-```py
-root = objectlocation(object="dishwasher", image_path="<image_path.jpg>")
-print(f'The cropped dishwasher is {root}')
-```<end_action>
-Observation: The cropped dishwasher is <image_path.jpg>
-
-Thought: Now, I have found the cropped dishwasher. To compare the vibrant of object, I have to save the image. Utilize the `RegisterViewTool` to save this image.
+Thought: The height of the curtain is given as 0.494, and the height of the picture is given as 0.776. Now we compare the heights: Height of curtain = 0.494. Height of picture = 0.776. Since 0.494 < 0.776, the curtain is indeed shorter than the picture.
 Code: 
 ```py
-root = RegisterViewTool(object="dishwasher", image_path="<image_path.jpg>")
-print(f'The dishwasher is saved, and root is {root}')
+final_answer(\"No, the picture is taller.\")
 ```<end action>
-Observation: The dishwasher is saved, and root is <image_path.jpg>
-
-Thought: Now I have found and saved two objects: sofa and dishwasher. I need to ask for `VisualQATool` to ask for which object is more vibrant.
-Code:
-```py
-VisualQATool("Which object is more vibrant, sofa or dishwasher?", ['<image_path1.jpg>', '<image_path2.jpg>'])
-final_answer("The sofa has a more vibrant color")
-```<end_action>
-Observation: The sofa has a more vibrant color.
+Observation: No, the picture is taller.
 
 
 Above example were using notional tools that might not exist for you. You ONLY have access to those tools, and do not use tools that have not been mentioned:
