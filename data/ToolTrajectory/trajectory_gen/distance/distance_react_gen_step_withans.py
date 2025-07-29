@@ -179,7 +179,7 @@ def blocks_extract(text):
 
     return blocks
 
-def parse_blocks(response_text, object_current, question_current, action = None):
+def parse_blocks(response_text, object_current, question_current, action = None, gonextpoint_path = None, ObjectLocation3D_path = None, object_information = None):
     """
     把 response 文本按 block 提取成合法 dict 列表，并保存为 json。
     """
@@ -295,10 +295,7 @@ def parse_blocks(response_text, object_current, question_current, action = None)
         # code
         code_content = code_part
 
-        # observation
-
-        item['observation'] = observation_part
-        item_nonprocess['observation'] = observation_part
+        
 
             
         keytool = detect_tool_or_closest(code_content)
@@ -312,24 +309,30 @@ def parse_blocks(response_text, object_current, question_current, action = None)
                     item["code"] ='path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
                     print('Error! Should subplace but donot provide action!')
             elif keytool == 'ObjectLocation2D':
-                item["code"] = '[x1,y1,x2,y2] = ' + code_content + "\n" + "print(f'The bounding box of " + object_current + " is [x1,y1,x2,y2].')"
+                item["code"] = '[x1,y1,x2,y2] = ' + keytool + "(object={object_name}, image_path={path})" + "\n" + "print(f'The bounding box of " + object_current + " is [x1,y1,x2,y2].')"
             elif keytool == 'ObjectLocation3D':
-                item["code"] = "position, size, rot = " + code_content +  "\n" + "print(f'The information of " + object_current + " is: position is {position},  size (Length, width, height) is {size}, and the rotation is {rot}.')"
+                item["code"] = "position, size, rot = " + keytool + "(object={object_name}, image_path={path})" +  "\n" + "print(f'The information of " + object_current + " is: position is {position},  size (Length, width, height) is {size}.')"
             elif keytool == 'VisualQATool':
-                item["code"] = "answer = " + code_content  +  "\n" + "print(f'The question is " + question_current + ". The answer is {answer}.')"
+                item["code"] = "answer = " + keytool + "('" + question_current + "', {path})"  +  "\n" + "print(f'The question is " + question_current + ". The answer is {answer}.')"
             elif keytool == 'SegmentInstanceTool':
                 item["code"] = 'path = ' + code_content +  "\n" + "print(f'The semantic segmentation of " +  object_current + " is saved in {path}.')" 
             elif keytool == 'final_answer':
                 item["code"] = code_content
             elif keytool == 'ObjectCrop':
-                item["code"] = 'path = ' + code_content + "\n" + "print(f'The cropped result of " +  object_current + " is saved in {path}.')" 
+                item["code"] = 'path = ' + keytool + "(bounding_box = {bounding_box}, image_path={path_input})" + "\n" + "print(f'The cropped result of " +  object_current + " is saved in {path}.')" 
             else:
                 item["code"] = code_content
         else:
             item["code"] = code_content
             print('Error! The tool is wrong!')
         
+        # 为了快速适用于不同的问题类型，这里 把 对 item["code"]加上路径的方式 放到 外面的一个函数
+        item["code"] = code_refine(item["code"], keytool, gonextpoint_path, ObjectLocation3D_path, object_information)
         
+        # observation
+
+        item['observation'] = observation_part
+        item_nonprocess['observation'] = observation_part
 
         results.append(item)
         results_nonprocess.append(item_nonprocess)
@@ -338,13 +341,21 @@ def parse_blocks(response_text, object_current, question_current, action = None)
 
     return results, results_nonprocess
          
+def code_refine(code, keytool, gonextpoint_path = None, ObjectLocation3D_path = None, object_information = None):
+    if keytool == 'ObjectLocation3D':
+        code = code.format(object_name = object_information["name"], path = ObjectLocation3D_path, position = object_information["position"], size = object_information["size"])
+    elif keytool == 'GoNextPointTool':
+        code = code.format(path = gonextpoint_path)
+    
+    return code
 
-def parse_block_nonkey(response_text, action):
+def parse_block_nonkey(response_text, action, gonextpoint_path):
     results = []
     item = {}
     item["thought"] = response_text
     # item["code"] = 'GoNextPointTool("' + action + '")'
     item["code"] = 'path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
+    item["code"] = item["code"].format(path = gonextpoint_path)
     item["observation"] = "Navigating to the next point in the 3D environment."
     results.append(item)
 
@@ -431,6 +442,7 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
 
 
     results = []
+    size_info_pure = {}
 
     for obj_id in object_num:
         found = next((obj for obj in objects if obj.get("object_id") == obj_id), None)
@@ -444,6 +456,7 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
                 category, dims[0], dims[2], dims[1]
             )
             results.append(results_size)
+            size_info_pure[obj_id] = [dims[0], dims[2], dims[1]]
         else:
             print('Error!!! Cannot find the related object with ID:', obj_id)
             results.append("")
@@ -451,7 +464,7 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
     # 拼接所有结果字符串
     object_size_info = "".join(results)
 
-    return object_size_info
+    return object_size_info, size_info_pure
 
 
 
@@ -493,7 +506,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     rotation_matrix = [[1,0,0],[0,1,0], [0,0,1]] # 旋转矩阵
 
     for index, item in enumerate(data):
-        if index >= 8:
+        if index >= 3:
             exit()
         # if index != 7:
         #     continue
@@ -549,10 +562,11 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
 
         react_key_results = [] # 用于保存关键的步骤的react信息
         object_information_all = []
-        for traj_i in traj:
+        for traj_i, traj_i_next in zip(traj, traj[1:] + [None]):
             step_i = traj_i["step"]
             found = "False"
             all_found = "False"
+            
             if step_i  in steps: # 如果是最后一步的话，则需要告诉gpt这是最后一步了，需要思考调用什么工具来回答问题
                 # images = os.path.join("/mynvme1/EQA-Traj-0611/", traj_i["image_path"])
                 print('=================================================Current Step:' + step_i +'==============================================================')   
@@ -562,9 +576,15 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 object_id_current = objects_id[int(step_i[0])]
                 object_pos_current = object_pos[int(step_i[0])]
                 object_pos_infor = "The position of Object {} is {}. ".format(object_name_current, str(object_pos_current))
-                object_size_infor = extract_object_size(scene ,[object_id_current])
-                object_rotation_infor = "The rotation of Object {} is {}. ".format(object_name_current, str(rotation_matrix))
-                object_information = object_pos_infor + object_size_infor + object_rotation_infor
+                object_size_infor, size_info_pure = extract_object_size(scene ,[object_id_current])
+                # object_rotation_infor = "The rotation of Object {} is {}. ".format(object_name_current, str(rotation_matrix))
+                # object_information = object_pos_infor + object_size_infor + object_rotation_infor
+                object_information = object_pos_infor + object_size_infor
+                object_information_item = {}
+                object_information_item["name"] = object_name_current
+                object_information_item["position"] = str(object_pos_current)
+                object_information_item["size"] = str(size_info_pure[object_id_current])
+
                 object_information_all.append(object_information)
                 prefix, suffix = step_i.split('-')
                 if int(prefix) == obj_num: # 如果是最后一个物体，那么需要将all_found 变为true，来帮助标识
@@ -587,8 +607,16 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                         action_current = "move_forward"
                     else:
                         action_current = traj_i["action"][0][0]
+                
+                if traj_i_next is None: #最后一步了，所以 一定没有 gonextpoint了。并且，else中只是 gonextpoint，所以一定要传递 图片路径。 
+                    gonextpoint_path = None
+                    ObjectLocation3D_path = traj_i["image_path"]
+                else:
+                    gonextpoint_path = traj_i_next["image_path"]
+                    ObjectLocation3D_path = traj_i["image_path"]
 
-                react_results, react_results_nonprocess = parse_blocks(response, object_name_current, question, action_current)
+
+                react_results, react_results_nonprocess = parse_blocks(response, object_name_current, question, action_current, gonextpoint_path, ObjectLocation3D_path, object_information_item)
                 print('react_results', react_results)
                 traj_i = write_in_json(traj_i, react_results)
                 traj_i["is_key"] = "true"
@@ -610,9 +638,8 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
             #     nonkey_prompt_r = nonkey_prompt.replace("<<object_name>>", object_name_current).replace("<<action_name>>", action_current) 
 
             #     response = requests_api(images, nonkey_prompt_r)
-                
-            #     print(response["choices"][0]["message"]["content"])
-            #     react_results = parse_block_nonkey(response["choices"][0]["message"]["content"], action_current)
+            #     gonextpoint_path = traj_i_next["image_path"]
+            #     react_results = parse_block_nonkey(response, action_current, gonextpoint_path)
             #     traj_i = write_in_json(traj_i, react_results)
             #     traj_i["is_key"] = "false"
 
@@ -673,45 +700,3 @@ if __name__=="__main__":
 
 
 
-
-
-
-# text = ''' ```json
-# [
-#     {
-#         "thought": "I have found the ''"sdjksdjkdsjksdj {}jksdjksdjjhkfshkjfinhjsdhjksdaasdjkhsdinsdjskh \[\]sdsd table and need to identify its exact bounding box for further processing. I will use the ObjectLocation3D tool to determine its location in the image.",
-#         "code": 
-#         ```py
-#         ObjectLocation3D(object='table', image_path='/mynvme1/EQA-Traj-0611/Z_HvYhe6T6e3msJ7HRsPAg/1-4.png')
-#         ``` ,
-#         "observation": "The position of Object table is [5.168, -0.602, 2.59]. The length, width and height of Object table is 0.653, 0.284, and 1.049."
-#     },
-#     {
-#         "thought": "Now that I have found the table, I can retrieve positions of other key objects. The previous thoughts indicate the chair's position is [4.863, -0.875, 1.05].  Since I know the position of the table [5.168, -0.602, 2.59], I will calculate the distance between these two objects. Here are the coordinates: Chair: [4.863, -0.875, 1.05], Table: [5.168, -0.602, 2.59]. 1. **Calculate the distance from the chair to the table:** - Distance: \( d_{chair} = \sqrt{(5.168 - 4.863)^2 + (-0.602 + 0.875)^2 + (2.59 - 1.05)^2} = \sqrt{(0.305)^2 + (0.273)^2 + (1.54)^2} \). Calculating those squares: \( 0.305^2 = 0.093025 \), \( 0.273^2 = 0.074529 \), \( 1.54^2 = 2.3716 \). Adding them: \( 0.093025 + 0.074529 + 2.3716 = 2.539154 \). Finally, taking the square root gives \( \sqrt{2.539154} \approx 1.594 \) meters.",
-#         "code": 
-#         ```py
-#         final_answer("1–2m.")
-#         ``` ,
-#         "observation": "Final answer submitted."
-#     }
-# ]
-# ```
-# '''
-
-# blocks = parse_blocks_2(text)
-# for block in blocks:
-#     print('thought', block['thought'])
-#     print('code', block['code'])
-#     print('observation', block['observation'])
-
-
-
-# observation_part =  "\"The information of table is: position is [8.412, 2.079, 0.845], size (Length, width, height) is [0.56, 0.042, 0.665], and the rotation is [[1, 0, 0], [0, 1, 0], [0, 0, 1]].\"\n    },\n    {"
-# observation_part ="\"Final answer submitted.\"\n    }\n]"
-# idx = observation_part.find('\n')
-# if idx != -1:
-#     observation_part = observation_part[:idx]
-
-# if observation_part.startswith('"') and observation_part.endswith('"'):
-#     observation_part = observation_part[1:-1].strip()
-# print(observation_part)

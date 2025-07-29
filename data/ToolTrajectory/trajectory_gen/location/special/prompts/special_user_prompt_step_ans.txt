@@ -101,7 +101,7 @@ Here is example of expected outputs for each case:
         "observation": "near the edge of the bed."
     },
     {
-        "thought": "Output the final answer based on the comparison.",
+        "thought": "Output the final answer based on the results.",
         "code":
         ```py
         final_answer("near the edge of the bed.")

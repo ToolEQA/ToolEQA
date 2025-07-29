@@ -434,7 +434,7 @@ def navigation_video(sim, agent, pathes, frame_rate=24.0, output_video="eqa.mp4"
         vol_bnds=tsdf_bnds,
         voxel_size=0.1,
         floor_height_offset=0,
-        pts_init=pos_habitat_to_normal(pts_normal),
+        pts_init=pts_normal,
         init_clearance=1,
     )
     trojectory = []
@@ -449,7 +449,7 @@ def navigation_video(sim, agent, pathes, frame_rate=24.0, output_video="eqa.mp4"
 
         found_path = sim.pathfinder.find_path(shortest_path)
         if not found_path:
-            print("No valid path found between start and end positions!")
+            print("No valid path be founded between start and end positions!")
             return
         print(f"Path found with {len(shortest_path.points)} points")
         print(f"Path length: {shortest_path.geodesic_distance}")

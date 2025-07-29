@@ -73,7 +73,7 @@ You have now found all required objects. Since this is the final required object
 
 Actions (in order):
 📋 What you MUST do now:
-⚠️ Since all_found == true, you are NOT allowed to navigate to any next point, and you MUST complete processing and answering at this point. **The final tool you invoke must be FinalAnswerTool().**
+⚠️ Since all_found == true, you are NOT allowed to navigate to any next point, and you MUST complete processing and answering at this point. **The final tool you invoke must be final_answer().**
 🚫 Do NOT call GoNextPointTool() at this step — if you do, the task fails.
 ✅ After processing the last object, you MUST call final_answer("{expected_answer}").
 
@@ -111,8 +111,8 @@ Actions (in order):
     - If you incorrectly believe information is missing, explain why in your thought but proceed anyway — because the system guarantees all necessary data is present.
 
 4️⃣ Answer the question:
-    - Then use FinalAnswerTool() to output the final answer.  
-    - ⚠️ Note: The expected answer will be provided as <<expected_answer>>, and you ** must format it in FinalAnswerTool("{expected_answer}"). **
+    - Then use final_answer() to output the final answer.  
+    - ⚠️ Note: The expected answer will be provided as <<expected_answer>>, and you ** must format it in final_answer("{expected_answer}"). **
     - The questions are about the size comparison between objects. The thought in this step must contain the comparison, and it must consistent with the final answer.
 
 Output:
@@ -121,11 +121,11 @@ At least four reasoning triples, in this order:
 
  - analyze/locate the target object.
 
- - output FinalAnswerTool().
+ - output final_answer().
 
 🛠️ Available Tools
 You may use the following tools:
-    GoNextPointTool(), ObjectLocation3D(), FinalAnswerTool()
+    GoNextPointTool(), ObjectLocation3D(), final_answer()
 
 The definition of these tools are <<tool_descriptions>>.
 
@@ -183,7 +183,7 @@ The JSON array must contain exactly the expected number of reasoning triples, ac
 The triples must appear in the logical order of actions.
 
 📋 Example Scenarios
-Given the question: Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink?
+Given the question: How many sofas are in this floor?
 
 Here are examples of expected outputs for each case:
 
@@ -193,7 +193,8 @@ Case: found == false
         "thought": "Haven’t found any target yet. Continue exploring to uncover more areas.",
         "code": 
         ```py
-        GoNextPointTool()
+        path = GoNextPointTool("turn_left")
+        print(f'In this point, the current landscape is saved in {path}.')
         ``` ,
         "observation": "Navigating to the next point in the 3D environment."
     }
@@ -202,18 +203,20 @@ Case: found == false
 Case: found == true and all_found == false
 [
     {
-        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
+        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box."
         "code":
         ```py
-        ObjectLocation3D(object='curtain', image_path='/path/to/curtain.png')
+        position, size, rot = ObjectLocation3D(object='sofa', image_path='./cache/next_point_2.jpg')
+        print(f'The information of sofa is: position is {position},  size (Length, width, height) is {size}.')
         ``` ,
-        "observation": "The information  of curtain is: position is [5.503, -4.479, 4.301], size (Length, width, height) is [0.201, 1.83, 0.494], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
+        "observation": "The information of sofa is: position is [5.503, 4.301, 4.479], size (Length, width, height) is [0.201, 1.83, 0.494]."
     },
     {
         "thought": "Proceed to next point to find remaining objects.",
         "code": 
         ```py
-        GoNextPointTool()
+        path = GoNextPointTool("turn_left")
+        print(f'In this point, the current landscape is saved in {path}.')
         ``` ,
         "observation": "Navigating to the next point in the 3D environment."
     }
@@ -221,59 +224,32 @@ Case: found == true and all_found == false
 ** Case: found == true and all_found == true **
 [
     {
-        "thought": "Found the object picture. Locate it precisely and give its bounding box",
+        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.",
         "code":
         ```py
-        ObjectLocation3D(object='picture', image_path='/path/to/dishwasher.png')
+        position, size, rot = ObjectLocation3D(object='sofa', image_path='./cache/next_point_2.jpg')
+        print(f'The information of sofa is: position is {position},  size (Length, width, height) is {size}.')
         ``` ,
-        "observation": "The information  of picture is: position is [7.724, 0.12, 4.863], size (Length, width, height) is [0.019, 0.47,  0.776], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
+        "observation": "The information of sofa is: position is [5.503, 4.301, 4.479], size (Length, width, height) is [0.201, 1.83, 0.494]."
     },
     {
-        "thought": "The height of the curtain is given as 0.494, and the height of the picture is given as 0.776. Now we compare the heights: Height of curtain = 0.494. Height of picture = 0.776. Since 0.494 < 0.776, the curtain is indeed shorter than the picture.",
+        "thought": "I have explored the entire area and seen three sofas, which can answer the user's questions now.",
         "code":
         ```py
-        FinalAnswerTool("No, the picture is taller.")
+        final_answer("3")
         ``` ,
-        "observation": "Final answer submitted."
+        "observation": "3"
     }
 ]
-** In terms of volume comparison **
-Case: found == true and all_found == false
+** Case: found == false and all_found == true ** 
 [
     {
-        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
+        "thought": "I have explored the entire area and seen three sofas, which can answer the user's questions now.",
         "code":
         ```py
-        ObjectLocation3D(object='bed', image_path='/path/to/bed.png')
+        final_answer("3")
         ``` ,
-        "observation": "The information  of bed is: position is [13.028, 3.733, 0.568], size (Length, width, height) is [2.139, 1.085, 1.271], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
-    },
-    {
-        "thought": "Proceed to next point to find remaining objects.",
-        "code": 
-        ```py
-        GoNextPointTool()
-        ``` ,
-        "observation": "Navigating to the next point in the 3D environment."
-    }
-]
-** Case: found == true and all_found == true ** 
-[
-    {
-        "thought": "Found the object dresser. Locate it precisely and give its bounding box",
-        "code":
-        ```py
-        ObjectLocation3D(object='dresser', image_path='/path/to/dresser.png')
-        ``` ,
-        "observation": "The information  of dresser is: position is  [10.207, 4.652, 0.801], size (Length, width, height) is [0.23, 1.552, 1.028], and the rotation is [[1,0,0], [0,1,0], [0,0,1]]."
-    },
-    {
-        "thought": "First, we calculate the volume of each object using the formula for volume, which is Volume = Length × Width × Height. For the bed: Length = 2.139, Width = 1.085, Height = 1.271. Calculating the volume of the bed: Volume_bed = 2.139 × 1.085 × 1.271 = 2.495 m³ (approximately, calculating gives exactly 2.494644114). For the dresser: Length = 0.23, Width = 1.552, Height = 1.028.  Calculating the volume of the dresser: Volume_dresser = 0.23 × 1.552 × 1.028 = 0.366 m³ (approximately, calculating gives exactly 0.36609904). Now we compare the two volumes: Volume of the bed ≈ 2.495 m³, Volume of the dresser ≈ 0.366 m³. Since 2.495 > 0.366, the bed has a larger overall volume than the dresser.",
-        "code":
-        ```py
-        FinalAnswerTool("bed.")
-        ``` ,
-        "observation": "Final answer submitted."
+        "observation": "3"
     }
 ]
 ❌ Incorrect example at final step:
