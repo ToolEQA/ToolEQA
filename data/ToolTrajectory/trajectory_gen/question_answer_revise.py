@@ -155,7 +155,7 @@ if __name__=="__main__":
     # output_path = "output/trajectory_update.json"
     # main(excel_path_distance, output_path_temp, output_path, question_type)
 
-    result = check_all_single_locations("location-special.csv")
+    result = check_all_single_locations("status.csv")
     if result:
         print("✅ 所有行的 locations 都是单元素 list。")
     else:

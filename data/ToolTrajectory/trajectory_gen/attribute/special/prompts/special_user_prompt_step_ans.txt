@@ -102,7 +102,7 @@ Given the question: What material is used for the base of the sofa positioned ag
 Here is example of expected outputs for each case:
 [
     {
-        "thought": "Found the object dishwasher. Locate it precisely and give its bounding box",
+        "thought": "Found the object sofa. Locate it precisely and give its bounding box",
         "code":
         ```py
         ObjectLocation2D(object='sofa', image_path='/path/to/sofa.png')
@@ -115,7 +115,7 @@ Here is example of expected outputs for each case:
         ```py
         ObjectCrop(bounding_box = [x1,y1,x2,y2], image_path='/path/to/sofa.png')
         ``` ,
-        "observation": "Cropped dishwasher saved at /path/to/sofa-crop.png"
+        "observation": "Cropped sofa saved at /path/to/sofa-crop.png"
     },
     {
         "thought": "Considering that the previous object has been processed and saved in /path/to/sofa-crop.png. Moreover, the information is sufficient to answer this query.  Now utilize the VisualQATool to answer the question.",

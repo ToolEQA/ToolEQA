@@ -57,9 +57,9 @@ You have now found all required objects. Since this is the final required object
 
 Actions (in order):
 📋 What you MUST do now:
-⚠️ Since all_found == true, you are NOT allowed to navigate to any next point, and you MUST complete processing and answering at this point. **The final tool you invoke must be FinalAnswerTool().**
+⚠️ Since all_found == true, you are NOT allowed to navigate to any next point, and you MUST complete processing and answering at this point. **The final tool you invoke must be final_answer().**
 🚫 Do NOT call GoNextPointTool() at this step — if you do, the task fails.
-✅ After processing the last object, you MUST call FinalAnswerTool("{expected_answer}").
+✅ After processing the last object, you MUST call final_answer("{expected_answer}").
 
 1️⃣ Process the current object at this location:
     - Use an appropriate analysis tool (ObjectLocation2D(), etc.) to identify and locate the current target object at this point.
@@ -79,7 +79,7 @@ Actions (in order):
 
 4️⃣ Answer the question:
     - Use VisualQATool() to compare the saved views of the relevant objects and generate the answer.
-    - Then use FinalAnswerTool() to output the final answer.  The expected answer will be provided as <<expected_answer>>, and you ** must format it in FinalAnswerTool("{expected_answer}"). **
+    - Then use final_answer() to output the final answer.  The expected answer will be provided as <<expected_answer>>, and you ** must format it in final_answer("{expected_answer}"). **
 
 
 Output:
@@ -92,11 +92,11 @@ At least four reasoning triples, in this order:
 
  - use VisualQATool() to compare.
 
- - output FinalAnswerTool().
+ - output final_answer().
 
 🛠️ Available Tools
 You may use the following tools:
-    GoNextPointTool(), ObjectLocation2D(), ObjectCrop(), VisualQATool(), FinalAnswerTool()
+    GoNextPointTool(), ObjectLocation2D(), ObjectCrop(), VisualQATool(), final_answer()
 
 The definition of these tools are <<tool_descriptions>>.
 
@@ -135,10 +135,7 @@ At each step you must output your reasoning in strict JSON array format, like th
 [
     {
         "thought": "Describe your reasoning here.",
-        "code": 
-        ```py
-        Your Python-style function call here
-        ``` ,
+        "code": " Your Python-style function call here"
         "observation": "Expected result of executing the code."
     }
 ]
@@ -160,10 +157,7 @@ Case: found == false
 [
     {
         "thought": "Haven’t found any target yet. Continue exploring to uncover more areas.",
-        "code": 
-        ```py
-        GoNextPointTool()
-        ``` ,
+        "code": "GoNextPointTool()",
         "observation": "Navigating to the next point in the 3D environment."
     }
 ]
@@ -171,26 +165,17 @@ Case: found == true and all_found == false
 [
     {
         "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
-        "code":
-        ```py
-        ObjectLocation2D(object='sofa', image_path='/path/to/sofa.png')
-        ``` ,
+        "code": "ObjectLocation2D(object='sofa', image_path='/path/to/sofa.png')",
         "observation": "The bounding box of this object is [x,y,z]."
     },
     {
         "thought": "Crop and save this object’s region for further comparison.",
-        "code":
-        ```py
-        ObjectCrop(bounding_box = [x,y,z], image_path='/path/to/sofa.png')
-        ``` ,
+        "code": "ObjectCrop(bounding_box = [x,y,z], image_path='/path/to/sofa.png')",
         "observation": "Cropped sofa saved at /path/to/sofa-crop.png"
     },
     {
         "thought": "Proceed to next point to find remaining objects.",
-        "code": 
-        ```py
-        GoNextPointTool()
-        ``` ,
+        "code": "GoNextPointTool()",
         "observation": "Navigating to the next point in the 3D environment."
     }
 ]
@@ -198,34 +183,22 @@ Case: found == true and all_found == false
 [
     {
         "thought": "Found the object dishwasher. Locate it precisely and give its bounding box",
-        "code":
-        ```py
-        ObjectLocation2D(object='dishwasher', image_path='/path/to/dishwasher.png')
-        ``` ,
+        "code": "ObjectLocation2D(object='dishwasher', image_path='/path/to/dishwasher.png')",
         "observation": "The bounding box of this object is [x,y,z]."
     },
     {
         "thought": "Crop and save this object’s region for further comparison.",
-        "code":
-        ```py
-        ObjectCrop(bounding_box = [x,y,z], image_path='/path/to/dishwasher.png')
-        ``` ,
+        "code": "ObjectCrop(bounding_box = [x,y,z], image_path='/path/to/dishwasher.png')",
         "observation": "Cropped dishwasher saved at /path/to/dishwasher-crop.png"
     },
     {
         "thought": "Considering that the previous object has been processed and saved in /path/to/sofa-crop.png. Moreover, the information is sufficient to answer this query. Now compare the two registered objects to answer the question.",
-        "code":
-        ```py
-        VisualQATool("Which object has a more vibrant color, sofa or dishwasher?", "/path/to/sofa-crop.png", "/path/to/dishwasher-crop.png")
-        ``` ,
+        "code": "VisualQATool("Which object has a more vibrant color, sofa or dishwasher?", "/path/to/sofa-crop.png", "/path/to/dishwasher-crop.png")",
         "observation": "The sofa has a more vibrant color."
     },
     {
         "thought": "Output the final answer based on the comparison.",
-        "code":
-        ```py
-        FinalAnswerTool("The sofa has a more vibrant color.")
-        ``` ,
+        "code": "final_answer("The sofa has a more vibrant color.")",
         "observation": "Final answer submitted."
     }
 ]
@@ -234,10 +207,7 @@ Case: found == true and all_found == false
     …,
     {
         "thought": "Proceed to next point to find remaining objects.",
-        "code": 
-        ```py
-        GoNextPointTool()
-        ``` ,
+        "code": "GoNextPointTool()",
         "observation": "Navigating to the next point in the 3D environment."
     }
 ]
