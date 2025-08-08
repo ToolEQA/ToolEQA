@@ -1,3 +1,3 @@
-python color_react_gen_step_withans.py 0 &
-python color_react_gen_step_withans.py 1 &
-python color_react_gen_step_withans.py 2 &
+python color_react_gen_step_withans.py 0
+python color_react_gen_step_withans.py 1
+python color_react_gen_step_withans.py 2

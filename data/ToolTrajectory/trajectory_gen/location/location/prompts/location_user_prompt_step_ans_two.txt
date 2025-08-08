@@ -3,7 +3,7 @@ You are an intelligent embodied agent tasked with answering a visual question by
 
 You receive the trajectory one step at a time, and at each step you will be told:
 
-the user question
+the user question. This is a question that requires identifying the room where multiple specified objects are located together.
 
 the current trajectory step (e.g., "0-0") — which includes an image and positional data
 
@@ -41,32 +41,9 @@ You have found a target object, but not all required objects yet.
 
 Actions (in order):
 
-1️⃣ Use at least one appropriate analysis tool (from the list below) to identify and locate the found target object, and return its bounding box.
+1️⃣  Only find one object, you cannot do anything. You must still call GoNextPointTool() to continue exploring.
 
-- In the "thought" field: clearly describe your reasoning and what you **plan to do next** to identify and locate the target object.  
-⚠️ Do NOT include any results, dimensions, bounding box, position, or any specific information about the object here — only your intention and reasoning.  
-⚠️ You must assume you do NOT yet know the size, position, or bounding box of the object. Your reasoning should reflect this and focus on which tool(s) you intend to use and why.
-
-- In the "code" field: call the appropriate tool(s) to carry out your plan.
-
-- In the "observation" field: include the actual output after running the code.  
-The bounding box in observation must be consistent with the provided object information in "the information of object".
-
-2️⃣ Finally, you must still call GoNextPointTool() to continue exploring.
-
-General Notes:
-✅ In "thought", focus only on what you observe in the scene and which tool(s) you will use next. Do NOT assume or state any results here.  
-✅ The purpose of "thought" is to demonstrate your reasoning for choosing a tool, NOT to report findings.  
-✅ All findings must appear ONLY in the "observation" field after running the code.
-
-
-Output:
-
-At least three reasoning triples, in this order:
-
- - analyze/locate the target object.
-
- - navigate to the next point.
+Output: navigate to the next point. ⚠️ Note: You only need to utilize the GoNextPointTool() once!!!!!!
 
 ✅ Case: found == true and all_found == true
 You have now found all required objects. Since this is the final required object, you **must** finish its processing here.
@@ -89,7 +66,7 @@ Actions (in order):
         The bounding box in observation must be consistent with the provided object information in "the information of object".
 
 2️⃣ Review the previous reasoning and actions:
-    - Read `previous_thoughts`, which contains a summary of all previously located objects and their bounding boxes.
+    - Read `previous_thoughts`, which contains a summary of all previously located objects.
         - previous_thoughts are <<previous_thought>>
     - You **must carefully read and extract the relevant data of all required target objects from previous_thoughts.**
     - Confirm that after completing the current object, **all required target objects have been found, and the information of target has been provided.**
@@ -97,10 +74,7 @@ Actions (in order):
     
     In your thought:
     ✅ Explicitly state: “all required objects are now fully processed” after completing this step.
-    ✅ Clearly identify what property needs to be compared (e.g., height, volume, etc.) based on the task.
     ✅ Explicitly list the relevant values of all required target objects **by reading them from previous_thoughts (not by guessing).**
-    ✅ If calculation is needed (e.g., volume = L × W × H), show the calculation for each object explicitly.
-    ✅ Then explicitly compare these values and clearly state which object meets the required condition.
     ✅ Do NOT assume any missing information — use exactly what is present in `previous_thoughts` and the current observation.
 
     In the `code` field:
@@ -113,8 +87,7 @@ Actions (in order):
 4️⃣ Answer the question:
     - Then use final_answer() to output the final answer.  
     - ⚠️ Note: The expected answer will be provided as <<expected_answer>>, and you ** must format it in final_answer("{expected_answer}"). **
-    - The questions are about the size comparison between objects. The thought in this step must contain the comparison, and it must consistent with the final answer.
-
+  
 Output:
 
 At least four reasoning triples, in this order:
@@ -125,7 +98,7 @@ At least four reasoning triples, in this order:
 
 🛠️ Available Tools
 You may use the following tools:
-    GoNextPointTool(), ObjectLocation3D(), final_answer()
+    GoNextPointTool(), VisualQATool(), final_answer()
 
 The definition of these tools are <<tool_descriptions>>.
 
@@ -180,7 +153,7 @@ The JSON array must contain exactly the expected number of reasoning triples, ac
 The triples must appear in the logical order of actions.
 
 📋 Example Scenarios
-Given the question: Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink?
+Given the question: In which room are the oven and the heater located?
 
 Here are examples of expected outputs for each case:
 
@@ -192,16 +165,10 @@ Case: found == false
         "observation": "Navigating to the next point in the 3D environment."
     }
 ]
-** In terms of height comparison **
 Case: found == true and all_found == false
 [
     {
-        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
-        "code": "ObjectLocation3D(object='curtain', image_path='/path/to/curtain.png')",
-        "observation": "The information  of curtain is: position is [5.503, -4.479, 4.301] and size (Length, width, height) is [0.201, 1.83, 0.494]."
-    },
-    {
-        "thought": "Proceed to next point to find remaining objects.",
+        "thought": "Found the object oven. Proceed to next point in this room to find remaining objects: heater.",
         "code": "GoNextPointTool()",
         "observation": "Navigating to the next point in the 3D environment."
     }
@@ -209,40 +176,13 @@ Case: found == true and all_found == false
 ** Case: found == true and all_found == true **
 [
     {
-        "thought": "Found the object picture. Locate it precisely and give its bounding box",
-        "code": "ObjectLocation3D(object='picture', image_path='/path/to/dishwasher.png')",
-        "observation": "The information  of picture is: position is [7.724, 0.12, 4.863] and size (Length, width, height) is [0.019, 0.47,  0.776]."
+        "thought": "Find the object heater. Considering that the oven and the heater have been found in the same room.  Now utilize the VisualQATool to answer the question.",
+        "code": "VisualQATool("In which room are the oven and the heater located?", "/path/to/oven.png", "/path/to/heater.png")",
+        "observation": "library."
     },
     {
-        "thought": "The height of the curtain is given as 0.494, and the height of the picture is given as 0.776. Now we compare the heights: Height of curtain = 0.494. Height of picture = 0.776. Since 0.494 < 0.776, the curtain is indeed shorter than the picture.",
-        "code": "final_answer("No, the picture is taller.")",
-        "observation": "Final answer submitted."
-    }
-]
-** In terms of volume comparison **
-Case: found == true and all_found == false
-[
-    {
-        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
-        "code": "ObjectLocation3D(object='bed', image_path='/path/to/bed.png')",
-        "observation": "The information  of bed is: position is [13.028, 3.733, 0.568] and size (Length, width, height) is [2.139, 1.085, 1.271]"
-    },
-    {
-        "thought": "Proceed to next point to find remaining objects.",
-        "code": "GoNextPointTool()",
-        "observation": "Navigating to the next point in the 3D environment."
-    }
-]
-** Case: found == true and all_found == true ** 
-[
-    {
-        "thought": "Found the object dresser. Locate it precisely and give its bounding box",
-        "code": "ObjectLocation3D(object='dresser', image_path='/path/to/dresser.png')",
-        "observation": "The information  of dresser is: position is  [10.207, 4.652, 0.801] and size (Length, width, height) is [0.23, 1.552, 1.028]."
-    },
-    {
-        "thought": "First, we calculate the volume of each object using the formula for volume, which is Volume = Length × Width × Height. For the bed: Length = 2.139, Width = 1.085, Height = 1.271. Calculating the volume of the bed: Volume_bed = 2.139 × 1.085 × 1.271 = 2.495 m³ (approximately, calculating gives exactly 2.494644114). For the dresser: Length = 0.23, Width = 1.552, Height = 1.028.  Calculating the volume of the dresser: Volume_dresser = 0.23 × 1.552 × 1.028 = 0.366 m³ (approximately, calculating gives exactly 0.36609904). Now we compare the two volumes: Volume of the bed ≈ 2.495 m³, Volume of the dresser ≈ 0.366 m³. Since 2.495 > 0.366, the bed has a larger overall volume than the dresser.",
-        "code": "final_answer("bed.")",
+        "thought": "Output the final answer based on the results.",
+        "code": "final_answer("library.")",
         "observation": "Final answer submitted."
     }
 ]

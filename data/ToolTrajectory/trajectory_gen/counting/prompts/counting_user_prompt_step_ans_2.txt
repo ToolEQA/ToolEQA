@@ -99,7 +99,6 @@ Actions (in order):
     ✅ Explicitly state: “all required objects are now fully processed” after completing this step.
     ✅ Clearly identify what property needs to be compared (e.g., height, volume, etc.) based on the task.
     ✅ Explicitly list the relevant values of all required target objects **by reading them from previous_thoughts (not by guessing).**
-    ✅ If calculation is needed (e.g., volume = L × W × H), show the calculation for each object explicitly.
     ✅ Then explicitly compare these values and clearly state which object meets the required condition.
     ✅ Do NOT assume any missing information — use exactly what is present in `previous_thoughts` and the current observation.
 
@@ -180,7 +179,7 @@ The JSON array must contain exactly the expected number of reasoning triples, ac
 The triples must appear in the logical order of actions.
 
 📋 Example Scenarios
-Given the question: Which object has a more vibrant color: the purple sofa positioned centrally, flanked by patterned cushions and a small side table or the dishwasher beneath the countertop next to the sink?
+Given the question: How many sofas are in this floor?
 
 Here are examples of expected outputs for each case:
 
@@ -188,62 +187,34 @@ Case: found == false
 [
     {
         "thought": "Haven’t found any target yet. Continue exploring to uncover more areas.",
-        "code": "GoNextPointTool()",
+        "code": "path = GoNextPointTool("turn_left")",
         "observation": "Navigating to the next point in the 3D environment."
     }
 ]
-** In terms of height comparison **
 Case: found == true and all_found == false
 [
     {
-        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
-        "code": "ObjectLocation3D(object='curtain', image_path='/path/to/curtain.png')",
-        "observation": "The information  of curtain is: position is [5.503, -4.479, 4.301] and size (Length, width, height) is [0.201, 1.83, 0.494]."
+        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box."
+        "code": "position, size, rot = ObjectLocation3D(object='sofa', image_path='./cache/next_point_2.jpg')",
+        "observation": "The information of sofa is: position is [5.503, 4.301, 4.479], size (Length, width, height) is [0.201, 1.83, 0.494]."
     },
     {
         "thought": "Proceed to next point to find remaining objects.",
-        "code": "GoNextPointTool()",
+        "code": "path = GoNextPointTool("turn_left")",
         "observation": "Navigating to the next point in the 3D environment."
     }
 ]
 ** Case: found == true and all_found == true **
 [
     {
-        "thought": "Found the object picture. Locate it precisely and give its bounding box",
-        "code": "ObjectLocation3D(object='picture', image_path='/path/to/dishwasher.png')",
-        "observation": "The information  of picture is: position is [7.724, 0.12, 4.863] and size (Length, width, height) is [0.019, 0.47,  0.776]."
+        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.",
+        "code": "position, size, rot = ObjectLocation3D(object='sofa', image_path='./cache/next_point_2.jpg')",
+        "observation": "The information of sofa is: position is [5.503, 4.301, 4.479], size (Length, width, height) is [0.201, 1.83, 0.494]."
     },
     {
-        "thought": "The height of the curtain is given as 0.494, and the height of the picture is given as 0.776. Now we compare the heights: Height of curtain = 0.494. Height of picture = 0.776. Since 0.494 < 0.776, the curtain is indeed shorter than the picture.",
-        "code": "final_answer("No, the picture is taller.")",
-        "observation": "Final answer submitted."
-    }
-]
-** In terms of volume comparison **
-Case: found == true and all_found == false
-[
-    {
-        "thought": "Found an object likely matching the description. Locate it precisely and give its bounding box.,
-        "code": "ObjectLocation3D(object='bed', image_path='/path/to/bed.png')",
-        "observation": "The information  of bed is: position is [13.028, 3.733, 0.568] and size (Length, width, height) is [2.139, 1.085, 1.271]"
-    },
-    {
-        "thought": "Proceed to next point to find remaining objects.",
-        "code": "GoNextPointTool()",
-        "observation": "Navigating to the next point in the 3D environment."
-    }
-]
-** Case: found == true and all_found == true ** 
-[
-    {
-        "thought": "Found the object dresser. Locate it precisely and give its bounding box",
-        "code": "ObjectLocation3D(object='dresser', image_path='/path/to/dresser.png')",
-        "observation": "The information  of dresser is: position is  [10.207, 4.652, 0.801] and size (Length, width, height) is [0.23, 1.552, 1.028]."
-    },
-    {
-        "thought": "First, we calculate the volume of each object using the formula for volume, which is Volume = Length × Width × Height. For the bed: Length = 2.139, Width = 1.085, Height = 1.271. Calculating the volume of the bed: Volume_bed = 2.139 × 1.085 × 1.271 = 2.495 m³ (approximately, calculating gives exactly 2.494644114). For the dresser: Length = 0.23, Width = 1.552, Height = 1.028.  Calculating the volume of the dresser: Volume_dresser = 0.23 × 1.552 × 1.028 = 0.366 m³ (approximately, calculating gives exactly 0.36609904). Now we compare the two volumes: Volume of the bed ≈ 2.495 m³, Volume of the dresser ≈ 0.366 m³. Since 2.495 > 0.366, the bed has a larger overall volume than the dresser.",
-        "code": "final_answer("bed.")",
-        "observation": "Final answer submitted."
+        "thought": "I have explored the entire area and seen three sofas, which can answer the user's questions now.",
+        "code": "final_answer("3")",
+        "observation": "3"
     }
 ]
 ❌ Incorrect example at final step:

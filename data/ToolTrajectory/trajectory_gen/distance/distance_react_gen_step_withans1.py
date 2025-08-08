@@ -1,11 +1,13 @@
+# 通过这个脚本实现thought code observation的生成
 import os
 import json
 from collections import defaultdict
 from data.ToolTrajectory.generator_deerapi import requests_api
 from src.tools.tool_box import get_tool_box, show_tool_descriptions
-import jsonlines
 import re
 import pandas as pd
+import jsonlines
+
 from pathlib import Path
 
 from src.tools.vqa import VisualQATool
@@ -33,7 +35,7 @@ def save_data(data, path):
         writer.write(data)
 
 def load_data(path, output_path):
-
+    
     already_list = []
 
     postfix = output_path.split(".")[-1]
@@ -171,7 +173,7 @@ def parse_blocks(response_text, object_current, question_current, action = None,
                     observation = observation.format(path = gonextpoint_path)
                     print('Error! Should subplace but donot provide action!')
             elif keytool == 'ObjectLocation2D':
-                item["code"] = 'bbox = ' + keytool + "(object='{object_name}', image_path='{path_input}')" + "\n" + "print(f'The bounding box of " + object_current + " is {{bbox}}.')"
+                item["code"] = 'bbox = ' + keytool + "(object='{object_name}', image_path='{path_input}')" + "\n" + "print(f'The bounding box of " + object_current + " is {bbox}.')"
                 item["code"] = item["code"].format(object_name = object_information["name"], path_input = ObjectLocation_path)
                 observation = 'The bounding box of ' + object_current + " is {bbox}."
             elif keytool == 'ObjectLocation3D':
@@ -202,15 +204,13 @@ def parse_blocks(response_text, object_current, question_current, action = None,
         else:
             item["code"] = code_content
             observation = observation_part
-            print('Error! The tool is wrong!')
+            # print('Error! The tool is wrong!')
         
         # 为了快速适用于不同的问题类型，这里 把 对 item["code"]加上路径的方式 放到 外面的一个函数
         # item["code"] = code_refine(item["code"], keytool, ObjectLocation_path, object_information)
         
         # if item["code"] is None and keytool == 'VisualQATool': # 这个表示是 返回的是None,所以直接延用之前的code_content
         #     item["code"] = "answer = " + code_content  +  "\n" + "print(f'{question} {answer})'"
-
-    
 
         item['observation'] = observation
         item_nonprocess['observation'] = observation
@@ -326,8 +326,6 @@ def update_answer(excel_path, data_path):
 
 
 def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/EmbodiedQA/HM3D"):
-
-
      # 提取内部的场景名（如 FxCkHAfgh7A）
     inner_id = scene_id.split("-")[-1]
     
@@ -378,8 +376,7 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
 def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root):
     system_prompt = get_prompt(system_prompt_path)
 
-    
-    tool_box_selected = [ VisualQATool(debug=True), FinalAnswerTool(debug=True) ]
+    tool_box_selected = [ ObjectLocation3D(debug=True), GoNextPointTool(debug=True), FinalAnswerTool(debug=True)]
     tools = get_tool_box(debug=True, tool_box_selected = tool_box_selected)
     tools_desc = show_tool_descriptions(tools)
     print('tools_desc', tools_desc)
@@ -512,30 +509,20 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 
 
                 # 需要在这个地方设置好工作所需要的路径。具体的内容在下面的注释内容中有说明。
-                # *******************************************
                 if traj_i_next is None: #最后一步了，所以 一定没有 gonextpoint了。并且，else中只是 gonextpoint，所以一定要传递 图片路径。 
                     gonextpoint_path = None
                     image_path_current = "/".join(Path(traj_i["image_path"]).parts[-2:])
-                    ObjectLocation_path = None
-
-                    VisualQATool_path = image_path_current #前面没有crop 操作，所以路径中是没有crop的
-                    VisualQATool_path_list.append("'"+VisualQATool_path+"'") # 即使是最后一步了, 所以需要讲list中加上之前的path
-                    VisualQATool_path_final = ", ".join(VisualQATool_path_list) # 需要构架这个，来传递
-
+                    ObjectLocation_path = image_path_current
+                    VisualQATool_path = None
                     ObjectCrop_path = None
                 else:
                     image_path_current = "/".join(Path(traj_i["image_path"]).parts[-2:])
                     image_path_next = "/".join(Path(traj_i_next["image_path"]).parts[-2:])
                     gonextpoint_path = image_path_next
-                    ObjectLocation_path = None
-
-                    VisualQATool_path = image_path_current
-                    VisualQATool_path_list.append("'"+VisualQATool_path+"'") # 即使是最后一步了, 所以需要讲list中加上之前的path
-                    VisualQATool_path_final = ", ".join(VisualQATool_path_list) # 需要构架这个，来传递
-
+                    ObjectLocation_path = image_path_current
+                    VisualQATool_path = None
                     ObjectCrop_path = None
-                
-                # *******************************************
+
 
                 # parse_blocks 的输入是 parse_blocks(response_text, object_current, question_current, action = None, gonextpoint_path = None, ObjectLocation_path = None, VisualQATool_path = None, ObjectCrop_path = None, object_information = None, expected_answer = None, expected_question = None)
                 # 根据不同的任务，查看所需要的工具是啥，然后给定所需要的输入。这个代码几乎不需要改，需要在前面的内容上 提前定义好字符串。如果不需要的工作设置为None.
@@ -621,15 +608,15 @@ def pre_process(data):
 
     return data
 
-
 if __name__=="__main__":
     images_root = "/mynvme1/EQA-Traj-0720/"
     system_prompt_path = "prompts/system_prompt.txt"
     planing_prompt_path = "prompts/planing_prompt.txt"
-    user_prompt_path = "prompts/special_user_prompt_step_ans.txt"
+    user_prompt_path = "prompts/distance_user_prompt_step_ans_code.txt"
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
-    data_path = "data/location-special.json"
-    output_path = "output/special.jsonl"
+    data_path = "data/distance-distance.json"
+    output_path = "output/distance.jsonl"
+    excel_path = "data/distance_cleaned_ans.csv"
+    # update_answer(excel_path, data_path)
     gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root)
-

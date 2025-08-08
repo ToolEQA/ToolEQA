@@ -25,7 +25,7 @@ You have now found all required objects. Since this is the final required object
 Actions (in order):
 📋 What you MUST do now:
 
-✅ After processing the last object, you MUST call FinalAnswerTool("{expected_answer}").
+✅ After processing the last object, you MUST call final_answer("{expected_answer}").
 
 1️⃣ Process the current object at this location:
     - Use an appropriate analysis tool (ObjectLocation2D(), etc.) to identify and locate the current target object at this point.
@@ -34,7 +34,7 @@ Actions (in order):
 
 2️⃣ Answer the question:
     - Use VisualQATool() to compare the saved views of the relevant objects and generate the answer.
-    - Then use FinalAnswerTool() to output the final answer.  The expected answer will be provided as <<expected_answer>>, and you ** must format it in FinalAnswerTool("{expected_answer}"). **
+    - Then use final_answer() to output the final answer.  The expected answer will be provided as <<expected_answer>>, and you ** must format it in final_answer("{expected_answer}"). **
 
 
 Output:
@@ -47,11 +47,11 @@ At least four reasoning triples, in this order:
 
  - use VisualQATool() to compare.
 
- - output FinalAnswerTool().
+ - output final_answer().
 
 🛠️ Available Tools
 You may use the following tools:
-     ObjectLocation2D(), ObjectCrop(), VisualQATool(), FinalAnswerTool()
+     ObjectLocation2D(), ObjectCrop(), VisualQATool(), final_answer()
 
 The definition of these tools are <<tool_descriptions>>.
 
@@ -115,7 +115,7 @@ Here is example of expected outputs for each case:
     },
     {
         "thought": "Output the final answer based on the comparison.",
-        "code": "FinalAnswerTool("Neatly made with the blanket tucked in.")",
+        "code": "final_answer("Neatly made with the blanket tucked in.")",
         "observation": "Final answer submitted."
     }
 ]

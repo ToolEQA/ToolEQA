@@ -45,7 +45,7 @@ def load_data(path):
 def load_and_split_data(data, task_id, total_tasks=3):
     # 1. 加载 JSON 数据
 
-    data = data[:100]
+    # data = data[:100]
 
     # 3. 计算每个任务的分片范围（均匀分割）
     total = len(data)
@@ -80,7 +80,7 @@ def detect_tool_or_closest(s):
         'ObjectLocation2D',
         'GoNextPointTool',
         'SegmentInstanceTool',
-        'FinalAnswerTool',
+        'final_answer',
         'ObjectCrop'
     ]
 
@@ -96,7 +96,7 @@ def detect_tool_or_closest(s):
         'VisualQA': 'VisualQATool',
         'GoNextPoint': 'GoNextPointTool',
         'SegmentInstance': 'SegmentInstanceTool',
-        'FinalAnswer': 'FinalAnswerTool',
+        'FinalAnswer': 'final_answer',
         'Crop': 'ObjectCrop'
     }
 
@@ -158,7 +158,7 @@ def parse_blocks(response_text, object_current, question_current, action = None,
             elif keytool == 'ObjectLocation2D':
                 item["code"] = 'bbox = ' + keytool + "(object='{object_name}', image_path='{path_input}')" + "\n" + "print(f'The bounding box of " + object_current + " is {{bbox}}.')"
             elif keytool == 'ObjectLocation3D':
-                item["code"] = "position, size, rot = " + keytool + "(object='{object_name}', image_path= '{path_input}')" +  "\n" + "print(f'The information of " + object_current + " is: position is {{position}},  size (Length, width, height) is {{size}}.')"
+                item["code"] = "position, size = " + keytool + "(object='{object_name}', image_path= '{path_input}')" +  "\n" + "print(f'The information of " + object_current + " is: position is {{position}},  size (Length, width, height) is {{size}}.')"
             elif keytool == 'VisualQATool':
                 # color的这个和别的不一样，因为需要两个图片，所以其代码不可以复用！！！
                 item["code"] = "question = '" + question_current + "' \n" + "answer = " + keytool + "(question = question, image_paths = [{path_input}])"  +  "\n" + "print(f'{{question}} {{answer}}')"
@@ -317,8 +317,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
             json.dump([], f)
 
     for index, item in enumerate(data):
-        if index > 100:
-            exit()
+        
         question = item["question"]
         choices = item["proposals"]
         answer = choices[proposal_choice.index(item["answer"][0].upper())]

@@ -1,6 +1,6 @@
 # 提取每个区域的语义信息
 import os
-from generator_deerapi import requests_api
+from data.ToolTrajectory.generator_deerapi import requests_api
 import json
 from tqdm import tqdm
 import random
@@ -24,21 +24,23 @@ def sample_region_objects(root, region_name, sample_num):
     return images
 
 
-def extract_region_semantic(root, model, processor, device):
+def extract_region_semantic(root, model=None, processor=None, device=None):
     scenes_dir = os.listdir(root)
     scenes_dir.sort()
 
     prompt = "Analyze the given set of images (all captured from the same area within an indoor scene) and determine the most likely functional area they belong to. Respond ONLY with a single descriptive noun phrase, without explanations or additional text."
-    region_semantic = []
+
     for scene_dir in tqdm(scenes_dir):
         if os.path.isdir(os.path.join(root, scene_dir)):
             regions_root = os.path.join(root, scene_dir, "objects_rgb")
             if os.path.isdir(regions_root):
                 regions_dir = os.listdir(regions_root)
+                region_semantic = []
                 for region_dir in tqdm(regions_dir):
                     images = sample_region_objects(regions_root, region_dir, 5)
 
-                    response = get_response(model, processor, images, prompt, device)[0]
+                    # response = get_response(model, processor, images, prompt, device)[0]
+                    response = requests_api(images, prompt)
 
                     region_semantic.append({"region_id": region_dir, "region_name": response})
 
@@ -95,14 +97,14 @@ if __name__=="__main__":
     device = "cuda"
 
     # Load tokenizer and model
-    model_name = "/mynvme0/models/Qwen2-VL/Qwen2-VL-72B-Instruct-GPTQ-Int4/"
-    model = Qwen2VLForConditionalGeneration.from_pretrained(
-            model_name, 
-            device_map=device, 
-            torch_dtype="auto",
-            attn_implementation="flash_attention_2",
-            trust_remote_code=True
-        ).eval()
-    processor = AutoProcessor.from_pretrained(model_name)
+    # model_name = "/mynvme0/models/Qwen2-VL/Qwen2-VL-72B-Instruct-GPTQ-Int4/"
+    # model = Qwen2VLForConditionalGeneration.from_pretrained(
+    #         model_name, 
+    #         device_map=device, 
+    #         torch_dtype="auto",
+    #         attn_implementation="flash_attention_2",
+    #         trust_remote_code=True
+    #     ).eval()
+    # processor = AutoProcessor.from_pretrained(model_name)
 
-    extract_region_semantic(root, model, processor, device)
+    extract_region_semantic(root)

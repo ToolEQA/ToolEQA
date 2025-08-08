@@ -71,10 +71,7 @@ At each step you must output your reasoning in strict JSON array format, like th
 [
     {
         "thought": "Describe your reasoning here.",
-        "code": 
-        ```py
-        Your Python-style function call here
-        ``` ,
+        "code": "Your Python-style function call here",
         "observation": "Expected result of executing the code."
     }
 ]
@@ -94,18 +91,12 @@ Here is example of expected outputs for each case:
 [
     {
         "thought": "Considering that the white radiator has been found and saved in /path/to/radiator.png. Moreover, the information is sufficient to answer this query.  Now utilize the VisualQATool to answer the question.",
-        "code":
-        ```py
-        VisualQATool("In which location is the white radiator?", "/path/to/radiator.png")
-        ``` ,
+        "code": "VisualQATool("In which location is the white radiator?", "/path/to/radiator.png")",
         "observation": "near the edge of the bed."
     },
     {
         "thought": "Output the final answer based on the results.",
-        "code":
-        ```py
-        final_answer("near the edge of the bed.")
-        ``` ,
+        "code": "final_answer("near the edge of the bed.")",
         "observation": "Final answer submitted."
     }
 ]

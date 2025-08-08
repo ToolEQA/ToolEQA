@@ -65,7 +65,7 @@ def load_data(path, output_path):
             data_list.append(item)
         else:
             print("Already exists in output file, skip:", item["sample_id"])
-    
+
     return data_list
 
 def get_prompt(path):
@@ -183,7 +183,7 @@ def parse_blocks(response_text, object_current, question_current, action = None,
                 # color的这个和别的不一样，因为需要两个图片，所以其代码不可以复用！！！
                 item["code"] = "question = '" + question_current + "' \n" + "answer = " + keytool + "(question = question, image_paths = [{path_input}])"  +  "\n" + "print(f'{{question}} {{answer}}')"
                 item["code"] = item["code"].format(path_input = VisualQATool_path)
-                observation = "{question} {answer}".format(question = expected_question, answer = expected_answer)
+                observation = "{question} {answer}".format(question = expected_question, answer = object_information["location"])
             elif keytool == 'SegmentInstanceTool':
                 item["code"] = 'path = ' + code_content +  "\n" + "print(f'The semantic segmentation of " +  object_current + " is saved in {{path}}.')" 
                 observation = observation_part
@@ -379,7 +379,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     system_prompt = get_prompt(system_prompt_path)
 
     
-    tool_box_selected = [ VisualQATool(debug=True), FinalAnswerTool(debug=True) ]
+    tool_box_selected = [ VisualQATool(debug=True), FinalAnswerTool(debug=True), GoNextPointTool(debug=True)]
     tools = get_tool_box(debug=True, tool_box_selected = tool_box_selected)
     tools_desc = show_tool_descriptions(tools)
     print('tools_desc', tools_desc)
@@ -401,7 +401,8 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     rotation_matrix = [[1,0,0],[0,1,0], [0,0,1]] # 旋转矩阵
 
     for index, item in enumerate(data):
-
+        # if index <= 4 and index>=10:
+        #     continue
         question = item["question"]
         choices = item["proposals"]
         answer = choices[proposal_choice.index(item["answer"][0].upper())]
@@ -409,6 +410,11 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
         scene = item["scene"]
 
         traj = item["trajectory"]
+
+        if len(locations_infor) == 1:
+            print('************************************')
+            print('one object, continue!')
+            continue
 
         # 提取所有步骤中的关键步骤
         steps = []
@@ -436,6 +442,10 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
         objects_id = []
         for item_object in locations_infor:
             objects_id.append(int(item_object["id"]))
+        
+        objects_region = []
+        for item_object in locations_infor:
+            objects_region.append(item_object["region_id"])
         
         object_pos = []
         for item_object in locations_infor:
@@ -466,6 +476,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 found = "True"
                 object_name_current = objects_name[int(step_i[0])]
                 object_id_current = objects_id[int(step_i[0])]
+                object_region_current = objects_region[int(step_i[0])]
                 
                 object_pos_current = object_pos[int(step_i[0])]
                 object_pos_infor = "The position of Object {} is {}. ".format(object_name_current, str(object_pos_current))
@@ -475,14 +486,17 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     successful = False
                     break
                 
-               
-                object_information = object_pos_infor + object_size_infor
+                object_region_infor = "The location of Object {} is {}. ".format(object_name_current, object_region_current)
+                object_information = object_pos_infor + object_size_infor + object_region_infor
 
                 object_information_item = {}
                 object_information_item["name"] = object_name_current
+                object_information_item["location"] = object_region_current
                 object_information_item["position"] = str(object_pos_current)
                 print("size_info_pure", size_info_pure)
                 object_information_item["size"] = str(size_info_pure[object_id_current])
+
+                
 
                 object_information_all.append(object_information)
                 
@@ -519,9 +533,9 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     ObjectLocation_path = None
 
                     VisualQATool_path = image_path_current #前面没有crop 操作，所以路径中是没有crop的
-                    VisualQATool_path_list.append("'"+VisualQATool_path+"'") # 即使是最后一步了, 所以需要讲list中加上之前的path
-                    VisualQATool_path_final = ", ".join(VisualQATool_path_list) # 需要构架这个，来传递
-
+                    # VisualQATool_path_list.append("'"+VisualQATool_path+"'") # 这类问题的VQA不需要之前的路径，只需要当前路径，所以不需要这行
+                    # VisualQATool_path_final = ", ".join(VisualQATool_path_list) # 不需要传递
+                    VisualQATool_path_final = "'"+VisualQATool_path+"'"
                     ObjectCrop_path = None
                 else:
                     image_path_current = "/".join(Path(traj_i["image_path"]).parts[-2:])
@@ -530,9 +544,9 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     ObjectLocation_path = None
 
                     VisualQATool_path = image_path_current
-                    VisualQATool_path_list.append("'"+VisualQATool_path+"'") # 即使是最后一步了, 所以需要讲list中加上之前的path
-                    VisualQATool_path_final = ", ".join(VisualQATool_path_list) # 需要构架这个，来传递
-
+                    # VisualQATool_path_list.append("'"+VisualQATool_path+"'") # 这类问题的VQA不需要之前的路径，只需要当前路径，所以不需要这行
+                    # VisualQATool_path_final = ", ".join(VisualQATool_path_list) # 需要构架这个，来传递
+                    VisualQATool_path_final = "'"+VisualQATool_path+"'"
                     ObjectCrop_path = None
                 
                 # *******************************************
@@ -549,7 +563,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     action_current,
                     gonextpoint_path=gonextpoint_path,
                     ObjectLocation_path=ObjectLocation_path,
-                    VisualQATool_path=VisualQATool_path,
+                    VisualQATool_path=VisualQATool_path_final,
                     ObjectCrop_path=ObjectCrop_path,
                     object_information=object_information_item,
                     expected_answer=answer,
@@ -626,10 +640,10 @@ if __name__=="__main__":
     images_root = "/mynvme1/EQA-Traj-0720/"
     system_prompt_path = "prompts/system_prompt.txt"
     planing_prompt_path = "prompts/planing_prompt.txt"
-    user_prompt_path = "prompts/special_user_prompt_step_ans.txt"
+    user_prompt_path = "prompts/location_user_prompt_step_ans_one.txt"
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
-    data_path = "data/location-special.json"
-    output_path = "output/special.jsonl"
+    data_path = "data/location-location_oneobject.json"
+    output_path = "output/location_one.jsonl"
     gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root)
 

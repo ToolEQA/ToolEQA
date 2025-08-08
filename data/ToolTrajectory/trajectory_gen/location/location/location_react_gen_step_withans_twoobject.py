@@ -379,7 +379,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     system_prompt = get_prompt(system_prompt_path)
 
     
-    tool_box_selected = [ VisualQATool(debug=True), FinalAnswerTool(debug=True) ]
+    tool_box_selected = [ VisualQATool(debug=True), FinalAnswerTool(debug=True), GoNextPointTool(debug=True)]
     tools = get_tool_box(debug=True, tool_box_selected = tool_box_selected)
     tools_desc = show_tool_descriptions(tools)
     print('tools_desc', tools_desc)
@@ -401,7 +401,8 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     rotation_matrix = [[1,0,0],[0,1,0], [0,0,1]] # 旋转矩阵
 
     for index, item in enumerate(data):
-
+        # if index > 4:
+        #     exit()
         question = item["question"]
         choices = item["proposals"]
         answer = choices[proposal_choice.index(item["answer"][0].upper())]
@@ -437,6 +438,14 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
         for item_object in locations_infor:
             objects_id.append(int(item_object["id"]))
         
+        objects_region = []
+        for item_object in locations_infor:
+            objects_region.append(item_object["region_id"])
+
+        objects_region = []
+        for item_object in locations_infor:
+            objects_region.append(item_object["region_id"])   
+        
         object_pos = []
         for item_object in locations_infor:
             object_pos.append(item_object["pos"])
@@ -466,6 +475,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 found = "True"
                 object_name_current = objects_name[int(step_i[0])]
                 object_id_current = objects_id[int(step_i[0])]
+                object_region_current = objects_region[int(step_i[0])]
                 
                 object_pos_current = object_pos[int(step_i[0])]
                 object_pos_infor = "The position of Object {} is {}. ".format(object_name_current, str(object_pos_current))
@@ -476,13 +486,17 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     break
                 
                
-                object_information = object_pos_infor + object_size_infor
+                object_region_infor = "The location of Object {} is {}. ".format(object_name_current, object_region_current)
+                object_information = object_pos_infor + object_size_infor + object_region_infor
 
                 object_information_item = {}
                 object_information_item["name"] = object_name_current
+                object_information_item["location"] = object_region_current
                 object_information_item["position"] = str(object_pos_current)
                 print("size_info_pure", size_info_pure)
                 object_information_item["size"] = str(size_info_pure[object_id_current])
+
+                
 
                 object_information_all.append(object_information)
                 
@@ -549,7 +563,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     action_current,
                     gonextpoint_path=gonextpoint_path,
                     ObjectLocation_path=ObjectLocation_path,
-                    VisualQATool_path=VisualQATool_path,
+                    VisualQATool_path=VisualQATool_path_final,
                     ObjectCrop_path=ObjectCrop_path,
                     object_information=object_information_item,
                     expected_answer=answer,
@@ -626,10 +640,10 @@ if __name__=="__main__":
     images_root = "/mynvme1/EQA-Traj-0720/"
     system_prompt_path = "prompts/system_prompt.txt"
     planing_prompt_path = "prompts/planing_prompt.txt"
-    user_prompt_path = "prompts/special_user_prompt_step_ans.txt"
+    user_prompt_path = "prompts/location_user_prompt_step_ans_two.txt"
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
-    data_path = "data/location-special.json"
-    output_path = "output/special.jsonl"
+    data_path = "data/location-location_twoobject.json"
+    output_path = "output/location_two.jsonl"
     gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root)
 

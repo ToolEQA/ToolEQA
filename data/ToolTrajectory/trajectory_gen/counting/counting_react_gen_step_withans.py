@@ -1,5 +1,3 @@
-# 通过这个脚本实现thought code observation的生成
-# 通过这个脚本实现thought code observation的生成
 import os
 import json
 from collections import defaultdict
@@ -7,6 +5,7 @@ from data.ToolTrajectory.generator_deerapi import requests_api
 from src.tools.tool_box import get_tool_box, show_tool_descriptions
 import re
 import pandas as pd
+from pathlib import Path
 
 from src.tools.vqa import VisualQATool
 from src.tools.location_2d import ObjectLocation2D
@@ -79,7 +78,7 @@ def detect_tool_or_closest(s):
         'VisualQA': 'VisualQATool',
         'GoNextPoint': 'GoNextPointTool',
         'SegmentInstance': 'SegmentInstanceTool',
-        'final_answer': 'final_answer',
+        'FinalAnswer': 'final_answer',
         'Crop': 'ObjectCrop'
     }
 
@@ -90,97 +89,9 @@ def detect_tool_or_closest(s):
     # 都找不到
     return None
 
-def extract_fields_with_split(text: str):
-    parts = text.split('"code":')
-    thought_part = parts[0].split('"thought":')[1].strip().rstrip(',')
-    code_and_obs = parts[1].split('"observation":')
-
-    code_part = code_and_obs[0].strip().rstrip(',')
-    code_part = code_part.replace("```py", "").replace("```", "").strip()
-    observation_part = code_and_obs[1].strip().rstrip(',')
-
-    # 去掉外层的双引号（thought、observation），code保留原样
-    if thought_part.startswith('"') and thought_part.endswith('"'):
-        thought_part = thought_part[1:-1].strip()
-
-    if observation_part.startswith('"') and observation_part.endswith('"'):
-        observation_part = observation_part[1:-1].strip()
-    print("thought_part", thought_part)
-    print("code_part", code_part)
-    print("observation_part", observation_part)
-
-    # return {
-    #     "thought": thought_part,
-    #     "code": code_part,
-    #     "observation": observation_part
-    # }
-
-def split_blocks_by_fields(text):
-    pattern = re.compile(
-        r'"thought"\s*:\s*"(?P<thought>.*?)"\s*,\s*'
-        r'"code"\s*:\s*```py\s*(?P<code>.*?)```'
-        r'\s*,\s*"observation"\s*:\s*"(?P<observation>.*?)"', 
-        re.DOTALL
-    )
-    blocks = []
-    for m in pattern.finditer(text):
-        blocks.append({
-            'thought': m.group('thought'),
-            'code': m.group('code'),
-            'observation': m.group('observation')
-        })
-    return blocks
 
 
-def blocks_extract(text):
-    """
-    从 text 中提取出按顺序排列的 block 列表。
-    每个 block 必须包含 thought、code、observation。
-    """
-    # 匹配三个字段的位置
-    field_pattern = re.compile(r'"(thought|code|observation)"\s*:', re.IGNORECASE)
-    matches = list(field_pattern.finditer(text))
-
-    if not matches:
-        raise ValueError("文本里没有找到任何 thought/code/observation")
-
-    blocks = []
-    i = 0
-    while i < len(matches):
-        if matches[i].group(1) != 'thought':
-            i += 1
-            continue
-
-        if i+2 >= len(matches):
-            raise ValueError(f"第 {len(blocks)+1} 个 block 不完整（缺少 code 或 observation）")
-
-        # 确保顺序正确
-        if matches[i+1].group(1) != 'code' or matches[i+2].group(1) != 'observation':
-            raise ValueError(f"第 {len(blocks)+1} 个 block 字段顺序不对")
-
-        thought_start = matches[i].end()
-        code_start = matches[i+1].start()
-        block_text_thought = text[thought_start:code_start].strip().rstrip(',')
-
-        code_start = matches[i+1].end()
-        obs_start = matches[i+2].start()
-        block_text_code = text[code_start:obs_start].strip().rstrip(',')
-
-        obs_start = matches[i+2].end()
-        next_start = matches[i+3].start() if i+3 < len(matches) else len(text)
-        block_text_obs = text[obs_start:next_start].strip().rstrip(',')
-
-        blocks.append({
-            'thought': block_text_thought,
-            'code': block_text_code,
-            'observation': block_text_obs
-        })
-
-        i += 3
-
-    return blocks
-
-def parse_blocks(response_text, object_current, question_current, action = None):
+def parse_blocks(response_text, object_current, question_current, action = None, gonextpoint_path = None, ObjectLocation_path = None, VisualQATool_path = None, ObjectCrop_path = None, object_information = None, expected_answer = None, expected_question = None):
     """
     把 response 文本按 block 提取成合法 dict 列表，并保存为 json。
     """
@@ -188,13 +99,19 @@ def parse_blocks(response_text, object_current, question_current, action = None)
 
     results_nonprocess = []
 
+    # 去掉外层 ```json 和 ```
+    # response_text = re.sub(r"^```json", "", response_text.strip(), flags=re.MULTILINE)
+    # response_text = re.sub(r"```$", "", response_text.strip(), flags=re.MULTILINE).strip()
+
+    # 切出每个对象块，用大括号对齐
+    # blocks = re.findall(r"\{(.*?)\}", response_text, re.DOTALL)
+    # blocks = blocks_extract(response_text)
+
     for block in response_text:
         item = {}
 
         item_nonprocess = {}
 
-        # 第四种方式，使用标准化的输出，来进行 格式化
-        
         thought_part = block["thought"]
 
         code_part = block["code"]
@@ -208,51 +125,116 @@ def parse_blocks(response_text, object_current, question_current, action = None)
         # code
         code_content = code_part
 
+            
         keytool = detect_tool_or_closest(code_content)
         item_nonprocess["code"] = code_content
         if keytool is not None:
             if keytool == 'GoNextPointTool':
                 if action is not None:
                     item["code"] = 'path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
+                    observation = 'In this point, the current landscape is saved in {path}.'
+                    observation = observation.format(path = gonextpoint_path)
                 else:
                     action = "move_forward"
                     item["code"] ='path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
+                    observation = 'In this point, the current landscape is saved in {path}.'
+                    observation = observation.format(path = gonextpoint_path)
                     print('Error! Should subplace but donot provide action!')
             elif keytool == 'ObjectLocation2D':
-                item["code"] = '[x1,y1,x2,y2] = ' + code_content + "\n" + "print(f'The bounding box of " + object_current + " is [x1,y1,x2,y2].')"
+                item["code"] = 'bbox = ' + keytool + "(object='{object_name}', image_path='{path_input}')" + "\n" + "print(f'The bounding box of " + object_current + " is {{bbox}}.')"
+                item["code"] = item["code"].format(object_name = object_information["name"], path_input = ObjectLocation_path)
+                observation = 'The bounding box of ' + object_current + " is {bbox}."
             elif keytool == 'ObjectLocation3D':
-                item["code"] = "position, size, rot = " + code_content +  "\n" + "print(f'The information of " + object_current + " is: position is {position},  size (Length, width, height) is {size}, and the rotation is {rot}.')"
+                item["code"] = "position, size = " + keytool + "(object='{object_name}', image_path= '{path_input}')" +  "\n" + "print(f'The information of " + object_current + " is: position is {{position}},  size (Length, width, height) is {{size}}.')"
+                item["code"] = item["code"].format(object_name = object_information["name"], path_input = ObjectLocation_path)
+                observation = 'The information of ' + object_current + " is: position is {position},  size (Length, width, height) is {size}."
+                observation =  observation.format(position = object_information["position"], size = object_information["size"])
             elif keytool == 'VisualQATool':
-                item["code"] = "answer = " + code_content  +  "\n" + "print(f'The question is " + question_current + ". The answer is {answer}.')"
+                # color的这个和别的不一样，因为需要两个图片，所以其代码不可以复用！！！
+                item["code"] = "question = '" + question_current + "' \n" + "answer = " + keytool + "(question = question, image_paths = [{path_input}])"  +  "\n" + "print(f'{{question}} {{answer}}')"
+                item["code"] = item["code"].format(path_input = VisualQATool_path)
+                observation = "{question} {answer}".format(question = expected_question, answer = expected_answer)
             elif keytool == 'SegmentInstanceTool':
-                item["code"] = 'path = ' + code_content +  "\n" + "print(f'The semantic segmentation of " +  object_current + " is saved in {path}.')" 
+                item["code"] = 'path = ' + code_content +  "\n" + "print(f'The semantic segmentation of " +  object_current + " is saved in {{path}}.')" 
+                observation = observation_part
             elif keytool == 'final_answer':
                 item["code"] = code_content
+                observation  = observation_part
+                # item["code"] = keytool + 
             elif keytool == 'ObjectCrop':
-                item["code"] = 'path = ' + code_content + "\n" + "print(f'The cropped result of " +  object_current + " is saved in {path}.')" 
+                item["code"] = 'path = ' + keytool + "(bounding_box = [x1,y1,x2,y2], image_path='{path_input}')" + "\n" + "print(f'The cropped result of " +  object_current + " is saved in {{path}}.')" 
+                item["code"] = item["code"].format(path_input = ObjectLocation_path)
+                observation = "The cropped result of " + object_current + " is saved in {path}."
+                observation = observation.format(path = ObjectCrop_path)
             else:
                 item["code"] = code_content
+                observation = observation_part
         else:
             item["code"] = code_content
+            observation = observation_part
             print('Error! The tool is wrong!')
         
-        # observation
-        item['observation'] = observation_part
-        item_nonprocess['observation'] = observation_part
+        # 为了快速适用于不同的问题类型，这里 把 对 item["code"]加上路径的方式 放到 外面的一个函数
+        # item["code"] = code_refine(item["code"], keytool, ObjectLocation_path, object_information)
+        
+        # if item["code"] is None and keytool == 'VisualQATool': # 这个表示是 返回的是None,所以直接延用之前的code_content
+        #     item["code"] = "answer = " + code_content  +  "\n" + "print(f'{question} {answer})'"
+
+    
+
+        item['observation'] = observation
+        item_nonprocess['observation'] = observation
 
         results.append(item)
         results_nonprocess.append(item_nonprocess)
-
-    return results, results_nonprocess
          
+    return results, results_nonprocess
 
-def parse_block_nonkey(response_text, action):
+def code_refine(code, keytool, ObjectLocation_path = None, object_information = None):
+    print('code', code, "ObjectLocation_path", ObjectLocation_path)
+    if keytool == 'ObjectLocation2D':
+        code = code.format(object_name = object_information["name"], path_input = ObjectLocation_path)
+    # elif keytool == 'GoNextPointTool':
+    #     code = code.format(path = gonextpoint_path)
+    elif keytool == 'ObjectCrop':
+        code = code.format(path_input = ObjectLocation_path)
+    elif keytool == 'VisualQATool':
+        if VisualQATool_path is None:
+            return None
+        else:
+            code = code.format(path_input = VisualQATool_path)
+    elif keytool == 'ObjectLocation3D':
+        code = code.format(object_name = object_information["name"], path_input = ObjectLocation_path)
+    
+    return code
+
+# def observation_refine(keytool, input_path = None, object_information = None):
+#     if keytool == 'ObjectLocation2D':
+#         observation = "print(f'The bounding box of " + object_current + " is {{bbox}}.')"
+#         # observation = code.format(object_name = object_information["name"], path_input = input_path)
+#     elif keytool == 'GoNextPointTool':
+#         code = code.format(path = gonextpoint_path)
+#     elif keytool == 'ObjectCrop':
+#         code = code.format(path_input = ObjectLocation_path)
+#     elif keytool == 'VisualQATool':
+#         if VisualQATool_path is None:
+#             return None
+#         else:
+#             code = code.format(path_input = VisualQATool_path)
+#     elif keytool == 'ObjectLocation3D':
+#         code = code.format(object_name = object_information["name"], path_input = ObjectLocation_path)
+    
+#     return code
+
+              
+def parse_block_nonkey(response_text, action, gonextpoint_path):
     results = []
     item = {}
     item["thought"] = response_text
     # item["code"] = 'GoNextPointTool("' + action + '")'
     item["code"] = 'path = GoNextPointTool("' + action + '")\n' + "print(f'In this point, the current landscape is saved in {path}.')"
-    item["observation"] = "Navigating to the next point in the 3D environment."
+    item["observation"] = "In this point, the current landscape is saved in {path}.".format(path = gonextpoint_path)
+    
     results.append(item)
 
     return results
@@ -338,6 +320,7 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
 
 
     results = []
+    size_info_pure = {}
 
     for obj_id in object_num:
         found = next((obj for obj in objects if obj.get("object_id") == obj_id), None)
@@ -351,6 +334,7 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
                 category, dims[0], dims[2], dims[1]
             )
             results.append(results_size)
+            size_info_pure[obj_id] = [dims[0], dims[2], dims[1]]
         else:
             print('Error!!! Cannot find the related object with ID:', obj_id)
             results.append("")
@@ -358,15 +342,13 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
     # 拼接所有结果字符串
     object_size_info = "".join(results)
 
-    return object_size_info
-
-
+    return object_size_info, size_info_pure
 
 
 def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path):
     system_prompt = get_prompt(system_prompt_path)
 
-    # 需要进行修改，需要用到那些工具进行修改
+    
     tool_box_selected = [ ObjectLocation3D(debug=True), GoNextPointTool(debug=True), FinalAnswerTool(debug=True)]
     tools = get_tool_box(debug=True, tool_box_selected = tool_box_selected)
     tools_desc = show_tool_descriptions(tools)
@@ -381,6 +363,8 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     planing_prompt = get_prompt(planing_prompt_path)
 
     data = load_data(data_path)
+    # data = load_and_split_data(data, task_id) # 分割自己进程的数据
+
     data = pre_process(data) # 去除掉没用的thought, code, observation; 加上 "react": []
     proposal_choice = ["A", "B", "C", "D"]
 
@@ -391,9 +375,8 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     rotation_matrix = [[1,0,0],[0,1,0], [0,0,1]] # 旋转矩阵
 
     for index, item in enumerate(data):
-        if index >= 8:
+        if index > 2:
             exit()
-
         question = item["question"]
         choices = item["proposals"]
         answer = choices[proposal_choice.index(item["answer"][0].upper())]
@@ -439,14 +422,15 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
         images = None
         planing_prompt_r = planing_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", object_order)
         response_plan = requests_api(images, planing_prompt_r)
- 
         item["plan"] = response_plan
-        print('response_plan', response_plan)
+
         # 获得关键步骤和非关键步骤的react
 
         react_key_results = [] # 用于保存关键的步骤的react信息
         object_information_all = []
-        for traj_i in traj:
+        successful = True
+        VisualQATool_path_list = []
+        for traj_i, traj_i_next in zip(traj, traj[1:] + [None]):
             step_i = traj_i["step"]
             found = "False"
             all_found = "False"
@@ -457,12 +441,27 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 found = "True"
                 object_name_current = objects_name[int(step_i[0])]
                 object_id_current = objects_id[int(step_i[0])]
+                
                 object_pos_current = object_pos[int(step_i[0])]
                 object_pos_infor = "The position of Object {} is {}. ".format(object_name_current, str(object_pos_current))
-                object_size_infor = extract_object_size(scene ,[object_id_current])
-                object_rotation_infor = "The rotation of Object {} is {}. ".format(object_name_current, str(rotation_matrix))
-                object_information = object_pos_infor + object_size_infor + object_rotation_infor
+                object_size_infor, size_info_pure = extract_object_size(scene ,[object_id_current])
+                if object_size_infor == "":
+                    print('Can Not Find the Objects! Cast It!')
+                    successful = False
+                    break
+                
+               
+                object_information = object_pos_infor + object_size_infor
+
+                object_information_item = {}
+                object_information_item["name"] = object_name_current
+                object_information_item["position"] = str(object_pos_current)
+                print("size_info_pure", size_info_pure)
+                object_information_item["size"] = str(size_info_pure[object_id_current])
+
                 object_information_all.append(object_information)
+                
+
                 prefix, suffix = step_i.split('-')
                 if int(prefix) == obj_num: # 如果是最后一个物体，那么需要将all_found 变为true，来帮助标识
                     all_found = "True"
@@ -473,10 +472,10 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 if all_found == "True":
                     user_prompt_r = user_prompt_r.replace("<<expected_answer>>", answer)
                     user_prompt_r = user_prompt_r.replace("<<previous_thought>>", str(react_key_results))
-                    user_prompt_r = user_prompt_r.replace("<<provided_positions>>", str(object_information_all))
+                    user_prompt_r = user_prompt_r.replace("<<provided_positions>>", str(object_information_all)) # size其实不需要这个，但是也不影响
                     # print(user_prompt_r)
-
-                response = requests_api(images, user_prompt_r, React)
+                response = requests_api(images, user_prompt_r, React)       
+                print(response)
 
                 if all_found == "True": # 如果 all_found的话，那么不需要给action
                     action_current = None
@@ -485,9 +484,42 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                         action_current = "move_forward"
                     else:
                         action_current = traj_i["action"][0][0]
+                
 
-                react_results, react_results_nonprocess = parse_blocks(response, object_name_current, question, action_current)
-                print('react_results', react_results)
+                # 需要在这个地方设置好工作所需要的路径。具体的内容在下面的注释内容中有说明。
+                if traj_i_next is None: #最后一步了，所以 一定没有 gonextpoint了。并且，else中只是 gonextpoint，所以一定要传递 图片路径。 
+                    gonextpoint_path = None
+                    image_path_current = "/".join(Path(traj_i["image_path"]).parts[-2:]) 
+                    ObjectLocation_path = image_path_current
+                    VisualQATool_path = None
+                    ObjectCrop_path = None
+                else:
+                    image_path_current = "/".join(Path(traj_i["image_path"]).parts[-2:])
+                    image_path_next = "/".join(Path(traj_i_next["image_path"]).parts[-2:])
+                    gonextpoint_path = image_path_next
+                    ObjectLocation_path = image_path_current
+                    VisualQATool_path = None
+                    ObjectCrop_path = None
+
+
+                # parse_blocks 的输入是 parse_blocks(response_text, object_current, question_current, action = None, gonextpoint_path = None, ObjectLocation_path = None, VisualQATool_path = None, ObjectCrop_path = None, object_information = None, expected_answer = None, expected_question = None)
+                # 根据不同的任务，查看所需要的工具是啥，然后给定所需要的输入。这个代码几乎不需要改，需要在前面的内容上 提前定义好字符串。如果不需要的工作设置为None.
+                # 其中 ObjectLocation_path 表示的是 objection2d, objection3d, crop的code里面所需要的路径； 这个往往是 当前traj图片的路径
+                # VisualQATool_path表示的是VQA code里面所需要的路径； 这个是有两种情况的，如果前面的工具是crop的话，那么就是需要 ./crop/objection_name，如果前面没有的话，那么就直接是图片的路径。另外VQA还需要分是输入一张图片路径还是两个，这个也需要注意
+                # bjectCrop_path 表示的是 crop输出的结果，所以路径是 ./crop/objection_name。
+                react_results, react_results_nonprocess = parse_blocks(
+                    response,
+                    object_name_current,
+                    question,
+                    action_current,
+                    gonextpoint_path=gonextpoint_path,
+                    ObjectLocation_path=ObjectLocation_path,
+                    VisualQATool_path=VisualQATool_path,
+                    ObjectCrop_path=ObjectCrop_path,
+                    object_information=object_information_item,
+                    expected_answer=answer,
+                    expected_question=question
+                )
                 traj_i = write_in_json(traj_i, react_results)
                 traj_i["is_key"] = "true"
                 if all_found == "False":
@@ -495,11 +527,10 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 
             else: # 代表 中间的过程只是需要调用 gonextpoint工具
                 print('=================================================Current Step:' + step_i +'==============================================================')
-                # images = traj_i["image_path"].replace("/mynvme1/EQA-Traj-0611/", "/mynvme1/EQA-Traj-0720/")
-                image_root = "/mynvme1/EQA-Traj-0720/"
-                images = os.path.join(image_root, traj_i["image_path"])
+                # images = os.path.join("/mynvme1/EQA-Traj-0720/", traj_i["image_path"])
                 # user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found)
-                
+                # images = traj_i["image_path"].replace("/mynvme1/EQA-Traj-0611/", "/mynvme1/EQA-Traj-0720/")
+                images = os.path.join("/mynvme1/EQA-Traj-0720/", traj_i["image_path"])
                 object_name_current = objects_name[int(step_i[0])]
                 # action_current = traj_i["action"][0][0]
                 if len(traj_i["action"]) == 0: # 判断一下是否为空，为空的话，则需要给一个默认值，即move_forward
@@ -508,20 +539,27 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     action_current = traj_i["action"][0][0]
                 print('object_name_current', object_name_current, 'action_current' ,action_current)
                 nonkey_prompt_r = nonkey_prompt.replace("<<object_name>>", object_name_current).replace("<<action_name>>", action_current) 
-
+                # print('nonkey_prompt_r', nonkey_prompt_r)
                 response = requests_api(images, nonkey_prompt_r)
                 
-                react_results = parse_block_nonkey(response, action_current)
+                print(response)
+
+                image_path_next = "/".join(Path(traj_i_next["image_path"]).parts[-2:])
+                gonextpoint_path = image_path_next
+
+                react_results = parse_block_nonkey(response, action_current, gonextpoint_path)
                 traj_i = write_in_json(traj_i, react_results)
                 traj_i["is_key"] = "false"
 
-        with open(output_path, 'r', encoding='utf-8') as f:
-            data_output = json.load(f)
-        
-        data_output.append(item)
+        if successful:
+            with open(output_path, 'r', encoding='utf-8') as f:
+                data_output = json.load(f)
+            
+            data_output.append(item)
 
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(data_output, f, ensure_ascii=False, indent=4)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(data_output, f, ensure_ascii=False, indent=4)
+
             
 
 def pre_process(data):
@@ -546,7 +584,6 @@ def pre_process(data):
 
     return data
 
-
 if __name__=="__main__":
     system_prompt_path = "prompts/system_prompt.txt"
     planing_prompt_path = "prompts/planing_prompt.txt"
@@ -554,7 +591,7 @@ if __name__=="__main__":
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
     data_path = "data/data_counting.json"
-    output_path = "output/counting_output_ans_with_plan_nonkey.json"
+    output_path = "output/counting_output_ans_with_plan_nonkey-test.json"
 
     gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path)
 

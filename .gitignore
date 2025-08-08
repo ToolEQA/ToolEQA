@@ -12,3 +12,4 @@ results
 data/EQA-Traj
 *.tar
 cache/
+*.jsonl

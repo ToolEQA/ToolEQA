@@ -25,7 +25,7 @@ You have now found all required objects. Since this is the final required object
 Actions (in order):
 📋 What you MUST do now:
 
-✅ After processing the last object, you MUST call FinalAnswerTool("{expected_answer}").
+✅ After processing the last object, you MUST call final_answer("{expected_answer}").
 
 1️⃣ Process the current object at this location:
     - Use an appropriate analysis tool (ObjectLocation2D(), etc.) to identify and locate the current target object at this point.
@@ -34,7 +34,7 @@ Actions (in order):
 
 2️⃣ Answer the question:
     - Use VisualQATool() to compare the saved views of the relevant objects and generate the answer.
-    - Then use FinalAnswerTool() to output the final answer.  The expected answer will be provided as <<expected_answer>>, and you ** must format it in FinalAnswerTool("{expected_answer}"). **
+    - Then use final_answer() to output the final answer.  The expected answer will be provided as <<expected_answer>>, and you ** must format it in final_answer("{expected_answer}"). **
 
 
 Output:
@@ -47,11 +47,11 @@ At least four reasoning triples, in this order:
 
  - use VisualQATool() to compare.
 
- - output FinalAnswerTool().
+ - output final_answer().
 
 🛠️ Available Tools
 You may use the following tools:
-     ObjectLocation2D(), ObjectCrop(), VisualQATool(), FinalAnswerTool()
+     ObjectLocation2D(), ObjectCrop(), VisualQATool(), final_answer()
 
 The definition of these tools are <<tool_descriptions>>.
 
@@ -80,10 +80,7 @@ At each step you must output your reasoning in strict JSON array format, like th
 [
     {
         "thought": "Describe your reasoning here.",
-        "code": 
-        ```py
-        Your Python-style function call here
-        ``` ,
+        "code": "Your Python-style function call here",
         "observation": "Expected result of executing the code."
     }
 ]
@@ -103,34 +100,22 @@ Here is example of expected outputs for each case:
 [
     {
         "thought": "Found the object sofa. Locate it precisely and give its bounding box",
-        "code":
-        ```py
-        ObjectLocation2D(object='sofa', image_path='/path/to/sofa.png')
-        ``` ,
+        "code": "ObjectLocation2D(object='sofa', image_path='/path/to/sofa.png')",
         "observation": "The bounding box of this object is [x1,y1,x2,y2]."
     },
     {
         "thought": "Crop and save this object’s region for further comparison.",
-        "code":
-        ```py
-        ObjectCrop(bounding_box = [x1,y1,x2,y2], image_path='/path/to/sofa.png')
-        ``` ,
+        "code": "ObjectCrop(bounding_box = [x1,y1,x2,y2], image_path='/path/to/sofa.png')",
         "observation": "Cropped sofa saved at /path/to/sofa-crop.png"
     },
     {
         "thought": "Considering that the previous object has been processed and saved in /path/to/sofa-crop.png. Moreover, the information is sufficient to answer this query.  Now utilize the VisualQATool to answer the question.",
-        "code":
-        ```py
-        VisualQATool("What material is used for the base of the sofa positioned against the wall near the door?", "/path/to/sofa-crop.png")
-        ``` ,
+        "code": "VisualQATool("What material is used for the base of the sofa positioned against the wall near the door?", "/path/to/sofa-crop.png")",
         "observation": "Wood."
     },
     {
         "thought": "Output the final answer based on the comparison.",
-        "code":
-        ```py
-        FinalAnswerTool("Wood.")
-        ``` ,
+        "code": "final_answer("Wood.")",
         "observation": "Final answer submitted."
     }
 ]
@@ -141,34 +126,22 @@ Here is example of expected outputs for each case:
 [
     {
         "thought": "Found the object clock. Locate it precisely and give its bounding box",
-        "code":
-        ```py
-        ObjectLocation2D(object='clock', image_path='/path/to/clock.png')
-        ``` ,
+        "code": "ObjectLocation2D(object='clock', image_path='/path/to/clock.png')",
         "observation": "The bounding box of this object is [x1,y1,x2,y2]."
     },
     {
         "thought": "Crop and save this object’s region for further comparison.",
-        "code":
-        ```py
-        ObjectCrop(bounding_box = [x1,y1,x2,y2], image_path='/path/to/clock.png')
-        ``` ,
+        "code": "ObjectCrop(bounding_box = [x1,y1,x2,y2], image_path='/path/to/clock.png')",
         "observation": "Cropped clock saved at /path/to/clock-crop.png"
     },
     {
         "thought": "Considering that the previous object has been processed and saved in /path/to/clock-crop.png. Moreover, the information is sufficient to answer this query. Now utilize the VisualQATool to answer the question.",
-        "code":
-        ```py
-        VisualQATool("How many Roman numeral markings are present on the clock mounted on the wall, positioned above a wooden table?", "/path/to/clock-crop.png")
-        ``` ,
+        "code": "VisualQATool("How many Roman numeral markings are present on the clock mounted on the wall, positioned above a wooden table?", "/path/to/clock-crop.png")",
         "observation": "Twelve."
     },
     {
         "thought": "Output the final answer based on the comparison.",
-        "code":
-        ```py
-        FinalAnswerTool("Twelve.")
-        ``` ,
+        "code": "final_answer("Twelve.")",
         "observation": "Final answer submitted."
     }
 ]
