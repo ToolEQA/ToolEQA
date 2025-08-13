@@ -18,6 +18,7 @@ class ObjectCrop(Tool):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.debug = kwargs.get("debug", False)
+        self.image_root = "data/EQA-Traj-0720"
         if self.debug:
             return
 
@@ -26,6 +27,7 @@ class ObjectCrop(Tool):
             return "./cache/init_crop.png"
         
         try:
+            image_path = os.path.join(self.image_root, image_path)
             image = Image.open(image_path).convert("RGB")
         except Exception as e:
             raise ValueError(f"Failed to load image: {e}")

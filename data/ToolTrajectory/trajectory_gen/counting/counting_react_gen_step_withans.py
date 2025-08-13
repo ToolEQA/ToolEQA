@@ -5,6 +5,7 @@ from data.ToolTrajectory.generator_deerapi import requests_api
 from src.tools.tool_box import get_tool_box, show_tool_descriptions
 import re
 import pandas as pd
+import jsonlines
 from pathlib import Path
 
 from src.tools.vqa import VisualQATool
@@ -27,15 +28,44 @@ class Step(BaseModel):
 class React(BaseModel):
     steps: list[Step]
 
-def load_data(path):
-    data_list = []
+def save_data(data, path):
+    with jsonlines.open(path, mode="a") as writer:
+        writer.write(data)
+
+def load_data(path, output_path):
+    
+    already_list = []
+
+    postfix = output_path.split(".")[-1]
+    if os.path.exists(output_path) and postfix == "json":
+        with open(output_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        for item in data:
+            already_list.append(item["sample_id"])
+    elif os.path.exists(output_path) and postfix == "jsonl":
+        with jsonlines.open(output_path, mode="r") as reader:
+            for item in reader:
+                already_list.append(item["sample_id"])
+
+    json_data = None
     postfix = path.split(".")[-1]
     if postfix == "jsonl":
         with open(path, "r") as f:
-            data_list = [json.loads(line) for line in f]
+            json_data = [json.loads(line) for line in f]
     elif postfix =="json":
         with open(path, "r") as f:
-            data_list = json.load(f)
+            json_data = json.load(f)
+
+    if json_data is None:
+        raise ValueError("Unsupported file format. Please provide a .json or .jsonl file.")
+    
+    data_list = []
+    for item in json_data:
+        if item["sample_id"] not in already_list:
+            data_list.append(item)
+        else:
+            print("Already exists in output file, skip:", item["sample_id"])
+    
     return data_list
 
 def get_prompt(path):
@@ -345,7 +375,7 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
     return object_size_info, size_info_pure
 
 
-def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path):
+def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root):
     system_prompt = get_prompt(system_prompt_path)
 
     
@@ -362,21 +392,16 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
 
     planing_prompt = get_prompt(planing_prompt_path)
 
-    data = load_data(data_path)
+    data = load_data(data_path, output_path)
     # data = load_and_split_data(data, task_id) # 分割自己进程的数据
 
     data = pre_process(data) # 去除掉没用的thought, code, observation; 加上 "react": []
     proposal_choice = ["A", "B", "C", "D"]
-
-    if not os.path.exists(output_path):
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump([], f)
     
     rotation_matrix = [[1,0,0],[0,1,0], [0,0,1]] # 旋转矩阵
 
     for index, item in enumerate(data):
-        if index > 2:
-            exit()
+
         question = item["question"]
         choices = item["proposals"]
         answer = choices[proposal_choice.index(item["answer"][0].upper())]
@@ -530,7 +555,8 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 # images = os.path.join("/mynvme1/EQA-Traj-0720/", traj_i["image_path"])
                 # user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found)
                 # images = traj_i["image_path"].replace("/mynvme1/EQA-Traj-0611/", "/mynvme1/EQA-Traj-0720/")
-                images = os.path.join("/mynvme1/EQA-Traj-0720/", traj_i["image_path"])
+                images = os.path.join(images_root, traj_i["image_path"])
+
                 object_name_current = objects_name[int(step_i[0])]
                 # action_current = traj_i["action"][0][0]
                 if len(traj_i["action"]) == 0: # 判断一下是否为空，为空的话，则需要给一个默认值，即move_forward
@@ -552,13 +578,14 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 traj_i["is_key"] = "false"
 
         if successful:
-            with open(output_path, 'r', encoding='utf-8') as f:
-                data_output = json.load(f)
+            save_data(item, output_path)
+            # with open(output_path, 'r', encoding='utf-8') as f:
+            #     data_output = json.load(f)
             
-            data_output.append(item)
+            # data_output.append(item)
 
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(data_output, f, ensure_ascii=False, indent=4)
+            # with open(output_path, 'w', encoding='utf-8') as f:
+            #     json.dump(data_output, f, ensure_ascii=False, indent=4)
 
             
 
@@ -585,15 +612,16 @@ def pre_process(data):
     return data
 
 if __name__=="__main__":
+    images_root = "/mynvme1/EQA-Traj-0720/"
     system_prompt_path = "prompts/system_prompt.txt"
     planing_prompt_path = "prompts/planing_prompt.txt"
     user_prompt_path = "prompts/counting_user_prompt_step_ans.txt"
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
-    data_path = "data/data_counting.json"
-    output_path = "output/counting_output_ans_with_plan_nonkey-test.json"
+    data_path = "data/counting-counting.json"
+    output_path = "output/counting.jsonl"
 
-    gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path)
+    gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root)
 
 
 

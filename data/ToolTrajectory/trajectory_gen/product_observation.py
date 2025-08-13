@@ -7,15 +7,24 @@ from transformers.agents.agents import AgentGenerationError, AgentParsingError, 
 from transformers.agents import ReactCodeAgent
 from src.tools.tool_box import get_tool_box
 from src.llm_engine.qwen import QwenEngine
+from tqdm import tqdm
+import jsonlines
 import re
 import ast
 
 class ObservationProductor():
-    def __init__(self, data_path: str, tools: dict = None):
+    def __init__(self, data_path: str, image_root: str, tools: dict = None):
         self._tools = {tool.name: tool for tool in tools}
+        self.image_root = image_root
+        # self.data_path = data_path
+        # with open(data_path, 'r') as f:
+        #     self.data = json.load(f)
+
         self.data_path = data_path
-        with open(data_path, 'r') as f:
-            self.data = json.load(f)
+        # self.data = []
+        # for data_path in data_paths:
+        #     with jsonlines.open(data_path, 'r') as reader:
+        #         self.data = [item for item in reader]
 
         self.state = {}
         self.templete = "```py\n{}\n```<end_action>"
@@ -70,10 +79,14 @@ class ObservationProductor():
             react = traj["react"]
             for i in range(len(react)):
                 code = react[i]["code"]
-                if "ObjectCrop" in code:
+                if "Location2D" not in code:
                     continue
-                if "Location3D" in code:
-                    continue
+                # if "ObjectCrop" in code:
+                #     continue
+                # if "Location3D" in code:
+                #     continue
+                # if "VisualQATool" in code:
+                #     continue
 
                 obs = self.run_code(code)
                 # import pdb; pdb.set_trace()
@@ -97,21 +110,40 @@ class ObservationProductor():
         return sample
 
     def run(self):
-        output = []
-        for item in self.data:
-            self.init(item)
-            result = self.run_sample(item)
-            output.append(result)
-            
+        for data_path in self.data_path:
+            data = []
+            for data_path in data_paths:
+                with jsonlines.open(data_path, 'r') as reader:
+                    data = [item for item in reader]
+
+            output = []
+            count = 0
+            for item in tqdm(data):
+                count += 1
+                if count > 100:
+                    break
+                self.init(item)
+                result = self.run_sample(item)
+                output.append(result)
+
+            # save data
+            with open(data_path + ".obs", 'w') as f:
+                json.dump(data, f, indent=4)
+
         return output
 
 if __name__=="__main__":
-    data_path = "tmp/data/size_output_ans_with_plan_nonkey-toolnormal.json"
+    data_paths = ["data/ToolTrajectory/trajectory_gen/merged_data.json",
+                  "data/ToolTrajectory/trajectory_gen/merged_data.json",
+                  "data/ToolTrajectory/trajectory_gen/merged_data.json",
+                  ]
+    image_root = "data/EQA-Traj-0720"
     op = ObservationProductor(
-        data_path,
+        data_paths,
+        image_root,
         get_tool_box()
     )
     res = op.run()
     
-    with open("tmp/data/size-obs.json", "w") as f:
+    with open("tmp/data/merged_data.json", "w") as f:
         json.dump(res, f, indent=4)

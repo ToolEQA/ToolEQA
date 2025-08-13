@@ -2,6 +2,7 @@ import cv2
 import base64
 import requests
 import numpy as np
+import os
 from src.utils.shared_memory import client_send_image
 from PIL import Image
 from transformers import Tool
@@ -22,6 +23,7 @@ class ObjectLocation2D(Tool):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.debug = kwargs.get("debug", False)
+        self.image_root = "data/EQA-Traj-0720"
         if self.debug:
             return
 
@@ -31,6 +33,7 @@ class ObjectLocation2D(Tool):
         if self.debug:
             return [0, 0, 0, 0]
         
+        image_path = os.path.join(self.image_root, image_path)
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {

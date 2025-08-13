@@ -411,11 +411,6 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
 
         traj = item["trajectory"]
 
-        if len(locations_infor) == 1:
-            print('************************************')
-            print('one object, continue!')
-            continue
-
         # 提取所有步骤中的关键步骤
         steps = []
         for traj_i in traj:

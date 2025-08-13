@@ -518,6 +518,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     ObjectLocation_path = image_path_current
                     VisualQATool_path = None
                     ObjectCrop_path = None
+                    VisualQATool_path_final = None
                 else:
                     image_path_current = "/".join(Path(traj_i["image_path"]).parts[-2:])
                     image_path_next = "/".join(Path(traj_i_next["image_path"]).parts[-2:])
@@ -525,6 +526,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     ObjectLocation_path = image_path_current
                     VisualQATool_path = None
                     ObjectCrop_path = None
+                    VisualQATool_path_final = None
 
 
                 # parse_blocks 的输入是 parse_blocks(response_text, object_current, question_current, action = None, gonextpoint_path = None, ObjectLocation_path = None, VisualQATool_path = None, ObjectCrop_path = None, object_information = None, expected_answer = None, expected_question = None)
@@ -539,7 +541,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     action_current,
                     gonextpoint_path=gonextpoint_path,
                     ObjectLocation_path=ObjectLocation_path,
-                    VisualQATool_path=VisualQATool_path,
+                    VisualQATool_path=VisualQATool_path_final,
                     ObjectCrop_path=ObjectCrop_path,
                     object_information=object_information_item,
                     expected_answer=answer,
@@ -556,7 +558,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 # user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found)
                 # images = traj_i["image_path"].replace("/mynvme1/EQA-Traj-0611/", "/mynvme1/EQA-Traj-0720/")
                 images = os.path.join(images_root, traj_i["image_path"])
-                
+                print(images)
                 object_name_current = objects_name[int(step_i[0])]
                 # action_current = traj_i["action"][0][0]
                 if len(traj_i["action"]) == 0: # 判断一下是否为空，为空的话，则需要给一个默认值，即move_forward

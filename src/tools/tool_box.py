@@ -70,6 +70,6 @@ def show_tool_descriptions(tools):
         )
 
 if __name__=="__main__":
-    tool_box = get_tool_box()
+    tool_box = get_tool_box(debug=True)
     tool_desc = show_tool_descriptions(tool_box)
     print(tool_desc)

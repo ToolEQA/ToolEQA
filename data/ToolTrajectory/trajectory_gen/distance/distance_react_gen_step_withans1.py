@@ -7,7 +7,7 @@ from src.tools.tool_box import get_tool_box, show_tool_descriptions
 import re
 import pandas as pd
 import jsonlines
-
+import numpy as np
 from pathlib import Path
 
 from src.tools.vqa import VisualQATool
@@ -180,7 +180,8 @@ def parse_blocks(response_text, object_current, question_current, action = None,
                 item["code"] = "position, size = " + keytool + "(object='{object_name}', image_path= '{path_input}')" +  "\n" + "print(f'The information of " + object_current + " is: position is {{position}},  size (Length, width, height) is {{size}}.')"
                 item["code"] = item["code"].format(object_name = object_information["name"], path_input = ObjectLocation_path)
                 observation = 'The information of ' + object_current + " is: position is {position},  size (Length, width, height) is {size}."
-                observation =  observation.format(position = object_information["position"], size = object_information["size"])
+                size = list(np.round(np.random.uniform(0, 5, size=3), 2))
+                observation =  observation.format(position = object_information["position"], size = size)
             elif keytool == 'VisualQATool':
                 # color的这个和别的不一样，因为需要两个图片，所以其代码不可以复用！！！
                 item["code"] = "question = '" + question_current + "' \n" + "answer = " + keytool + "(question = question, image_paths = [{path_input}])"  +  "\n" + "print(f'{{question}} {{answer}}')"
@@ -346,7 +347,6 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
     with open(json_path, "r") as f:
         objects = json.load(f)
 
-
     results = []
     size_info_pure = {}
 
@@ -452,11 +452,13 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
         object_information_all = []
         successful = True
         VisualQATool_path_list = []
+
         for traj_i, traj_i_next in zip(traj, traj[1:] + [None]):
             step_i = traj_i["step"]
             found = "False"
             all_found = "False"
-            if step_i  in steps: # 如果是最后一步的话，则需要告诉gpt这是最后一步了，需要思考调用什么工具来回答问题
+            
+            if step_i in steps: # 如果是最后一步的话，则需要告诉gpt这是最后一步了，需要思考调用什么工具来回答问题
                 # images = os.path.join("/mynvme1/EQA-Traj-0611/", traj_i["image_path"])
                 print('=================================================Current Step:' + step_i +'==============================================================')   
                 images = None
@@ -467,19 +469,19 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 object_pos_current = object_pos[int(step_i[0])]
                 object_pos_infor = "The position of Object {} is {}. ".format(object_name_current, str(object_pos_current))
                 object_size_infor, size_info_pure = extract_object_size(scene ,[object_id_current])
-                if object_size_infor == "":
-                    print('Can Not Find the Objects! Cast It!')
-                    successful = False
-                    break
+                # if object_size_infor == "":
+                #     print(scene, object_id_current)
+                #     print('Can Not Find the Objects! Cast It!')
+                #     successful = False
+                #     break
                 
-               
                 object_information = object_pos_infor + object_size_infor
 
                 object_information_item = {}
                 object_information_item["name"] = object_name_current
                 object_information_item["position"] = str(object_pos_current)
                 print("size_info_pure", size_info_pure)
-                object_information_item["size"] = str(size_info_pure[object_id_current])
+                # object_information_item["size"] = str(size_info_pure[object_id_current])
 
                 object_information_all.append(object_information)
                 
@@ -617,6 +619,6 @@ if __name__=="__main__":
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
     data_path = "data/distance-distance.json"
     output_path = "output/distance.jsonl"
-    excel_path = "data/distance_cleaned_ans.csv"
+    excel_path = "data/distance_cleaned_ans_options.csv"
     # update_answer(excel_path, data_path)
     gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root)

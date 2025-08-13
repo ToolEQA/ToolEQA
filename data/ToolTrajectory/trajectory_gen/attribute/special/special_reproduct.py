@@ -1,3 +1,5 @@
+# 通过这个脚本实现thought code observation的生成
+# color的代码和其他的代码不一样，所以不可以直接复用，因为其VQA需要两个路径
 import os
 import json
 from collections import defaultdict
@@ -32,7 +34,7 @@ def save_data(data, path):
     with jsonlines.open(path, mode="a") as writer:
         writer.write(data)
 
-def load_data(path, output_path):
+def load_data(path, wrong_path, output_path):
     
     already_list = []
 
@@ -46,6 +48,32 @@ def load_data(path, output_path):
         with jsonlines.open(output_path, mode="r") as reader:
             for item in reader:
                 already_list.append(item["sample_id"])
+
+    postfix = wrong_path.split(".")[-1]
+    
+    if os.path.exists(wrong_path) and postfix == "json":
+        with open(wrong_path, 'r', encoding='utf-8') as f:
+            wrong_data = json.load(f)
+        # wrong_list = list(wrong_data.keys())
+        wrong_list = [key for d in wrong_data for key in d.keys()]
+    else:
+        print('Can not Found! None of wrong list')
+        return None
+    
+    filtered_list = []
+    filtered_wrong_data = []
+
+    for idx, val in enumerate(wrong_list):
+        if val not in already_list:
+            filtered_list.append(val)
+            filtered_wrong_data.append(wrong_data[idx])
+        else:
+            print(f"{val} 已在 already_list 中，已剔除（同步删除 wrong_data 对应元素）")
+
+    # print("剔除后的 wrong_list:", filtered_list)
+    # print("剔除后的 wrong_data:", filtered_wrong_data)
+    print('之前的长度', len(wrong_list), len(wrong_data), '现在的长度', len(filtered_list), len(filtered_wrong_data))
+
 
     json_data = None
     postfix = path.split(".")[-1]
@@ -61,12 +89,12 @@ def load_data(path, output_path):
     
     data_list = []
     for item in json_data:
-        if item["sample_id"] not in already_list:
+        if item["sample_id"] in filtered_list:
             data_list.append(item)
         else:
-            print("Already exists in output file, skip:", item["sample_id"])
+            print("This sample is correct, skip:", item["sample_id"])
     
-    return data_list
+    return data_list, filtered_wrong_data
 
 def get_prompt(path):
     with open(path, "r", encoding="utf-8") as file:
@@ -154,10 +182,15 @@ def parse_blocks(response_text, object_current, question_current, action = None,
 
         # code
         code_content = code_part
-
             
         keytool = detect_tool_or_closest(code_content)
+    
+        index = code_content.find('\nprint')  # 需要剔除掉print
+        if index != -1:
+            code_content = code_content[:index]
+
         item_nonprocess["code"] = code_content
+
         if keytool is not None:
             if keytool == 'GoNextPointTool':
                 if action is not None:
@@ -348,7 +381,6 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
     with open(json_path, "r") as f:
         objects = json.load(f)
 
-
     results = []
     size_info_pure = {}
 
@@ -375,7 +407,7 @@ def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/Em
     return object_size_info, size_info_pure
 
 
-def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root):
+def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_gen_reactuser_prompt_path, output_path, images_root, wrong_path):
     system_prompt = get_prompt(system_prompt_path)
 
     
@@ -392,16 +424,17 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
 
     planing_prompt = get_prompt(planing_prompt_path)
 
-    data = load_data(data_path, output_path)
-    # data = load_and_split_data(data, task_id) # 分割自己进程的数据
+    data, wrong_data = load_data(data_path, wrong_path, output_path) 
+    # data 放入的是 提取之后的数据， wrong_data 是一个字典，里面记录的是 这个sample 错误的是不是final_step
+   
 
-    data = pre_process(data) # 去除掉没用的thought, code, observation; 加上 "react": []
+    
     proposal_choice = ["A", "B", "C", "D"]
     
     rotation_matrix = [[1,0,0],[0,1,0], [0,0,1]] # 旋转矩阵
 
     for index, item in enumerate(data):
-
+        sample_id = item["sample_id"]
         question = item["question"]
         choices = item["proposals"]
         answer = choices[proposal_choice.index(item["answer"][0].upper())]
@@ -409,6 +442,14 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
         scene = item["scene"]
 
         traj = item["trajectory"]
+
+        if sample_id in wrong_data[index]:
+            revise_step =  wrong_data[index][sample_id] # 妈的，这个顺序居然还可能不一致，妈的，怎么会这样！！！！
+        else:
+            for wd in wrong_data:
+                if sample_id in wd:
+                    revise_step =  wd[sample_id] # 妈的，找不到只能查找！
+                    break
 
         # 提取所有步骤中的关键步骤
         steps = []
@@ -442,12 +483,6 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
             object_pos.append(item_object["pos"])
     
 
-        # 获取整体问题的 plan
-        object_order = "->".join(objects_name) 
-        images = None
-        planing_prompt_r = planing_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", object_order)
-        response_plan = requests_api(images, planing_prompt_r)
-        item["plan"] = response_plan
 
         # 获得关键步骤和非关键步骤的react
 
@@ -455,6 +490,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
         object_information_all = []
         successful = True
         VisualQATool_path_list = []
+        print('sample_id', sample_id)
         for traj_i, traj_i_next in zip(traj, traj[1:] + [None]):
             step_i = traj_i["step"]
             found = "False"
@@ -481,7 +517,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 object_information_item = {}
                 object_information_item["name"] = object_name_current
                 object_information_item["position"] = str(object_pos_current)
-                print("size_info_pure", size_info_pure)
+                # print("size_info_pure", size_info_pure)
                 # object_information_item["size"] = str(size_info_pure[object_id_current])
 
                 object_information_all.append(object_information)
@@ -491,6 +527,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 if int(prefix) == obj_num: # 如果是最后一个物体，那么需要将all_found 变为true，来帮助标识
                     all_found = "True"
                 print('found', found, 'all_found', all_found) 
+                
                 user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found).replace("<<FOUND_OBJECT>>", object_name_current)
                 user_prompt_r = user_prompt_r.replace("<<INFORMATION_OBJECT>>", object_information)
                 
@@ -499,20 +536,25 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     user_prompt_r = user_prompt_r.replace("<<previous_thought>>", str(react_key_results))
                     user_prompt_r = user_prompt_r.replace("<<provided_positions>>", str(object_information_all)) # size其实不需要这个，但是也不影响
                     # print(user_prompt_r)
-                response = requests_api(images, user_prompt_r, React)       
-                print(response)
+
+                # 重点在这里！！！！！如果当前步骤不需要 修改那么直接跳过，并且提取当前步骤来保证后续的操作
+                if step_i in  revise_step:
+                    response = requests_api(images, user_prompt_r, React) 
+                    print('current_step', step_i, 'revise_step', revise_step)
+                    print(response) 
+
+                else:
+                    response = traj_i["react"]
 
                 if all_found == "True": # 如果 all_found的话，那么不需要给action
-                    action_current = None
+                        action_current = None
                 else:
                     if len(traj_i["action"]) == 0: # 判断一下是否为空，为空的话，则需要给一个默认值，即move_forward
                         action_current = "move_forward"
                     else:
                         action_current = traj_i["action"][0][0]
-                
 
                 # 需要在这个地方设置好工作所需要的路径。具体的内容在下面的注释内容中有说明。
-                # *******************************************
                 if traj_i_next is None: #最后一步了，所以 一定没有 gonextpoint了。并且，else中只是 gonextpoint，所以一定要传递 图片路径。 
                     gonextpoint_path = None
                     image_path_current = "/".join(Path(traj_i["image_path"]).parts[-2:])
@@ -534,8 +576,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     VisualQATool_path_final = ", ".join(VisualQATool_path_list) # 需要构架这个，来传递
 
                     ObjectCrop_path = None
-                
-                # *******************************************
+
 
                 # parse_blocks 的输入是 parse_blocks(response_text, object_current, question_current, action = None, gonextpoint_path = None, ObjectLocation_path = None, VisualQATool_path = None, ObjectCrop_path = None, object_information = None, expected_answer = None, expected_question = None)
                 # 根据不同的任务，查看所需要的工具是啥，然后给定所需要的输入。这个代码几乎不需要改，需要在前面的内容上 提前定义好字符串。如果不需要的工作设置为None.
@@ -555,47 +596,33 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     expected_answer=answer,
                     expected_question=question
                 )
-                traj_i = write_in_json(traj_i, react_results)
-                traj_i["is_key"] = "true"
+
+                # print('react_results_nonprocess', react_results_nonprocess)
+                # traj_i = write_in_json(traj_i, react_results)
                 if all_found == "False":
                     react_key_results.append(react_results_nonprocess)
-                
-            else: # 代表 中间的过程只是需要调用 gonextpoint工具
-                print('=================================================Current Step:' + step_i +'==============================================================')
-                # images = os.path.join("/mynvme1/EQA-Traj-0720/", traj_i["image_path"])
-                # user_prompt_r = user_prompt.replace("<<QUERY>>", question).replace("<<TRAJECTORY>>", str(traj_i)).replace("<<FOUND>>", found).replace("<<ALL_FOUND>>", all_found)
-                # images = traj_i["image_path"].replace("/mynvme1/EQA-Traj-0611/", "/mynvme1/EQA-Traj-0720/")
-                images = os.path.join(images_root, traj_i["image_path"])
+                traj_i["is_key"] = "true"
 
-                object_name_current = objects_name[int(step_i[0])]
-                # action_current = traj_i["action"][0][0]
-                if len(traj_i["action"]) == 0: # 判断一下是否为空，为空的话，则需要给一个默认值，即move_forward
-                    action_current = "move_forward"
-                else:
-                    action_current = traj_i["action"][0][0]
-                print('object_name_current', object_name_current, 'action_current' ,action_current)
-                nonkey_prompt_r = nonkey_prompt.replace("<<object_name>>", object_name_current).replace("<<action_name>>", action_current) 
-                # print('nonkey_prompt_r', nonkey_prompt_r)
-                response = requests_api(images, nonkey_prompt_r)
-                
-                print(response)
-
-                image_path_next = "/".join(Path(traj_i_next["image_path"]).parts[-2:])
-                gonextpoint_path = image_path_next
-
-                react_results = parse_block_nonkey(response, action_current, gonextpoint_path)
-                traj_i = write_in_json(traj_i, react_results)
-                traj_i["is_key"] = "false"
+                if step_i in  revise_step:
+                    
+                    print('original_react', traj_i["react"])
+                    traj_i["react"] = react_results
+                    print('after_react', traj_i["react"])
+                    
+       
 
         if successful:
-            save_data(item, output_path)
-            # with open(output_path, 'r', encoding='utf-8') as f:
-            #     data_output = json.load(f)
+            # save_data(item, output_path)
+            print('save_sample_id', sample_id)
+            with open(output_path, 'r', encoding='utf-8') as f:
+                data_output = json.load(f)
             
-            # data_output.append(item)
+            data_output.append(item)
 
-            # with open(output_path, 'w', encoding='utf-8') as f:
-            #     json.dump(data_output, f, ensure_ascii=False, indent=4)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(data_output, f, ensure_ascii=False, indent=4)
+        
+        break
 
             
 
@@ -621,21 +648,18 @@ def pre_process(data):
 
     return data
 
-
 if __name__=="__main__":
     images_root = "/mynvme1/EQA-Traj-0720/"
     system_prompt_path = "prompts/system_prompt.txt"
     planing_prompt_path = "prompts/planing_prompt.txt"
-    user_prompt_path = "prompts/relationship_user_prompt_step_ans.txt"
+    user_prompt_path = "prompts/special_user_prompt_step_ans.txt"
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
+
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
-    data_path = "data/relationship-relationship.json"
-    output_path = "output/relationship.jsonl"
+    data_path = "output/special_revise.jsonl"
+    wrong_path = 'special_wrong.json'
+    # task_id = int(sys.argv[1]) 
+    # output_path = f"output/color_reproduct.jsonl"
+    output_path = f"output/special_reproduct.json"
 
-    gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root)
-
-
-
-
-
-
+    gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root, wrong_path)

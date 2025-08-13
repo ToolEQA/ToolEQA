@@ -285,15 +285,18 @@ def update_answer(excel_path, data_path):
             new_answer = match.iloc[0]["answer"]
             original_answer = item["answer"]
             item["answer"] = new_answer
+            new_choice = match.iloc[0]["choices"]
+            original_choice = item["proposals"]
             print(f"替换: scene={scene}, question={question}, original answer={original_answer}, replaced answer={new_answer}")
+            print('new', new_choice, 'old', original_choice)
         else:
             print(f"未找到匹配: scene={scene}, question={question}")
 
     # 4. 保存回 JSON
-    with open(data_path, "w", encoding="utf-8") as f:
-        json.dump(json_data, f, ensure_ascii=False, indent=2)
+    # with open(data_path, "w", encoding="utf-8") as f:
+    #     json.dump(json_data, f, ensure_ascii=False, indent=2)
 
-    print("更新完成，保存为 updated_data_size.json")
+    # print("更新完成，保存为 updated_data_size.json")
 
 
 def extract_object_size(scene_id, object_num, data_path = "/data/zml/datasets/EmbodiedQA/HM3D"):
@@ -590,8 +593,8 @@ if __name__=="__main__":
     user_prompt_path = "prompts/distance_user_prompt_step_ans_code.txt"
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
-    data_path = "data/data_distance.json"
+    data_path = "data/distance-distance.json"
     output_path = "output/distance_output_ans_with_plan-test1.json"
-    excel_path = "data/distance_cleaned_ans.csv"
-    # update_answer(excel_path, data_path)
-    gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path)
+    excel_path = excel_path = "data/distance_cleaned_ans_options.csv"
+    update_answer(excel_path, data_path)
+    # gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path)

@@ -1,0 +1,21 @@
+You are an evaluator that determines whether a model's answer is semantically equivalent to the ground truth (GT) answer.
+
+Task:
+Given:
+1. Question: <<question>>
+2. Model's Answer: <<answer>>
+3. Ground Truth Answer (GT): <<gt_answer>>
+
+Instructions:
+- Focus on semantic meaning, not exact wording.
+- Consider synonyms, paraphrasing, and equivalent expressions as correct.
+- Ignore minor differences in style, grammar, or formatting.
+- If the answers have the same essential meaning, they are considered "Consistent".
+- If the answers differ in meaning, even partially, they are "Inconsistent".
+
+Output format:
+Consistent
+or
+Inconsistent
+
+Do not output anything else.

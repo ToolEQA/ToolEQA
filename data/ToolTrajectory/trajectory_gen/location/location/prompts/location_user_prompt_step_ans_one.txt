@@ -213,14 +213,14 @@ Case: found == false
 Case: found == true and all_found == false
 [
     {
-        "thought": "Found an object likely matching the description. Proceed to next point to find remaining objects.",
-        "code": "GoNextPointTool()",
-        "observation": "Navigating to the next point in the 3D environment."
-    }
-    {
         "thought": "Considering that accessory has been found. Now utilize the VisualQATool to answer the question.",
         "code": "VisualQATool("In which room is accessory located?", "/path/to/accessory.png")",
         "observation": "kitchen"
+    }
+    {
+        "thought": "Found an object likely matching the description. Proceed to next point to find remaining objects.",
+        "code": "GoNextPointTool()",
+        "observation": "Navigating to the next point in the 3D environment."
     }
 ]
 ** Case: found == true and all_found == true **

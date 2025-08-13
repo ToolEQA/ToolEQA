@@ -1,0 +1,6 @@
+You are exploring a scene to find the target object <<object_name>>.
+Based on what you currently perceive from your position in the environment, explain in the first person why you choose to move in the specific direction <<action_name>> instead of other directions.
+
+Your explanation must:
+✅ Clearly describe the specific clue or feature you perceive in that direction (e.g., part of the object, shape, color, or space) that makes it more promising than other directions.
+✅ Clearly conclude by stating that you choose <<action_name>> — the choice must be explicitly mentioned, but the phrasing can be natural and does not have to follow a fixed template.

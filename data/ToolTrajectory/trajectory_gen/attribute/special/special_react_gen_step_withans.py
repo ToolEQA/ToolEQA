@@ -474,10 +474,11 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 object_pos_current = object_pos[int(step_i[0])]
                 object_pos_infor = "The position of Object {} is {}. ".format(object_name_current, str(object_pos_current))
                 object_size_infor, size_info_pure = extract_object_size(scene ,[object_id_current])
-                if object_size_infor == "":
-                    print('Can Not Find the Objects! Cast It!')
-                    successful = False
-                    break
+                
+                # if object_size_infor == "":
+                #     print('Can Not Find the Objects! Cast It!')
+                #     successful = False
+                #     break
                 
                
                 object_information = object_pos_infor + object_size_infor
@@ -485,8 +486,8 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                 object_information_item = {}
                 object_information_item["name"] = object_name_current
                 object_information_item["position"] = str(object_pos_current)
-                print("size_info_pure", size_info_pure)
-                object_information_item["size"] = str(size_info_pure[object_id_current])
+                # print("size_info_pure", size_info_pure)
+                # object_information_item["size"] = str(size_info_pure[object_id_current])
 
                 object_information_all.append(object_information)
                 
@@ -552,7 +553,7 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
                     action_current,
                     gonextpoint_path=gonextpoint_path,
                     ObjectLocation_path=ObjectLocation_path,
-                    VisualQATool_path=VisualQATool_path,
+                    VisualQATool_path=VisualQATool_path_final,
                     ObjectCrop_path=ObjectCrop_path,
                     object_information=object_information_item,
                     expected_answer=answer,

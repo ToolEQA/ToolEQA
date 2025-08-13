@@ -1,0 +1,18 @@
+You are given:
+A piece of reasoning text describing a situation, object, or scene.
+An image.
+
+Your task:
+1. Analyze the reasoning text and the image.
+2. Determine how semantically consistent they are.
+3. Provide a consistency score between 0 and 10, where:
+    a. 10 means the text and image are fully consistent in meaning and details.
+    b. 0 means they are completely inconsistent.
+4. Only output the score as a single number (no explanation, no extra text).
+
+Input:
+Reasoning: <<thought>>
+Image: <<image>>
+
+Output:
+[score]

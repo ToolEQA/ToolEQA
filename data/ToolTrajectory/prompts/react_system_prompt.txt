@@ -33,7 +33,7 @@ Observation: In this point, the current landscape is saved in ./cache/next_point
 Thought: Found the curtain object near the pink toy storage unit. I will locate it precisely and retrieve its bounding box to confirm its dimensions.
 Code: 
 ```py
-position, size, rot = ObjectLocation3D(object='curtain', image_path='./cache/next_point_2.jpg')
+position, size = ObjectLocation3D(object='curtain', image_path='./cache/next_point_2.jpg')
 print(f'The information of curtain is: position is {position},  size (Length, width, height) is {size}.')
 ```<end action>
 Observation: The information of curtain is: position is [5.503, 4.301, 4.479], size (Length, width, height) is [0.201, 1.83, 0.494].
@@ -46,7 +46,7 @@ print(f'The bounding box of stair is {bbox}.')
 ```<end action>
 Observation: The bounding box of stair is {'bboxes_2d': [[171, 266, 420, 639]], 'labels': ['stair'], 'text': 'stair'}.
 
-Thought: Crop and save this object\u2019s region for further comparison.
+Thought: Crop and save this objects region for further comparison.
 Code: 
 ```py
 path = ObjectCrop(bounding_box = [[171, 266, 420, 639]], image_path='/mynvme1/EQA-Traj-0720/syUktnn2RIWFX07abGVZLA/0-8.png')
@@ -73,7 +73,7 @@ Observation: In this point, the current landscape is saved in ./cache/next_point
 Thought: Found the object picture. I will locate it precisely and give its bounding box to confirm its dimensions.
 Code: 
 ```py
-position, size, rot = ObjectLocation3D(object='picture', image_path='/mynvme1/EQA-Traj-0720/c_QsabMzTJu6pc3ZvLu9ZA/1-4.png')
+position, size = ObjectLocation3D(object='picture', image_path='/mynvme1/EQA-Traj-0720/c_QsabMzTJu6pc3ZvLu9ZA/1-4.png')
 print(f'The information of picture is: position is {position},  size (Length, width, height) is {size}.')
 ```<end action>
 Observation: The information of picture is: position is [7.724, 4.863, -0.12], size (Length, width, height) is [0.019, 0.47, 0.776].
@@ -82,7 +82,7 @@ Thought: The stair object has been processed and saved in ./cache/next_point_4.j
 Code: 
 ```py
 question = "What material is used for the railing on the staircase leading down to the entrance?"
-answer = VisualQATool(question, ["./cache/next_point_3.jpg", "./cache/next_point_4.jpg"])
+answer = VisualQATool(question=question, images=["./cache/next_point_3.jpg", "./cache/next_point_4.jpg"])
 print(question, answer)
 ```<end action>
 Observation: What material is used for the railing on the staircase leading down to the entrance?. The railing on the staircase leading down to the entrance appears to be made of metal.
