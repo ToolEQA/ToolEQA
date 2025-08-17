@@ -1,28 +1,3 @@
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/attribute/size/output/size.jsonl' >& attribute_size.log
-
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/attribute/special/output/special.jsonl' >& attibute_special.log
-
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/status/output/status.jsonl' >& status.log
-
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/relationship/output/relationship.jsonl' >& relationship.log
-
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/counting/output/counting.jsonl' >& counting.log
-
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/location/location/output/location_one.jsonl' >& location_location_one.log
-
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/location/location/output/location_two.jsonl' >& location_location_two.log
-
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/location/special/output/special.jsonl' >& location_special.log
-
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/location/special/output/special.jsonl' >& location_special.log
-
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/distance/output/distance.jsonl' >& distance.log
-
-# python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/attribute/color/output/color.jsonl' >& log/attribute_color.log
-
-
-
-
 python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/attribute/size/output/size.jsonl' --output_file  /home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/attribute/size/size_wrong.json   >& log/attribute_size_2.log
 
 python rule_evaluation.py --file '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/attribute/special/output/special.jsonl' --output_file /home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/attribute/special/special_wrong.json   >& log/attibute_special_2.log

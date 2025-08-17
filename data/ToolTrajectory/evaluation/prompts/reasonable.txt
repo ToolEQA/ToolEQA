@@ -1,0 +1,9 @@
+You are given a context, a question, and an answer.
+Determine whether the answer can be logically inferred from the given context, without using any outside knowledge.
+If the answer can be derived from the context, output Yes.
+If the answer cannot be derived from the context, output No.
+Respond with only "Yes" or "No", without any explanation.
+
+Context: <<context>>
+Question: <<question>>
+Answer: <<answer>>

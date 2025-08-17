@@ -1,9 +1,0 @@
-/home/zml/programs/miniconda3/envs/react-eqa/lib/python3.9/site-packages/huggingface_hub/utils/_deprecation.py:131: FutureWarning: '__init_subclass__' (from 'transformers.agents.tools') is deprecated and will be removed from version '4.51.0'. Switch to smolagents instead, with the same functionalities and similar API (https://huggingface.co/docs/smolagents/index)
-  warnings.warn(warning_message, FutureWarning)
-You are attempting to use Flash Attention 2.0 without specifying a torch dtype. This might lead to unexpected behaviour
-from pretrained /mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct
-Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:00<00:00,  1.08it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.28it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.24it/s]
-Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
-/home/zml/programs/miniconda3/envs/react-eqa/lib/python3.9/site-packages/huggingface_hub/utils/_deprecation.py:131: FutureWarning: '__init_subclass__' (from 'transformers.agents.tools') is deprecated and will be removed from version '4.51.0'. Switch to smolagents instead, with the same functionalities and similar API (https://huggingface.co/docs/smolagents/index)
-  warnings.warn(warning_message, FutureWarning)
-✅ 所有记录都包含字段 ['sample_id', 'scene', 'question', 'proposals', 'answer', 'question_type', 'floor', 'floor_index', 'init_pos', 'init_rot', 'related_objects', 'traj_length', 'trajectory']

@@ -54,27 +54,12 @@ def load_data(path, wrong_path, output_path):
     if os.path.exists(wrong_path) and postfix == "json":
         with open(wrong_path, 'r', encoding='utf-8') as f:
             wrong_data = json.load(f)
-        # wrong_list = list(wrong_data.keys())
-        wrong_list = [key for d in wrong_data for key in d.keys()]
+        wrong_list = list(wrong_data.keys())
+        # wrong_list = [key for d in wrong_data for key in d.keys()]
     else:
         print('Can not Found! None of wrong list')
         return None
     
-    filtered_list = []
-    filtered_wrong_data = []
-
-    for idx, val in enumerate(wrong_list):
-        if val not in already_list:
-            filtered_list.append(val)
-            filtered_wrong_data.append(wrong_data[idx])
-        else:
-            print(f"{val} 已在 already_list 中，已剔除（同步删除 wrong_data 对应元素）")
-
-    # print("剔除后的 wrong_list:", filtered_list)
-    # print("剔除后的 wrong_data:", filtered_wrong_data)
-    print('之前的长度', len(wrong_list), len(wrong_data), '现在的长度', len(filtered_list), len(filtered_wrong_data))
-
-
     json_data = None
     postfix = path.split(".")[-1]
     if postfix == "jsonl":
@@ -89,12 +74,12 @@ def load_data(path, wrong_path, output_path):
     
     data_list = []
     for item in json_data:
-        if item["sample_id"] in filtered_list:
+        if item["sample_id"] in wrong_data.keys():
             data_list.append(item)
         else:
             print("This sample is correct, skip:", item["sample_id"])
-    
-    return data_list, filtered_wrong_data
+            
+    return data_list, wrong_data
 
 def get_prompt(path):
     with open(path, "r", encoding="utf-8") as file:
@@ -427,11 +412,11 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
     data, wrong_data = load_data(data_path, wrong_path, output_path) 
     # data 放入的是 提取之后的数据， wrong_data 是一个字典，里面记录的是 这个sample 错误的是不是final_step
    
-
-    
     proposal_choice = ["A", "B", "C", "D"]
     
     rotation_matrix = [[1,0,0],[0,1,0], [0,0,1]] # 旋转矩阵
+
+    output_list = []
 
     for index, item in enumerate(data):
         sample_id = item["sample_id"]
@@ -443,8 +428,8 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
 
         traj = item["trajectory"]
 
-        if sample_id in wrong_data[index]:
-            revise_step =  wrong_data[index][sample_id] # 妈的，这个顺序居然还可能不一致，妈的，怎么会这样！！！！
+        if sample_id in wrong_data.keys():
+            revise_step =  wrong_data[sample_id] # 妈的，这个顺序居然还可能不一致，妈的，怎么会这样！！！！
         else:
             for wd in wrong_data:
                 if sample_id in wd:
@@ -482,7 +467,6 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
         for item_object in locations_infor:
             object_pos.append(item_object["pos"])
     
-
 
         # 获得关键步骤和非关键步骤的react
 
@@ -612,19 +596,18 @@ def gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_pa
        
 
         if successful:
-            # save_data(item, output_path)
-            print('save_sample_id', sample_id)
-            with open(output_path, 'r', encoding='utf-8') as f:
-                data_output = json.load(f)
+            save_data(item, output_path)
+            output_list.append(item)
+            # print('save_sample_id', sample_id)
+            # with open(output_path, 'r', encoding='utf-8') as f:
+            #     data_output = json.load(f)
             
-            data_output.append(item)
+            # data_output.append(item)
 
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(data_output, f, ensure_ascii=False, indent=4)
+            # with open(output_path, 'w', encoding='utf-8') as f:
+            #     json.dump(data_output, f, ensure_ascii=False, indent=4)
         
-        break
-
-            
+    return output_list
 
 def pre_process(data):
     for index, item in enumerate(data):
@@ -648,6 +631,30 @@ def pre_process(data):
 
     return data
 
+def merge_jsonl(file1, file2, output_file):
+    data = {}
+
+    # 读取第一个文件
+    with open(file1, 'r', encoding='utf-8') as f:
+        for line in f:
+            item = json.loads(line.strip())
+            sample_id = item.get("sample_id")
+            if sample_id is not None:
+                data[sample_id] = item
+
+    # 读取第二个文件，覆盖相同 sample_id 的数据
+    with open(file2, 'r', encoding='utf-8') as f:
+        for line in f:
+            item = json.loads(line.strip())
+            sample_id = item.get("sample_id")
+            if sample_id is not None:
+                data[sample_id] = item  # 覆盖
+
+    # 写入合并后的文件
+    with open(output_file, 'w', encoding='utf-8') as f:
+        for item in data.values():
+            f.write(json.dumps(item, ensure_ascii=False) + '\n')
+
 if __name__=="__main__":
     images_root = "/mynvme1/EQA-Traj-0720/"
     system_prompt_path = "prompts/system_prompt.txt"
@@ -656,10 +663,13 @@ if __name__=="__main__":
     nonkey_user_prompt_path = "prompts/nonkey_user_prompt.txt"
 
     # data_path = "/mynvme1/EQA-Traj/trajectory.json"
-    data_path = "output/special_revise.jsonl"
-    wrong_path = 'special_wrong.json'
+    data_path = "output/special.jsonl"
+    wrong_path = 'wrong_id.json'
     # task_id = int(sys.argv[1]) 
     # output_path = f"output/color_reproduct.jsonl"
     output_path = f"output/special_reproduct.json"
 
-    gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root, wrong_path)
+    reproduct_data = gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root, wrong_path)
+
+    # 合并数据
+    merge_jsonl(data_path, output_path, output_path)

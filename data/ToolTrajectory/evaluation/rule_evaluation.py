@@ -370,8 +370,8 @@ def compare_expected_with_final_simple(record: dict):
 
 def main():
     parser = argparse.ArgumentParser(description="读取 JSONL 文件并逐行处理")
-    parser.add_argument("--file", type=str, required=False, help="JSONL 文件路径", default = '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/attribute/special/output/special.jsonl')
-    parser.add_argument('--output_file', type=str, required=False, help="输出的文件路径", default = '/home/zml/algorithm/ReactEQA/data/ToolTrajectory/trajectory_gen/attribute/special/output/special.json')
+    parser.add_argument("--file", type=str, required=False, help="JSONL 文件路径")
+    parser.add_argument('--output_file', type=str, required=False, help="输出的文件路径")
     args = parser.parse_args()
 
     fully_true = []
@@ -382,7 +382,7 @@ def main():
     final_answer_false = []
     data_number = 0
 
-    wrong_data = []
+    wrong_data = {}
 
 
     with open(args.file, "r", encoding="utf-8") as f:
@@ -415,19 +415,21 @@ def main():
                     fully_true.append(question_sample_id)
                 elif wrong_or_true == "Order Wrong":
                     
-                    all_keys = [key for d in wrong_data for key in d.keys()]
+                    # all_keys = [key for d in wrong_data for key in d.keys()]
+                    all_keys = wrong_data.keys()
                     if question_sample_id in all_keys:
-                        idx_key = all_keys.index(question_sample_id)
-                        w_step_list_c = wrong_data[idx_key][question_sample_id]
+                        # idx_key = all_keys.index(question_sample_id)
+                        w_step_list_c = wrong_data[question_sample_id]
                         w_step_list_c.append(step_list[idx])
 
-                        wrong_data[idx_key][question_sample_id] = w_step_list_c
+                        wrong_data[question_sample_id] = w_step_list_c
                     else:
                         item={}
                         w_step_list = []
                         w_step_list.append(step_list[idx])
-                        item[question_sample_id] = w_step_list
-                        wrong_data.append(item)
+                        # item[question_sample_id] = w_step_list
+                        # wrong_data.append(item)
+                        wrong_data[question_sample_id] = w_step_list
                         
 
                     order_false.append(question_sample_id)
@@ -435,18 +437,20 @@ def main():
                     # break
                 elif wrong_or_true == "Tool Wrong":
       
-                    all_keys = [key for d in wrong_data for key in d.keys()]
+                    # all_keys = [key for d in wrong_data for key in d.keys()]
+                    all_keys = wrong_data.keys()
                     if question_sample_id in all_keys:
-                        idx_key = all_keys.index(question_sample_id)
-                        w_step_list_c = wrong_data[idx_key][question_sample_id]
+                        # idx_key = all_keys.index(question_sample_id)
+                        w_step_list_c = wrong_data[question_sample_id]
                         w_step_list_c.append(step_list[idx])
-                        wrong_data[idx_key][question_sample_id] = w_step_list_c
+                        wrong_data[question_sample_id] = w_step_list_c
                     else:
                         item={}
                         w_step_list = []
                         w_step_list.append(step_list[idx])
-                        item[question_sample_id] = w_step_list
-                        wrong_data.append(item)
+                        # item[question_sample_id] = w_step_list
+                        # wrong_data.append(item)
+                        wrong_data[question_sample_id] = w_step_list
                         
 
                     tool_false.append(question_sample_id)
