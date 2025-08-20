@@ -48,52 +48,50 @@ def pil_to_base64(image: Image.Image, format='JPEG') -> str:
 
 @app.route('/process', methods=['POST'])
 def process():
-    try:
-        data = request.get_json()
-        text = data['text']
+    # try:
+    data = request.form
+    text = data['text']
+    content = []
+    if 'image_array' in data.keys():
         image_array = np.array(data['image_array'])
         image = Image.fromarray(np.uint8(image_array))
         
         image = pil_to_base64(image)
 
-        messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "image": image,
-                        },
-                        {"type": "text", "text": text},
-                    ],
-                }
-            ]
+        content.append({"type": "image", "image": image})
 
-        text = processor.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        image_inputs, video_inputs = process_vision_info(messages)
-        inputs = processor(
-            text=[text],
-            images=image_inputs,
-            videos=video_inputs,
-            padding=True,
-            return_tensors="pt",
-        )
-        inputs = inputs.to("cuda")
-
-        generated_ids = model.generate(**inputs, max_new_tokens=128)
-        generated_ids_trimmed = [
-            out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+    content.append({"type": "text", "text": text})
+    messages = [
+            {
+                "role": "user",
+                "content": content,
+            }
         ]
-        output_text = processor.batch_decode(
-            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-        )
-        print(output_text)
-        return jsonify({"response": output_text})
-    except Exception as e:
-        return jsonify({"error": str(e)})
+
+    text = processor.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    image_inputs, video_inputs = process_vision_info(messages)
+    inputs = processor(
+        text=[text],
+        images=image_inputs,
+        videos=video_inputs,
+        padding=True,
+        return_tensors="pt",
+    )
+    inputs = inputs.to("cuda")
+
+    generated_ids = model.generate(**inputs, max_new_tokens=128)
+    generated_ids_trimmed = [
+        out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+    ]
+    output_text = processor.batch_decode(
+        generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+    )
+    return jsonify({"response": output_text})
+    # except Exception as e:
+    #     return jsonify({"error": str(e)})
 
 # Run the Flask application
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5001)

@@ -663,7 +663,7 @@ if __name__=="__main__":
     wrong_path = 'wrong_id.json'
     output_path = f"output/size_reproduct.jsonl"
 
-    # reproduct_data = gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root, wrong_path)
+    reproduct_data = gen_react(data_path, system_prompt_path, planing_prompt_path, user_prompt_path, nonkey_user_prompt_path, output_path, images_root, wrong_path)
 
     # 合并数据
     merge_jsonl(data_path, output_path, output_path)

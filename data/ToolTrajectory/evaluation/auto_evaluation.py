@@ -54,6 +54,7 @@ class Evaluation():
         result = []
         related_obj = item['related_objects']
         for i, step_i in enumerate(trajectory):
+            step_id = step_i["step"]
             if self._str_to_bool(step_i['is_key']):
                 continue
             image_path = os.path.join(self.image_root, step_i['image_path'])
@@ -64,9 +65,15 @@ class Evaluation():
                 response = requests_api(image_path, input_prompt)
                 result.append(int(response))
                 
-                if float(response) <= 3:
-                    obj = related_obj[i]['name']
-                    direct = step_i['action'][0][0]
+                if float(response) <= 3.0:
+                    obj_idx = int(step_id.split("-")[0])
+                    obj = related_obj[obj_idx]['name']
+
+                    if len(step_i['action']) > 0:
+                        direct = step_i['action'][0][0]
+                    else:
+                        continue
+                    
                     nonkey_thought = self.prompt_nonkey_thought
                     nonkey_thought = nonkey_thought.replace("<<object_name>>", obj)
                     nonkey_thought = nonkey_thought.replace("<<action_name>>", direct)
@@ -127,18 +134,24 @@ class Evaluation():
         return output_dict
 
     def run_dehallucination(self):
-        new_data = []
+        output_list = []
+        already_list = []
+        if os.path.exists(self.args.output_file):
+            with jsonlines.open(self.args.output_file, mode="r") as reader:
+                for item in reader:
+                    already_list.append(item["sample_id"])
         for item in tqdm(self.data):
-            print(item['sample_id'])
+            sample_id = item["sample_id"]
+            if sample_id in already_list:
+                continue
             new_item = self.dehallucination(item)
-            new_data.append(new_item)
-            break
+            output_list.append(new_item)
 
-        # save json
-        with open("data/ToolTrajectory/evaluation/output/dehallucination.json", 'w') as f:
-            json.dump(new_data, f, indent=4)
+            with jsonlines.open(self.args.output_file, mode="a") as writer:
+                writer.write(new_item)
+
+        return output_list
         
-
     def run_reasonable(self):
         pass
 
@@ -159,32 +172,11 @@ class Evaluation():
 
         elif self.args.function == "dehallucination":
             self.run_dehallucination()
+
         elif self.args.function == "reasonable":
             self.run_reasonable()
 
         return
-
-def merge_wrong(data_list):
-    data_list = [
-        "data/ToolTrajectory/trajectory_gen/attribute/color/output/color_wrong.json",
-        "data/ToolTrajectory/trajectory_gen/attribute/color/output/wrong_answer.json"
-    ]
-
-    output_data = {}
-
-    for data in data_list:
-        with open(data) as f:
-            data = json.load(f)
-        for key in data.keys():
-            if key not in output_data:
-                output_data[key] = data[key]
-            else:
-                step_data = list(set(data[key] + output_data[key]))
-                output_data[key] = step_data
-
-    with open("data/ToolTrajectory/trajectory_gen/attribute/color/output/wrong_id.json", "w") as f:
-        json.dump(output_data, f, indent=4)
-
 
 if __name__=="__main__":
     import argparse
