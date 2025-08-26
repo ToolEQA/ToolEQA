@@ -1,6 +1,9 @@
 import json
 import os
 import re
+import copy
+from tqdm import tqdm
+
 SYSTEM_PROMPT = '''You are an expert embodied AI agent with the ability to perceive and interact with a virtual environment. You need to first explore the environment and collect information related to the problem, and when there is enough information, answer the question.
 To do so, you have been given access to a list of tools: these tools are basically Python functions which you can call with code.
 To solve the task, you must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences.
@@ -143,37 +146,36 @@ Here are the rules you should always follow to solve your task:
 
 Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.'''
 
-PLANNING_PROMPT = '''You are an assistant that generates observation plans to answer questions about objects in a scene.
+SYSTEM_PROMPT_FACTS = """Below I will present you a task.
 
-Given:
-    - A question, which asks about one or more objects and their properties or relations in the current scene.
-    - An object order, which specifies the order in which to find and observe the objects.
+You will now build a comprehensive preparatory survey of which facts we have at our disposal and which ones we still need.
+To do so, you will have to read the task and identify things that must be discovered in order to successfully complete it.
+Don't make any assumptions. For each item, provide a thorough reasoning. Here is how you will structure this survey:
 
-Your task is to:
-    1. Identify the objects mentioned in the question.
-    2. For each object, infer which room or area it is likely located in, based on common sense (e.g., a fridge is likely in the kitchen or dining area).
-    3. Generate a step-by-step plan to locate and observe the objects, strictly following the given object order.
-    4. The plan should explicitly:
-        - Mention where to look for each object (the inferred room or area).
-        - Describe how to observe the relevant properties of each object to gather the information needed to answer the question.
+---
+### 1. Facts given in the task
+List here the specific facts given in the task that could help you (there might be nothing here).
 
-Input Format
-    The given question is: <<QUERY>>
+### 2. Facts to look up
+List here any facts that we may need to look up.
+Also list where and how to find each of these infomation, for instance living room, bed room... - maybe the task contains some sources that you should re-use here.
 
-Example Input:
-Question: Is the color of the chair against the wall, near large windows with decorative frames more saturated than the color of the fridge adjacent to the oven and dishwasher, next to the window?
+### 3. Facts to derive
+List here anything that we want to derive from the above by logical reasoning, for instance computation or simulation.
 
-Example Output:
-Plan:
-    1. Go to the living room or dining area and locate the chair that is against the wall, near the large windows with decorative frames. Take a clear photo of the chair to capture its color and appearance for later comparison.
-    2. Go to the kitchen or dining area and locate the fridge that is adjacent to the oven and dishwasher, next to the window. Take a clear photo of the chair to capture its color and appearance for later comparison.
-    3. After collecting the photos, compare the saturation of the chairâ€™s color and the fridgeâ€™s color to determine which one is more saturated.
+Keep in mind that "facts" will typically be specific names, dates, values, etc. Your answer should use the below headings:
+### 1. Facts given in the task
+### 2. Facts to look up
+### 3. Facts to derive
+Do not add anything else."""
 
-Now, process the following input and output a plan that adheres to the given object order, includes reasonable guesses about where to find each object, and gathers the necessary information to answer the question.'''
 import re
 import os
 
 _IMG_RE = re.compile(r'(?P<path>(?:\.?/)?[A-Za-z0-9_\-./]+?\.(?:png|jpg|jpeg|webp|bmp))', re.I)
+
+def str_to_bool(s: str) -> bool:
+    return s.strip().lower() == "true"
 
 def _pick_image_for_react(obs_text):
     if not obs_text:
@@ -199,149 +201,82 @@ def _pick_image_for_react(obs_text):
 
 
 def convert_sample_to_qwen_style(sample):
+    """
+        一条样本数据可以产生多个多轮对话
+        1. plan
+        2. 关键步骤（每一个关键步骤都将产生一个多轮对话，上下文为之前的所有关键步骤信息）
+        3. 非关键步骤（从非关键步骤中采样与关键步骤相同数量的非关键步骤作为一个多轮对话）
+    """
+    question = sample["question"]
+
+    sample_conversations = []
+
+    # # first: plan
+    # conversations = []
+    # conversations.append({"from": "system", "value": SYSTEM_PROMPT_FACTS})
+    # conversations.append({"from": "human", "value": f"Here is the task:```{question}```Now begin!"})
+    # conversations.append({"from": "gpt", "value": sample["plan"]})
+
+    # sample_conversations.append(
+    #     {
+    #         "id": sample["sample_id"],
+    #         "conversations": conversations
+    #     }
+    # )
+    
+    # second: 关键步骤
     conversations = []
-    images_in_order = []  # 严格与 <image> 次序对齐，且不去重
-
-    # 0) system
-    conversations.append({"from": "human", "value": SYSTEM_PROMPT})
-
-    # 1) user: planning
-    conversations.append({
-        "from": "human",
-        "value": PLANNING_PROMPT.replace("<<QUERY>>", sample["question"])
-    })
-
-    # 2) assistant: plan
-    conversations.append({"from": "gpt", "value": sample["plan"]})
-
-    # 3) trajectory
-    conversations.append({"from": "human", "value": "<image>\n" + sample["question"]})
-    for step in sample["trajectory"]:
+    conversations.append({"from": "system", "value": SYSTEM_PROMPT})
+    conversations.append({"from": "human", "value": f"<image>\nTask:{question}"})
+    for step_idx, step in enumerate(sample["trajectory"]):
         step_id = step["step"]
+        img_path = step["image_path"]
+        is_key = str_to_bool(step["is_key"])
 
-        for react_idx, react in enumerate(step["react"]):
-            # assistant: Thought + Code
+        need_key = False
+        if not is_key and not need_key:
+            react = step["react"][-1]
             code_block = f"Thought: {react['thought']}\n\nCode:\n```py\n{react['code']}\n```<end_action>"
             conversations.append({"from": "gpt", "value": code_block})
-
-            # 从 Observation 文本中抽取“本 react 的图片”
-            obs_text = react.get("observation", "")
-            #import pdb;pdb.set_trace()
-            img_path = step["image_path"]#_pick_image_for_react(obs_text)
-
-            # user: Observation（只有在抽到图片时才插入 <image>，并同步 images_in_order）
-            #images_in_order.append(img_path.replace("data/", "/home/hanshengliang/react_eqa_data/EQA-Traj-0715/mynvme1/EQA-Traj-0715/"))
-            #images_in_order.append("/home/zml/data/EQA-Traj-0720/" + img_path)
-            if react_idx == 0:
-                images_in_order.append("/home/zml/data/EQA-Traj-0720/" + img_path)
-                user_content = f"[OUTPUT OF STEP {step_id}] -> Observation:{obs_text}\n<image>\n"
-            elif react_idx == len(step["react"]) - 1 and step == sample["trajectory"][-2]:
-                import pdb;pdb.set_trace()
-                #images_in_order.append("/home/zml/data/EQA-Traj-0720/" + img_path)
-                user_content = f"[OUTPUT OF STEP {step_id}] -> Observation:\n{obs_text}"
-            else:
-                user_content = obs_text
-
+            user_content = f"Observation:\n{react['observation']}\n\n"
             conversations.append({"from": "human", "value": user_content})
 
-    return {
-        "id": sample["sample_id"],
-        "image": images_in_order,          # 数量与顺序与 <image> 一一对应
-        "conversations": conversations[:-1]
-    }
+            sample_conversations.append(
+                {
+                    "id": sample["sample_id"],
+                    "image": [img_path],
+                    "conversations": copy.deepcopy(conversations)
+                }
+            )
+            need_key = True
+        else:
+            for react_idx, react in enumerate(step["react"]):
+                code_block = f"Thought: {react['thought']}\n\nCode:\n```py\n{react['code']}\n```<end_action>"
+                conversations.append({"from": "gpt", "value": code_block})
+
+                if step_idx != len(sample["trajectory"]) - 1:
+                    user_content = f"Observation:\n{react['observation']}\n\n"
+                    conversations.append({"from": "human", "value": user_content})
+
+                sample_conversations.append(
+                    {
+                        "id": sample["sample_id"],
+                        "image": [img_path],
+                        "conversations": copy.deepcopy(conversations)
+                    }
+                )
+            need_key = False
+
+    return sample_conversations
+
 if __name__ == "__main__":
     with open("/home/zml/data/EQA-Traj-0720/test.json", "r", encoding="utf-8") as f:
         input_samples = json.load(f)
     output_sample = []
-    for sample in input_samples:
-        output_sample.append(convert_sample_to_qwen_style(sample))
+    for sample in tqdm(input_samples):
+        output_sample.extend(convert_sample_to_qwen_style(sample))
 
-
-    with open("qwen_output.json", "w", encoding="utf-8") as f:
+    with open("qwen_output_test_zml.json", "w", encoding="utf-8") as f:
         json.dump(output_sample, f, indent=4, ensure_ascii=False)
 
     print("Done")
-# if __name__ == "__main__":
-#     with open("/home/zml/data/EQA-Traj-0720/test.json", "r", encoding="utf-8") as f:
-#         input_samples = json.load(f)
-#     output_sample = []
-#     for sample in input_samples:
-#         converted = convert_sample_to_qwen_style(sample)
-#         output_sample.append(converted)
-
-#         # 校验 image 数量 和 <image> 数量
-#         num_images = len(converted["image"])
-#         num_image_tags = sum(
-#             conv["content"].count("<image>") for conv in converted["conversations"]
-#         )
-#         print(f"Sample {converted['id']}: image 数量 = {num_images}, conversation 中 <image> 数量 = {num_image_tags}")
-
-#     with open("qwen_output.json", "w", encoding="utf-8") as f:
-#         json.dump(output_sample, f, indent=4, ensure_ascii=False)
-
-#     print("Done")
-
-
-
-
-# ###########
-# import json
-# import os
-
-# def convert_sample_keep_structure(sample):
-#     conversations = []
-#     images_in_order = []
-
-#     # 先保留 system
-#     conversations.append({"from": "system", "content": "..."})
-
-#     # 保留 user 的提问
-#     conversations.append({"from": "user", "content": "..."})
-
-#     # 保留 assistant 的plan
-#     conversations.append({"from": "assistant", "content": "..."})
-
-#     # 遍历 trajectory，保留顺序
-#     for step in sample["trajectory"]:
-#         step_id = step["step"]
-
-#         for react_idx, react in enumerate(step["react"]):
-#             img_path = step["image_path"]
-
-#             # assistant: Thought+Code → 占位
-#             conversations.append({"from": "assistant", "content": "..."})
-
-#             # user: Observation → 保留 <image>
-#             if react_idx == 0:
-#                 images_in_order.append("/home/zml/data/EQA-Traj-0720/" + img_path)
-#                 images_in_order.append("/home/zml/data/EQA-Traj-0720/" + img_path)
-#                 conversations.append({
-#                     "from": "user",
-#                     "content": f"[OUTPUT OF STEP {step_id}] -> Observation:\n<image>"
-#                 })
-#             elif react_idx == len(step["react"]) - 1:
-#                 conversations.append({
-#                     "from": "user",
-#                     "content": f"[OUTPUT OF STEP {step_id}] -> Observation:\n"
-#                 })
-#             else:
-#                 conversations.append({"from": "user", "content": "..."})
-
-#     return {
-#         "id": sample["sample_id"],
-#         "image": images_in_order,
-#         "conversations": conversations
-#     }
-
-# if __name__ == "__main__":
-#     with open("/home/zml/data/EQA-Traj-0720/test.json", "r", encoding="utf-8") as f:
-#         input_samples = json.load(f)
-
-#     output_sample = []
-#     for sample in input_samples:
-#         output_sample.append(convert_sample_keep_structure(sample))
-
-#     with open("qwen_output.json", "w", encoding="utf-8") as f:
-#         json.dump(output_sample, f, indent=4, ensure_ascii=False)
-
-#     print("Done")

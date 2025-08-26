@@ -65,6 +65,8 @@ def preprocess_qwen_2_visual(
         try:
             if roles[source[0]["from"]] != roles["human"]:
                 source = source[1:]
+            elif roles[source[0]["from"]] == roles["system"]:
+                system_message = source[0]["system"]
         except:
             print(sources)
 

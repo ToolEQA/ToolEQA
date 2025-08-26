@@ -50,8 +50,8 @@ def preprocess_qwen_2_visual(
     grid_thw_image: List = [],
     grid_thw_video: List = [],
 ) -> Dict:
-    roles = {"human": "user", "gpt": "assistant"}
-    system_message = "You are a helpful assistant."
+    roles = {"human": "user", "gpt": "assistant", "system": "system"}
+    # system_message = "You are a helpful assistant."
 
     tokenizer = copy.deepcopy(tokenizer)
     chat_template = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
@@ -60,6 +60,9 @@ def preprocess_qwen_2_visual(
     visual_replicate_index_image = 0
     visual_replicate_index_video = 0
     input_ids, targets = [], []
+
+    if roles[sources[0][0]["from"]] == roles["system"]:
+        system_message = sources[0][0]["value"]
 
     for i, source in enumerate(sources):
         try:
@@ -447,7 +450,7 @@ class LazySupervisedDataset(Dataset):
             grid_thw_merged = None
             sources = copy.deepcopy([e["conversations"] for e in sources])
             data_dict = preprocess_qwen_2_visual(
-                sources, self.tokenizer, grid_thw=grid_thw_merged
+                sources, self.tokenizer, grid_thw_image=None, grid_thw_video=None
             )
             position_ids = (
                 torch.arange(0, data_dict["input_ids"].size(1))

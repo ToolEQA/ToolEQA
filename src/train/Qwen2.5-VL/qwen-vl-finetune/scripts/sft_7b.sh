@@ -4,28 +4,28 @@
 MASTER_ADDR="127.0.0.1"
 MASTER_PORT=29500
 NNODES=1
-NPROC_PER_NODE=2
+NPROC_PER_NODE=4
 
 # DeepSpeed配置
 deepspeed=./scripts/zero3.json
 
 # 模型路径
-llm=/home/hanshengliang/Qwen2.5-VL-7B-Instruct/
+llm=/mnt/hdd/zml/models/Qwen/Qwen2.5-VL-7B-Instruct/
 
 # 训练超参数
 lr=2e-7
-batch_size=4
+batch_size=1
 grad_accum_steps=4
 
 # 入口文件
 entry_file=qwenvl/train/train_qwen.py
 
 # 数据集
-datasets=mydata
+datasets=reacteqa
 
 # 输出配置
-run_name="qwen2vl-baseline"
-output_dir=./output
+run_name="qwen2.5vl-baseline"
+output_dir=/mnt/hdd/zml/output
 
 # 训练参数
 args="
@@ -33,6 +33,7 @@ args="
     --model_name_or_path ${llm} \
     --dataset_use ${datasets} \
     --data_flatten True \
+    --data_packing True \
     --tune_mm_vision False \
     --tune_mm_mlp True \
     --tune_mm_llm True \
@@ -54,11 +55,11 @@ args="
     --max_grad_norm 1 \
     --lr_scheduler_type cosine \
     --logging_steps 10 \
-    --model_max_length 8192 \
+    --model_max_length 16384 \
     --gradient_checkpointing True \
     --dataloader_num_workers 4 \
     --run_name ${run_name} \
-    --report_to wandb
+    --report_to tensorboard
 "
 
 # 启动训练

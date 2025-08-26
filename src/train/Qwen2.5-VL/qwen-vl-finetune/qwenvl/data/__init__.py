@@ -1,9 +1,10 @@
 import re
 
 # Define placeholders for dataset paths
-MY_DATA = {
-    "annotation_path": "/home/hanshengliang/ReactEQA/data/convert_qwen_format/qwen_output.json",
-    "data_path": "",
+REACTEQA = {
+    "annotation_path": "/home/zml/algorithm/ReactEQA/data/convert_qwen_format/qwen_output_trainval_zml.json",
+    #"annotation_path": "/home/zml/algorithm/ReactEQA/src/train/test/coco_2014/data_vl.json",
+    "data_path": "/mnt/hdd/zml/datasets/EQA-Traj-0720",
 }
 CAMBRIAN_737K = {
     "annotation_path": "PATH_TO_CAMBRIAN_737K_ANNOTATION",
@@ -36,7 +37,7 @@ data_dict = {
     "mp_doc": MP_DOC,
     "clevr_mc": CLEVR_MC,
     "videochatgpt": VIDEOCHATGPT,
-    "mydata": MY_DATA
+    "reacteqa": REACTEQA
 }
 
 
