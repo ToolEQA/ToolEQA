@@ -647,7 +647,7 @@ def merge_jsonl(file1, file2, output_file):
                 data[sample_id] = item  # 覆盖
 
     # 写入合并后的文件
-    with open(output_file+"l", 'w', encoding='utf-8') as f:
+    with open(output_file, 'w', encoding='utf-8') as f:
         for item in data.values():
             f.write(json.dumps(item, ensure_ascii=False) + '\n')
 

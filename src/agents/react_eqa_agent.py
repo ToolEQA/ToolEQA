@@ -7,6 +7,15 @@ from src.tools.tool_box import get_tool_box
 from src.llm_engine.qwen import QwenEngine
 from src.llm_engine.gpt import GPTEngine
 import random
+import json
+import jsonlines
+import argparse
+import multiprocessing as mp
+import os
+
+def save_data(data, path):
+    with jsonlines.open(path, mode="a") as writer:
+        writer.write(data)
 
 class AgentToleranceError(AgentError):
     pass
@@ -20,6 +29,7 @@ class EQAReactAgent(ReactCodeAgent):
         additional_authorized_imports: Optional[List[str]] = LIST_SAFE_MODULES,
         planning_interval: int = None,
         error_tolerance_count: int = -1, 
+        device: int = 0,
         **kwargs,
     ):
         super().__init__(tools=tools, 
@@ -31,6 +41,7 @@ class EQAReactAgent(ReactCodeAgent):
                         **kwargs
                         )
         self.image = []
+        self.gpu_id = device
         self.error_tolerance_count = error_tolerance_count
         self.letter = ["A", "B", "C", "D"]
 
@@ -120,6 +131,9 @@ class EQAReactAgent(ReactCodeAgent):
         self.logger.info("===== Calling LLM with these last messages: =====")
         self.logger.info(self.prompt[-2:])
 
+        if hasattr(self.toolbox._tools["GoNextPointTool"], "cur_rgb_path"):
+            self.set_image_path(self.toolbox._tools["GoNextPointTool"].cur_rgb_path)
+
         try:
             llm_output = self.llm_engine(self.prompt, stop_sequences=["<end_action>", "Observation:"], image_paths=self.image)
         except Exception as e:
@@ -133,7 +147,6 @@ class EQAReactAgent(ReactCodeAgent):
         self.logger.debug("===== Extracting action =====")
         try:
             rationale, raw_code_action = self.extract_action(llm_output=llm_output, split_token="Code:")
-            import pdb; pdb.set_trace()
         except Exception as e:
             self.logger.debug(f"Error in extracting action, trying to parse the whole output. Error trace: {e}")
             rationale, raw_code_action = llm_output, llm_output
@@ -189,7 +202,8 @@ class EQAReactAgent(ReactCodeAgent):
             # Set the current image path if available
             if hasattr(self.toolbox._tools["GoNextPointTool"], "cur_rgb_path"):
                 self.set_image_path(self.toolbox._tools["GoNextPointTool"].cur_rgb_path)
-                self.max_iterations = self.toolbox._tools["GoNextPointTool"].eqa_modeling.max_step
+                max_explore_step = self.toolbox._tools["GoNextPointTool"].eqa_modeling.max_step
+                self.max_iterations = 50 if max_explore_step > 50 else max_explore_step
 
     def run(self, data = None, reset: bool = True, **kwargs):
         oepn_vocab = kwargs.get("oepn_vocab", True)
@@ -197,7 +211,6 @@ class EQAReactAgent(ReactCodeAgent):
             self.task = data["question"]
         else:
             proposals = data["proposals"]
-            random.shuffle(proposals)
             self.task = data["question"] + str([f"{self.letter[i]}. {p}" for i, p in enumerate(proposals)])
         # if len(kwargs) > 0:
         #     self.task += f"\nYou have been provided with these initial arguments: {str(kwargs)}."
@@ -211,31 +224,55 @@ class EQAReactAgent(ReactCodeAgent):
         return self.direct_run(self.task)
 
 
-if __name__=="__main__":
-    import json
+def worker(gpu_id, data_chunk, args):
+    # 设置当前进程可见的 GPU
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     
-    data = json.load(open("./data/EQA-Traj-0720/trajectory.json"))
-    print(data[0]["question"])
-    print(data[0]["proposals"])
-    print(data[0]["answer"])
-    
-    SAFE_MODULES = list(set(LIST_SAFE_MODULES + [
-        "requests", "zipfile", "os", "pandas", "numpy", "sympy",
-        "json", "bs4", "sklearn", "scipy", "pydub", "io",
-        "torch", "datetime", "csv"
-    ]))
-
-
     system_prompt = open("data/ToolTrajectory/prompts/react_system_prompt.txt", "r").read()
     eqa_react_agent = EQAReactAgent(
-        tools=get_tool_box(),
-        # llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct"),
-        llm_engine=GPTEngine("gpt-4o-mini"),
+        tools=get_tool_box(gpu_id=gpu_id),
+        llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct", device=f"cuda:{gpu_id}"),
+        # llm_engine=GPTEngine("gpt-4o-mini"),
         system_prompt=system_prompt,
         add_base_tools=False,
-        additional_authorized_imports=SAFE_MODULES,
         planning_interval=1,
-        )
-    for item in data:
-        eqa_react_agent.run(item, oepn_vocab=True)
-        break
+        device=gpu_id
+    )
+
+    output_dir = args.output
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
+    results = []
+
+    for item in data_chunk:
+        final_answer = eqa_react_agent.run(item, oepn_vocab=True)
+        result = eqa_react_agent.toolbox._tools["GoNextPointTool"].eqa_modeling.result
+        result['summary']['final_answer'] = final_answer
+        result['summary']['shorest_path'] = eqa_react_agent.toolbox._tools["GoNextPointTool"].eqa_modeling.path_length
+        results.append(result)
+        save_data(result, os.path.join(output_dir, f"result_{gpu_id}.jsonl"))
+
+    with open(os.path.join(output_dir, f"result_{gpu_id}.json"), "w") as f:
+        json.dump(results, f, indent=4)
+
+if __name__ == "__main__":
+    mp.set_start_method('spawn', force=True)
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/test.json")
+    parser.add_argument("--output", help="output direction", type=str, default="./results/reacteqa")
+    parser.add_argument("--gpus", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="7")
+    args = parser.parse_args()
+
+    data = json.load(open(args.data))
+    gpu_ids = [int(x) for x in args.gpus.split(",")]
+    num_gpus = len(gpu_ids)
+
+    # 把数据均分给每个 GPU
+    chunk_size = (len(data) + num_gpus - 1) // num_gpus
+    data_chunks = [data[i*chunk_size:(i+1)*chunk_size] for i in range(num_gpus)]
+
+    # 使用进程池
+    with mp.Pool(processes=num_gpus) as pool:
+        pool.starmap(worker, zip(gpu_ids, data_chunks, [args] * len(gpu_ids)))

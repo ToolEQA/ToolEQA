@@ -1,10 +1,10 @@
 # General
 seed: 42
-exp_name: MT-HM3D
-output_parent_dir: results/explore-eqa
-question_data_path: ./data/EQA-Traj-0720/trajectory.json
+exp_name: react-eqa
+output_parent_dir: results/
+question_data_path: ./data/EQA-Traj-0720/test.json
 scene_data_path: [./data/HM3D]
-output_dir: ./results
+output_dir: ./cache/qwen2.5vl_zeroshot
 save_obs: true
 save_freq: 20
 

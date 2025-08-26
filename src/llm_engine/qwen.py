@@ -11,14 +11,14 @@ from openai import OpenAI
 
 import torch
 
-def load_pretrained_model(model_name):
+def load_pretrained_model(model_name, device):
     torch.manual_seed(0)
     print("from pretrained", model_name)
     if "VL" in model_name:
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             model_name, 
             torch_dtype="auto", 
-            device_map="auto",
+            device_map=device,
             attn_implementation="flash_attention_2",
         )
         processor = AutoProcessor.from_pretrained(model_name)
@@ -27,7 +27,7 @@ def load_pretrained_model(model_name):
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         torch_dtype="auto",
-        device_map="auto"
+        device_map=device
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     return model, tokenizer
@@ -43,7 +43,7 @@ def load_client_model(endpoint):
     return client
 
 class ModelSingleton():
-    def __new__(cls, model_name, lora_path=None):
+    def __new__(cls, model_name, lora_path=None, device="cuda:0"):
         if hasattr(cls, "model_dict") and model_name in cls.model_dict:
             return cls
 
@@ -51,7 +51,7 @@ class ModelSingleton():
             cls.model_dict = dict()
             
         if "VL" in model_name:
-            model, tokenizer = load_pretrained_model(model_name)
+            model, tokenizer = load_pretrained_model(model_name, device=device)
             if lora_path is not None:
                 print("Load Qwen-VL from lora", lora_path)
                 import time
@@ -72,8 +72,8 @@ openai_role_conversions = {
 
 from typing import Optional
 class QwenEngine(HfApiEngine):
-    def __init__(self, model_name: str = "", lora_path: Optional[str] = None):
-        module = ModelSingleton(model_name, lora_path)
+    def __init__(self, model_name: str = "", lora_path: Optional[str] = None, device="cuda:0"):
+        module = ModelSingleton(model_name, lora_path, device)
         self.has_vision = False
         model, tokenizer = module.model_dict[model_name]
         if 'VL' in model_name:

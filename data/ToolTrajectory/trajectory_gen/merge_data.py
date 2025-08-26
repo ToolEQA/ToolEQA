@@ -18,18 +18,18 @@ def merge_jsonlines_to_json(jsonlines_files, output_json_file):
 if __name__ == "__main__":
     # Example usage
     jsonlines_files = [
-        'data/ToolTrajectory/trajectory_gen/status/output/status_reproduct.jsonl',
-        'data/ToolTrajectory/trajectory_gen/relationship/output/relationship_reproduct.jsonl',
-        'data/ToolTrajectory/trajectory_gen/location/location/output/location_one_reproduct.jsonl',
-        'data/ToolTrajectory/trajectory_gen/location/location/output/location_two_reproduct.jsonl',
-        'data/ToolTrajectory/trajectory_gen/location/special/output/special_reproduct.jsonl',
-        'data/ToolTrajectory/trajectory_gen/distance/output/distance_reproduct.jsonl',
-        'data/ToolTrajectory/trajectory_gen/counting/output/counting_reproduct.jsonl',
-        'data/ToolTrajectory/trajectory_gen/attribute/color/output/color_reproduct.jsonl',
-        'data/ToolTrajectory/trajectory_gen/attribute/size/output/size_reproduct.jsonl',
-        'data/ToolTrajectory/trajectory_gen/attribute/special/output/special_reproduct.jsonl',
+        'data/ToolTrajectory/trajectory_gen/status/output/status.jsonl',
+        'data/ToolTrajectory/trajectory_gen/relationship/output/relationship.jsonl',
+        'data/ToolTrajectory/trajectory_gen/location/location/output/location_one.jsonl',
+        'data/ToolTrajectory/trajectory_gen/location/location/output/location_two.jsonl',
+        'data/ToolTrajectory/trajectory_gen/location/special/output/special.jsonl',
+        'data/ToolTrajectory/trajectory_gen/distance/output/distance.jsonl',
+        'data/ToolTrajectory/trajectory_gen/counting/output/counting.jsonl',
+        'data/ToolTrajectory/trajectory_gen/attribute/color/output/color.jsonl',
+        'data/ToolTrajectory/trajectory_gen/attribute/size/output/size.jsonl',
+        'data/ToolTrajectory/trajectory_gen/attribute/special/output/special.jsonl',
     ]
-    output_json_file = 'data/ToolTrajectory/trajectory_gen/trajectory.json'
+    output_json_file = 'data/ToolTrajectory/full.json'
     
     merge_jsonlines_to_json(jsonlines_files, output_json_file)
     print(f"Merged data saved to {output_json_file}")

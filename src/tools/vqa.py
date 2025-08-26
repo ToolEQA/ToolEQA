@@ -16,10 +16,11 @@ class VisualQATool(Tool):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.debug = kwargs.get("debug", False)
+        self.gpu_id = kwargs.get("gpu_id", 0)
         if self.debug:
             return
         
-        self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct")
+        self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct", device=f"cuda:{self.gpu_id}")
 
     def forward_qwen(self, question, image_paths) -> str:
         add_note = False
@@ -50,7 +51,10 @@ class VisualQATool(Tool):
 
         return output
 
-    def forward(self, question, image_paths):
+    def forward(self, question, image_path="", image_paths=""):
         if self.debug:
             return "This is a debug context."
-        return self.forward_qwen(question, image_paths)
+        if image_path != "":
+            return self.forward_qwen(question, image_path)
+        elif image_paths != "":
+            return self.forward_qwen(question, image_paths)

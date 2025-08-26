@@ -23,6 +23,7 @@ class ObjectLocation2D(Tool):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.debug = kwargs.get("debug", False)
+        self.gpu_id = kwargs.get("gpu_id", 0)
         self.image_root = "data/EQA-Traj-0720"
         if self.debug:
             return
@@ -33,7 +34,7 @@ class ObjectLocation2D(Tool):
         if self.debug:
             return [0, 0, 0, 0]
         
-        image_path = os.path.join(self.image_root, image_path)
+        # image_path = os.path.join(self.image_root, image_path)
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {
@@ -42,8 +43,10 @@ class ObjectLocation2D(Tool):
             'text': object
         }
 
-        res = client_send_image(data)
-        
+        res = client_send_image(data, self.gpu_id - 4)
+        bboxes = res['bboxes_2d']
+        labels = res['labels']
+
         if "error" in res.keys():
             raise Exception(f"Error: {res['error']}")
         
@@ -64,6 +67,6 @@ if __name__=="__main__":
     tool = ObjectLocation2D()
     import time
     t = time.time()
-    result = tool.forward("table", "tmp/1-4.png")
+    result = tool.forward("light", "tmp/1-4.png")
     print("Time taken:", time.time() - t)
     print(result)

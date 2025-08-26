@@ -22,6 +22,7 @@ class ObjectLocation3D(Tool):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.gpu_id = kwargs.get("gpu_id", 0)
         self.debug = kwargs.get("debug", False)
         if self.debug:
             return
@@ -40,7 +41,7 @@ class ObjectLocation3D(Tool):
             'image': image,
             'text': object
         }
-        res = client_send_image(data)
+        res = client_send_image(data, self.gpu_id - 4)
 
         if "error" in res.keys():
             print(f"Error: {object}, {image_path}, {res['error']}")
@@ -52,7 +53,7 @@ class ObjectLocation3D(Tool):
         # yaw = [bbox[6] for bbox in res["bboxes_3d"]]
         rot = res["rot_mat"]
 
-        return center, size, rot
+        return center, size
 
 if __name__=="__main__":
     tool = ObjectLocation3D()

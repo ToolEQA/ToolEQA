@@ -5,13 +5,14 @@ import atexit
 import time
 import pickle
 import struct
+import torch
 
-def client_send_image(data):
+def client_send_image(data, device=0):
     """客户端发送单次请求"""
     try:
         # 连接服务端创建的资源
-        shm_img = SharedMemoryManager("image_data")
-        shm_result = SharedMemoryManager("result_data")
+        shm_img = SharedMemoryManager(f"image_data_{device}")
+        shm_result = SharedMemoryManager(f"result_data_{device}")
 
         # 发送数据
         # print("[A] 发送图像数据...")
@@ -136,16 +137,18 @@ class SharedMemoryManager:
                     self.sem_data_done.unlink()
         except:
             pass
+
     @staticmethod
     def cleanup_all():
         """清理所有可能的残留资源"""
-        for name in ["image_data", "result_data"]:
-            try:
-                posix_ipc.unlink_shared_memory(name)
-            except: pass
-            try:
-                posix_ipc.unlink_semaphore(f"/{name}_ready")
-            except: pass
-            try:
-                posix_ipc.unlink_semaphore(f"/{name}_done")
-            except: pass
+        for id in range(torch.cuda.device_count()):
+            for name in [f"image_data_{id}", f"result_data_{id}"]:
+                try:
+                    posix_ipc.unlink_shared_memory(name)
+                except: pass
+                try:
+                    posix_ipc.unlink_semaphore(f"/{name}_ready")
+                except: pass
+                try:
+                    posix_ipc.unlink_semaphore(f"/{name}_done")
+                except: pass

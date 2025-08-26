@@ -8,6 +8,7 @@ class FinalAnswerTool(Tool):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.gpu_id = kwargs.get("gpu_id", 0)
         self.debug = kwargs.get("debug", False)
         if self.debug:
             return

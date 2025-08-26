@@ -42,7 +42,7 @@ from omegaconf import OmegaConf
 import matplotlib.pyplot as plt
 
 class EQA_Modeling():
-    def __init__(self, cfg):
+    def __init__(self, cfg, device):
         self.cfg = cfg
 
         # sensor
@@ -67,11 +67,11 @@ class EQA_Modeling():
         self.letters = ["A", "B", "C", "D"]  # always four
         self.fnt = ImageFont.truetype("data/Open_Sans/static/OpenSans-Regular.ttf", 30,)
 
-        # Load VLM
-        self.vlm = QwenEngine(cfg.vlm.model_name_or_path)
+        self.shortest_path = habitat_sim.ShortestPath()
+        self.path_length = 0
 
-        # Run all questions
-        self.results_all = []
+        # Load VLM
+        self.vlm = QwenEngine(cfg.vlm.model_name_or_path, device=f"cuda:{device}")
 
         self.fnt = ImageFont.truetype(
             "data/Open_Sans/static/OpenSans-Regular.ttf",
@@ -110,6 +110,22 @@ class EQA_Modeling():
 
         self.pts = data["init_pos"]
         self.angle = data["init_rot"]
+
+        meta_data = {
+            "sample_id": self.question_id,
+            "question": self.question,
+            "related_objs": data["related_objects"],
+            "shortest_length": data["traj_length"],
+            "answer": self.answer,
+            "scene": self.scene,
+            "proposals": data["proposals"]
+        }
+
+        self.result = {
+            "meta": meta_data,
+            "step": [],
+            "summary": {}
+        }
 
         self.episode_data_dir = os.path.join(self.cfg.output_dir, str(self.question_id))
         os.makedirs(self.episode_data_dir, exist_ok=True)
@@ -274,18 +290,6 @@ class EQA_Modeling():
                 smx_vlm_pred[i] = 1
         logging.info(f"Pred - Prob: {smx_vlm_pred}")
 
-        # Get VLM relevancy
-        prompt_rel = f"\nConsider the question: '{self.vlm_question}'. Are you confident about answering the question with the current view? Answer with Yes or No."
-        message = [{"role": "user", "content": prompt_rel}]
-        response_rel = self.vlm.call_vlm(message, rgb_im).strip(".")
-
-        smx_vlm_rel = np.zeros(2)
-        if response_rel == "Yes":
-            smx_vlm_rel[0] = 1
-        else:
-            smx_vlm_rel[1] = 1
-        logging.info(f"Rel - Prob: {smx_vlm_rel}")
-
         # Get frontier candidates
         prompt_points_pix = []
         if self.cfg.use_active:
@@ -311,14 +315,18 @@ class EQA_Modeling():
             # get VLM reasoning for exploring
             if self.cfg.use_lsv:
                 proposal_point = self.letters[:actual_num_prompt_points]
-                prompt_lsv = f"\nConsider the question: '{self.vlm_question}', and you will explore the environment for answering it.\nWhich direction (black letters on the image {proposal_point}) would you explore then? Answer with a single letter."
+                direction = command.split("_")[-1]
+                prompt_lsv = f"\nConsider the question: '{self.vlm_question}', and you will explore {direction} the environment for answering it.\nWhich direction (black letters on the image {proposal_point}) would you explore then? Answer with a single letter."
                 message = [{"role": "user", "content": prompt_lsv}]
                 response_lsv = self.vlm.call_vlm(message, rgb_im_draw)[0]
                 lsv = np.zeros(actual_num_prompt_points)
                 for i in range(actual_num_prompt_points):
                     if response_lsv == self.letters[i]:
                         lsv[i] = 1
-                lsv *= actual_num_prompt_points / 3
+                if lsv.sum() >= 0:
+                    lsv *= actual_num_prompt_points / 3
+                else:
+                    print("error lsv reponse: ", response_lsv)
             else:
                 lsv = (
                     np.ones(actual_num_prompt_points) / actual_num_prompt_points
@@ -369,6 +377,18 @@ class EQA_Modeling():
             os.path.join(self.episode_data_dir, "map.png")
         )
         plt.close()
+
+        self.shortest_path.requested_start = self.agent_state.position
+        self.shortest_path.requested_end = pts
+        found = self.pathfinder.find_path(self.shortest_path)
+        if found:
+            self.path_length += self.shortest_path.geodesic_distance
+
+        self.result['step'].append({
+            "step": self.cur_step,
+            "pts": pts.tolist(),
+            "angle": self.angle
+        })
 
         # update state
         self.agent_state.position = pts

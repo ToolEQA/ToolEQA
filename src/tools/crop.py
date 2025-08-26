@@ -17,6 +17,7 @@ class ObjectCrop(Tool):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.gpu_id = kwargs.get("gpu_id", 0)
         self.debug = kwargs.get("debug", False)
         self.image_root = "data/EQA-Traj-0720"
         if self.debug:
@@ -27,7 +28,7 @@ class ObjectCrop(Tool):
             return "./cache/init_crop.png"
         
         try:
-            image_path = os.path.join(self.image_root, image_path)
+            # image_path = os.path.join(self.image_root, image_path)
             image = Image.open(image_path).convert("RGB")
         except Exception as e:
             raise ValueError(f"Failed to load image: {e}")
@@ -43,13 +44,14 @@ class ObjectCrop(Tool):
 
         # 裁剪图像并保存
         base_name = os.path.splitext(os.path.basename(image_path))[0]
+        folder = os.path.dirname(image_path)
         # output_dir = f"{base_name}_crops"
         # os.makedirs(output_dir, exist_ok=True)
 
         output_paths = []
         for idx, bbox in enumerate(bounding_box):
             cropped = image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
-            output_path = f"./cache/{base_name}_obj_{idx}.jpg"
+            output_path = os.path.join(folder, f"{base_name}_crop_obj_{idx}.jpg")
             cropped.save(output_path)
             output_paths.append(output_path)
 
