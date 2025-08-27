@@ -2,7 +2,7 @@ import re
 
 # Define placeholders for dataset paths
 REACTEQA = {
-    "annotation_path": "/home/zml/algorithm/ReactEQA/data/convert_qwen_format/qwen_output_trainval_zml.json",
+    "annotation_path": "/home/zml/algorithm/ReactEQA/data/convert_qwen_format/qwen_output_trainval.json",
     #"annotation_path": "/home/zml/algorithm/ReactEQA/src/train/test/coco_2014/data_vl.json",
     "data_path": "/mnt/hdd/zml/datasets/EQA-Traj-0720",
 }

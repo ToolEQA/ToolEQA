@@ -25,7 +25,7 @@ datasets=reacteqa
 
 # 输出配置
 run_name="qwen2.5vl-baseline"
-output_dir=/mnt/hdd/zml/output
+output_dir=/mnt/hdd/zml/output.0826
 
 # 训练参数
 args="
@@ -47,7 +47,7 @@ args="
     --min_pixels 784 \
     --eval_strategy no \
     --save_strategy steps \
-    --save_steps 1000 \
+    --save_steps 500 \
     --save_total_limit 1 \
     --learning_rate ${lr} \
     --weight_decay 0 \

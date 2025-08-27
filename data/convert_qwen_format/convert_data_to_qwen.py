@@ -2,6 +2,7 @@ import json
 import os
 import re
 import copy
+import random
 from tqdm import tqdm
 
 SYSTEM_PROMPT = '''You are an expert embodied AI agent with the ability to perceive and interact with a virtual environment. You need to first explore the environment and collect information related to the problem, and when there is enough information, answer the question.
@@ -200,6 +201,19 @@ def _pick_image_for_react(obs_text):
     return chosen
 
 
+def is_success(threshold: float) -> bool:
+    """
+    给定阈值，随机生成一个 [0,1) 之间的浮点数，
+    如果小于阈值则判断为成功。
+    
+    参数：
+        threshold (float): 阈值，范围在 [0,1] 之间
+    返回：
+        bool: 是否成功
+    """
+    rand_val = random.random()  # 生成 [0,1) 之间的随机浮点数
+    return rand_val < threshold
+
 def convert_sample_to_qwen_style(sample):
     """
         一条样本数据可以产生多个多轮对话
@@ -228,55 +242,59 @@ def convert_sample_to_qwen_style(sample):
     conversations = []
     conversations.append({"from": "system", "value": SYSTEM_PROMPT})
     conversations.append({"from": "human", "value": f"<image>\nTask:{question}"})
+
+    need_key = False
     for step_idx, step in enumerate(sample["trajectory"]):
         step_id = step["step"]
         img_path = step["image_path"]
         is_key = str_to_bool(step["is_key"])
 
-        need_key = False
         if not is_key and not need_key:
-            react = step["react"][-1]
-            code_block = f"Thought: {react['thought']}\n\nCode:\n```py\n{react['code']}\n```<end_action>"
-            conversations.append({"from": "gpt", "value": code_block})
-            user_content = f"Observation:\n{react['observation']}\n\n"
-            conversations.append({"from": "human", "value": user_content})
-
-            sample_conversations.append(
-                {
-                    "id": sample["sample_id"],
-                    "image": [img_path],
-                    "conversations": copy.deepcopy(conversations)
-                }
-            )
-            need_key = True
-        else:
-            for react_idx, react in enumerate(step["react"]):
+            if is_success(0.5):
+                need_key = True
+                react = step["react"][-1]
                 code_block = f"Thought: {react['thought']}\n\nCode:\n```py\n{react['code']}\n```<end_action>"
                 conversations.append({"from": "gpt", "value": code_block})
 
-                if step_idx != len(sample["trajectory"]) - 1:
-                    user_content = f"Observation:\n{react['observation']}\n\n"
-                    conversations.append({"from": "human", "value": user_content})
+                user_content = f"Observation:\n{react['observation']}\n\n"
+                conversations.append({"from": "human", "value": user_content})
 
                 sample_conversations.append(
                     {
                         "id": sample["sample_id"],
                         "image": [img_path],
-                        "conversations": copy.deepcopy(conversations)
+                        "conversations": copy.deepcopy(conversations[:-1])
                     }
                 )
+
+        elif is_key:
             need_key = False
+            for react_idx, react in enumerate(step["react"]):
+                code_block = f"Thought: {react['thought']}\n\nCode:\n```py\n{react['code']}\n```<end_action>"
+                conversations.append({"from": "gpt", "value": code_block})
+
+                # if step_idx != len(sample["trajectory"]) - 1 or react_idx != len(step["react"]) - 1:
+                user_content = f"Observation:\n{react['observation']}\n\n"
+                conversations.append({"from": "human", "value": user_content})
+
+                sample_conversations.append(
+                    {
+                        "id": sample["sample_id"],
+                        "image": [img_path],
+                        "conversations": copy.deepcopy(conversations[:-1])
+                    }
+                )
 
     return sample_conversations
 
 if __name__ == "__main__":
-    with open("/home/zml/data/EQA-Traj-0720/test.json", "r", encoding="utf-8") as f:
+    with open("/home/zml/data/EQA-Traj-0720/trainval.json", "r", encoding="utf-8") as f:
         input_samples = json.load(f)
     output_sample = []
     for sample in tqdm(input_samples):
         output_sample.extend(convert_sample_to_qwen_style(sample))
 
-    with open("qwen_output_test_zml.json", "w", encoding="utf-8") as f:
-        json.dump(output_sample, f, indent=4, ensure_ascii=False)
+    with open("qwen_output_trainval.json", "w", encoding="utf-8") as f:
+        json.dump(output_sample, f, ensure_ascii=False)
 
     print("Done")
