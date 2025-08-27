@@ -260,8 +260,9 @@ if __name__ == "__main__":
     mp.set_start_method('spawn', force=True)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/test.json")
-    parser.add_argument("--output", help="output direction", type=str, default="./results/reacteqa")
+    parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/unseen_testset.json")
+    # parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/seen_testset.json")
+    parser.add_argument("--output", help="output direction", type=str, default="./results/reacteqa.unseen.0826")
     parser.add_argument("--gpus", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="7")
     args = parser.parse_args()
 

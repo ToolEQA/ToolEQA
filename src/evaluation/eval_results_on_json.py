@@ -137,8 +137,8 @@ def evaluate(files_path):
         obj_recall_at10 = compute_weighted_recall(steps, objs, 10)
         obj_recall_at15 = compute_weighted_recall(steps, objs, 15)
         
-        # predict = 1 if predict_answer == answer else 0
-        predict = 2.5 / 5
+        predict = 1 if predict_answer == answer else 0
+        # predict = 2.5 / 5
         
         # e_path_at5 = predict * obj_recall_at5 * (shortest_length / max(path_length, shortest_length))
         # e_path_at10 = predict * obj_recall_at10 * (shortest_length / max(path_length, shortest_length))

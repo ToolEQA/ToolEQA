@@ -2,7 +2,7 @@
 seed: 42
 exp_name: react-eqa
 output_parent_dir: results/
-question_data_path: ./data/EQA-Traj-0720/test.json
+# question_data_path: ./data/EQA-Traj-0720/test.json
 scene_data_path: [./data/HM3D]
 output_dir: ./cache/qwen2.5vl_zeroshot
 save_obs: true

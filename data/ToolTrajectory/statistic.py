@@ -91,11 +91,11 @@ def visualize(data):
     ax.add_artist(centre_circle)
 
     plt.text(0, 0, f'Data Distribution\nTotal Count: {data["meta"]["all_count"]}', ha='center', va='center', fontsize=20)
-    plt.savefig("./data/ToolTrajectory/test_distribution.pdf", bbox_inches='tight', transparent=True)
+    plt.savefig("./data/ToolTrajectory/trainval_distribution.pdf", bbox_inches='tight', transparent=True)
 
 
 if __name__=="__main__":
-    data_file = "data/ToolTrajectory/test.json"
+    data_file = "data/ToolTrajectory/trainval.json"
     data = statistic(data_file)
     print(data)
     visualize(data)

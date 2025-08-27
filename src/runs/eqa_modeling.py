@@ -60,9 +60,9 @@ class EQA_Modeling():
         self.cur_step = 0
 
         # Load dataset
-        with open(cfg.question_data_path) as f:
-            self.questions_data = json.load(f)
-        logging.info(f"Loaded {len(self.questions_data)} questions.")
+        # with open(cfg.question_data_path) as f:
+        #     self.questions_data = json.load(f)
+        # logging.info(f"Loaded {len(self.questions_data)} questions.")
 
         self.letters = ["A", "B", "C", "D"]  # always four
         self.fnt = ImageFont.truetype("data/Open_Sans/static/OpenSans-Regular.ttf", 30,)
