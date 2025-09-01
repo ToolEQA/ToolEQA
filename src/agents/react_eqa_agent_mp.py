@@ -203,7 +203,8 @@ class EQAReactAgent(ReactCodeAgent):
             if hasattr(self.toolbox._tools["GoNextPointTool"], "cur_rgb_path"):
                 self.set_image_path(self.toolbox._tools["GoNextPointTool"].cur_rgb_path)
                 max_explore_step = self.toolbox._tools["GoNextPointTool"].eqa_modeling.max_step
-                self.max_iterations = 50 if max_explore_step > 50 else max_explore_step
+                # self.max_iterations = 50 if max_explore_step > 50 else max_explore_step
+                self.max_iterations = max_explore_step * 2
 
     def run(self, data = None, reset: bool = True, **kwargs):
         oepn_vocab = kwargs.get("oepn_vocab", True)
@@ -224,7 +225,7 @@ class EQAReactAgent(ReactCodeAgent):
         return self.direct_run(self.task)
 
 
-def worker(gpu_id, data, args):
+def worker(gpu_id, data_chunk, args):
     # 设置当前进程可见的 GPU
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     
@@ -245,16 +246,16 @@ def worker(gpu_id, data, args):
 
     results = []
 
-    for item in data:
-        final_answer = eqa_react_agent.run(item, oepn_vocab=True)
+    for item in data_chunk:
+        final_answer = eqa_react_agent.run(item, oepn_vocab=args.open_vocab)
         result = eqa_react_agent.toolbox._tools["GoNextPointTool"].eqa_modeling.result
         result['summary']['final_answer'] = final_answer
         result['summary']['shorest_path'] = eqa_react_agent.toolbox._tools["GoNextPointTool"].eqa_modeling.path_length
         results.append(result)
-        save_data(result, os.path.join(output_dir, f"result_remaining.jsonl"))
+        save_data(result, os.path.join(output_dir, f"result_{gpu_id}.jsonl"))
 
-    with open(os.path.join(output_dir, f"result_remaining.json"), "w") as f:
-        json.dump(results, f, indent=4)
+    # with open(os.path.join(output_dir, f"result_{gpu_id}.json"), "w") as f:
+    #     json.dump(results, f, indent=4)
 
 def load_jsonl(path):
     data = []
@@ -267,20 +268,28 @@ def load_jsonl(path):
     return data
 
 if __name__ == "__main__":
+    mp.set_start_method('spawn', force=True)
+    
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/seen_testset.json")
-    # parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/seen_testset.json")
-    parser.add_argument("--output", help="output direction", type=str, default="./results/reacteqa.zs.seen.0826")
-    parser.add_argument("--gpus", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="4")
+    parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/unseen_testset.json")
+    parser.add_argument("--open-vocab", help="whether or not open vocabulary", type=bool, default=False)
+    parser.add_argument("--output", help="output direction", type=str, default="./results/qwen.zs.mc.unseen.0830")
+    parser.add_argument("--gpus", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="7")
     args = parser.parse_args()
 
     data = json.load(open(args.data))
 
-    finish_file_path = ["results/gpt4omini.seen.0829/result_0.jsonl",
-                        "./results/reacteqa.zs.seen.0827/result_5.jsonl",
-                        "./results/reacteqa.zs.seen.0827/result_6.jsonl",
-                        "./results/reacteqa.zs.seen.0827/result_7.jsonl",]
-    
+    finish_file_path = [
+        os.path.join(args.output, "result_0.jsonl"),
+        os.path.join(args.output, "result_1.jsonl"),
+        os.path.join(args.output, "result_2.jsonl"),
+        os.path.join(args.output, "result_3.jsonl"),
+        os.path.join(args.output, "result_4.jsonl"),
+        os.path.join(args.output, "result_5.jsonl"),
+        os.path.join(args.output, "result_6.jsonl"),
+        os.path.join(args.output, "result_7.jsonl"),
+    ]
+
     remaining_data = []
     finish_ids = []
     for finish_path in finish_file_path:
@@ -290,5 +299,17 @@ if __name__ == "__main__":
     for item in data:
         if item['sample_id'] not in finish_ids:
             remaining_data.append(item)
+        else:
+            print(f"Skip {item['sample_id']}")
+    print(f"Total {len(remaining_data)} samples need to be processed.")
 
-    worker(args.gpus, remaining_data, args)
+    gpu_ids = [int(x) for x in args.gpus.split(",")]
+    num_gpus = len(gpu_ids)
+
+    # 把数据均分给每个 GPU
+    chunk_size = (len(remaining_data) + num_gpus - 1) // num_gpus
+    data_chunks = [remaining_data[i*chunk_size:(i+1)*chunk_size] for i in range(num_gpus)]
+
+    # 使用进程池
+    with mp.Pool(processes=num_gpus) as pool:
+        pool.starmap(worker, zip(gpu_ids, data_chunks, [args] * len(gpu_ids)))

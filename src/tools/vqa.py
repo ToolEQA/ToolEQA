@@ -1,5 +1,6 @@
 from transformers import Tool
 from src.llm_engine.qwen import QwenEngine
+from src.llm_engine.gpt import GPTEngine
 
 class VisualQATool(Tool):
     name = "VisualQATool"
@@ -20,7 +21,8 @@ class VisualQATool(Tool):
         if self.debug:
             return
         
-        self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct", device=f"cuda:{self.gpu_id}")
+        # self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct", device=f"cuda:{self.gpu_id}")
+        self.client = GPTEngine("gpt-4o-mini")
 
     def forward_qwen(self, question, image_paths) -> str:
         add_note = False

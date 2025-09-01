@@ -33,7 +33,7 @@ class GoNextPointTool(Tool):
     def initialize(self, data):
         self.cur_rgb_path = self.eqa_modeling.initialize(data)
         self.sample_id = data['sample_id']
-        self.save_dir = f"./cache/qwen2.5vl_zeroshot/{self.sample_id}"
+        self.save_dir = f"./cache/qwen.zs.mc.unseen.0830/{self.sample_id}"
         if not os.path.isdir(self.save_dir):
             os.makedirs(self.save_dir)
         self.step_idx = 0
@@ -46,5 +46,5 @@ class GoNextPointTool(Tool):
         save_path = os.path.join(self.save_dir, f"next_point_{self.step_idx}.jpg")
         self.eqa_modeling.go_next_point(command)
         cv2.imwrite(save_path, cv2.cvtColor(self.eqa_modeling.cur_rgb, cv2.COLOR_RGB2BGR))
-        self.cur_rgb_path = save_path
-        return save_path
+        self.cur_rgb_path = os.path.abspath(save_path)
+        return self.cur_rgb_path

@@ -49,7 +49,48 @@ class GPTEngine(HfApiEngine):
             api_key='sk-awBjJM464IvYLL8QfYDOoFjCoKgQ7xIqhgWwyeugzQj0qNsY',
             base_url='https://api.deerapi.com/v1'
         )
-        
+    
+    def call_vlm(self, messages, stop_sequences=[], *args, **kwargs):
+        # print ('----------------raw message',messages)
+        image_paths = kwargs.get("image_paths", None)
+        messages = get_clean_message_list(messages, role_conversions=openai_role_conversions)
+        # print ('----------------processed message',messages)
+        if len(messages) > 1:
+            task = messages[1]
+            content = task['content']
+        elif len(messages) >= 1:
+            for msg in messages:
+                if msg['role'] == "user":
+                    task = msg["content"]
+                    content = msg['content']
+                    break
+        else:
+            raise Exception("No messages found")
+
+        if image_paths is not None and len(image_paths) > 0:
+            origin_content = messages[0]['content']
+            messages[0]['content'] = []
+            messages[0]['content'].append(dict(type="text", text=origin_content))
+            
+            for path_item in image_paths:
+                messages[0]['content'].append(dict(type="image_url", image_url={"url": f"data:image/jpeg;base64,{encode_image(path_item)}"}))
+
+        retry = 3
+        for i in range(retry):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                    stop=stop_sequences,
+                )
+                break
+            except RateLimitError as e:
+                print("catch rate limit error")
+                import time
+                time.sleep(10)
+            
+        return response.choices[0].message.content
+
     def __call__(self, messages, stop_sequences=[], *args, **kwargs) -> str:
         # print ('----------------raw message',messages)
         image_paths = kwargs.get("image_paths", None)

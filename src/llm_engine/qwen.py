@@ -173,7 +173,7 @@ class QwenEngine(HfApiEngine):
         torch.cuda.empty_cache()
         image_paths = kwargs.get("image_paths", [])
         messages = get_clean_message_list(messages, role_conversions=openai_role_conversions)
-        #print ('----------------processed message',messages)
+        # print ('----------------processed message',messages)
         task = messages[0]
         msgs = []
         for msg in messages:

@@ -37,6 +37,7 @@ from src.utils.navigate import navigation_video
 from src.utils.geom import get_cam_intr, get_scene_bnds
 from src.planner.tsdf import TSDFPlanner
 from src.llm_engine.qwen import QwenEngine
+from src.llm_engine.gpt import GPTEngine
 from omegaconf import OmegaConf
 
 import matplotlib.pyplot as plt
@@ -72,6 +73,7 @@ class EQA_Modeling():
 
         # Load VLM
         self.vlm = QwenEngine(cfg.vlm.model_name_or_path, device=f"cuda:{device}")
+        # self.vlm = GPTEngine("gpt-4o-mini")
 
         self.fnt = ImageFont.truetype(
             "data/Open_Sans/static/OpenSans-Regular.ttf",
@@ -127,6 +129,7 @@ class EQA_Modeling():
             "summary": {}
         }
 
+        self.path_length = 0
         self.episode_data_dir = os.path.join(self.cfg.output_dir, str(self.question_id))
         os.makedirs(self.episode_data_dir, exist_ok=True)
 
@@ -195,6 +198,8 @@ class EQA_Modeling():
         self.cur_step = 0
 
         self.scene = data["scene"]
+        self.vlm_question = data["question"]
+
         self._init_data(data)
         self._init_sim()
         self._init_planner()
@@ -252,10 +257,9 @@ class EQA_Modeling():
                 anchor="mm",
                 font_size=12,
             )
-        rgb_im_draw.save(
-            os.path.join(self.episode_data_dir, f"{self.cur_step}_draw.png")
-        )
-        return rgb_im_draw
+        rgb_im_draw_path = os.path.join(self.episode_data_dir, f"{self.cur_step}_draw.png")
+        rgb_im_draw.save(rgb_im_draw_path)
+        return rgb_im_draw, rgb_im_draw_path
 
     def go_next_point(self, command):
         """
@@ -280,15 +284,15 @@ class EQA_Modeling():
         rgb_im = Image.fromarray(self.cur_rgb, mode="RGBA").convert("RGB")
 
         # Get VLM prediction
-        prompt_question = (self.vlm_question + "\nAnswer with the option's letter from the given choices directly.")
-        message = [{"role": "user", "content": prompt_question}]
-        response_pred = self.vlm.call_vlm(message, rgb_im)[0].strip(".")
+        # prompt_question = (self.vlm_question + "\nAnswer with the option's letter from the given choices directly.")
+        # message = [{"role": "user", "content": prompt_question}]
+        # response_pred = self.vlm.call_vlm(message, rgb_im)[0].strip(".")
 
-        smx_vlm_pred = np.zeros(len(self.vlm_pred_candidates))
-        for i in range(len(self.vlm_pred_candidates)):
-            if response_pred == self.vlm_pred_candidates[i]:
-                smx_vlm_pred[i] = 1
-        logging.info(f"Pred - Prob: {smx_vlm_pred}")
+        # smx_vlm_pred = np.zeros(len(self.vlm_pred_candidates))
+        # for i in range(len(self.vlm_pred_candidates)):
+        #     if response_pred == self.vlm_pred_candidates[i]:
+        #         smx_vlm_pred[i] = 1
+        # logging.info(f"Pred - Prob: {smx_vlm_pred}")
 
         # Get frontier candidates
         prompt_points_pix = []
@@ -310,7 +314,7 @@ class EQA_Modeling():
         # Visual prompting
         actual_num_prompt_points = len(prompt_points_pix)
         if actual_num_prompt_points >= self.cfg.visual_prompt.min_num_prompt_points:
-            rgb_im_draw = self._draw_point(rgb_im, prompt_points_pix, self.letters)
+            rgb_im_draw, draw_path = self._draw_point(rgb_im, prompt_points_pix, self.letters)
 
             # get VLM reasoning for exploring
             if self.cfg.use_lsv:
@@ -318,7 +322,7 @@ class EQA_Modeling():
                 direction = command.split("_")[-1]
                 prompt_lsv = f"\nConsider the question: '{self.vlm_question}', and you will explore {direction} the environment for answering it.\nWhich direction (black letters on the image {proposal_point}) would you explore then? Answer with a single letter."
                 message = [{"role": "user", "content": prompt_lsv}]
-                response_lsv = self.vlm.call_vlm(message, rgb_im_draw)[0]
+                response_lsv = self.vlm.call_vlm(message, image_paths=[draw_path])[0]
                 lsv = np.zeros(actual_num_prompt_points)
                 for i in range(actual_num_prompt_points):
                     if response_lsv == self.letters[i]:
@@ -336,7 +340,9 @@ class EQA_Modeling():
             if self.cfg.use_gsv:
                 prompt_gsv = f"\nConsider the question: '{self.vlm_question}', and you will explore the environment for answering it. Is there any direction shown in the image worth exploring? Answer with Yes or No."
                 message = [{"role": "user", "content": prompt_gsv}]
-                response_gsv = self.vlm.call_vlm(message, rgb_im)[0].strip(".")
+                rgb_im_path = os.path.join(self.episode_data_dir, "cur_rgb.png")
+                rgb_im.save(rgb_im_path)
+                response_gsv = self.vlm.call_vlm(message, image_paths=[rgb_im_path])[0].strip(".")
                 gsv = np.zeros(2)
                 if response_gsv == "Yes":
                     gsv[0] = 1

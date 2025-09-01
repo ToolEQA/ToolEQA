@@ -4,7 +4,36 @@ import numpy as np
 import ast
 import math
 import jsonlines
+from tqdm import tqdm
+from src.vlm.generator_deerapi import requests_api
 
+def answer_rating(answer, predict_answer):
+    """
+    调用大模型，对答案进行评分
+    """
+    prompt = f"""
+    Please evaluate the answer according to the following criteria, with a maximum score of 5:
+
+    The answer is completely correct and detailed — score 5.
+    The answer is mostly correct but lacks some details — score 4.
+    The answer is partially correct but has obvious omissions or errors — score 3.
+    The answer is mostly incorrect or irrelevant — score 2.
+    The answer is completely incorrect or does not address the question — score 1.
+
+    Please return only an integer score, without any explanation or additional information.
+    Question: {answer}
+    Answer: {predict_answer}
+    """
+    result = requests_api(None, prompt, max_retries=10)
+    rating = result.strip()
+    try:
+        rating = int(rating)
+        if rating < 1 or rating > 5:
+            rating = 3
+    except:
+        rating = 3
+
+    return rating
 
 def load_jsons(files_path):
     """
@@ -107,13 +136,17 @@ def evaluate(files_path):
     results = []
     choices = ['A', 'B', 'C', 'D']
 
-    for data in samples:
+    last_length = 0
+
+    for data in tqdm(samples):
 
         meta_data = data['meta']
         summary_data = data["summary"]
 
         shortest_length = meta_data['shortest_length']
-        path_length = summary_data["path_length"]
+        path_length = summary_data["shorest_path"] - last_length
+        last_length = summary_data["shorest_path"]
+
         related_objs = meta_data['related_objs']
         if isinstance(related_objs, str):
             related_objs = ast.literal_eval(meta_data['related_objs'])
@@ -121,10 +154,10 @@ def evaluate(files_path):
         result = {}
 
         step_data = data['step']
-        max_step = meta_data['max_steps']
-        answer = meta_data['answer']
+        # max_step = meta_data['max_steps']
+        answer = meta_data['proposals'][choices.index(meta_data['answer'])]
 
-        predict_answer = choices[np.argmax(step_data[-1]['smx_vlm_pred'])]
+        predict_answer = summary_data["final_answer"]
 
         steps = []
         for step in step_data:
@@ -133,13 +166,17 @@ def evaluate(files_path):
         for related_obj in related_objs:
             objs.append(related_obj['pos'])
 
-        obj_recall_at5 = compute_weighted_recall(steps, objs, 5)
-        obj_recall_at10 = compute_weighted_recall(steps, objs, 10)
-        obj_recall_at15 = compute_weighted_recall(steps, objs, 15)
+        len_step = math.sqrt(len(steps))
+        if len_step == 0.0:
+            len_step = 1.0
+        obj_recall_at5 = compute_weighted_recall(steps, objs, 5) / len_step
+        obj_recall_at10 = compute_weighted_recall(steps, objs, 10) / len_step
+        obj_recall_at15 = compute_weighted_recall(steps, objs, 15) / len_step
         
-        predict = 1 if predict_answer == answer else 0
-        # predict = 2.5 / 5
-        
+        # predict = 1 if predict_answer == answer else 0
+        predict = answer_rating(answer, predict_answer) / 5.0
+        # predict = 0.4
+
         # e_path_at5 = predict * obj_recall_at5 * (shortest_length / max(path_length, shortest_length))
         # e_path_at10 = predict * obj_recall_at10 * (shortest_length / max(path_length, shortest_length))
         # e_path_at15 = predict * obj_recall_at15 * (shortest_length / max(path_length, shortest_length))
@@ -148,6 +185,7 @@ def evaluate(files_path):
         e_path_at10 = predict * obj_recall_at10 * math.exp(shortest_length / max(path_length, shortest_length))
         e_path_at15 = predict * obj_recall_at15 * math.exp(shortest_length / max(path_length, shortest_length))
 
+        result["len_steps"] = len(steps)
         result["predict"] = predict
         result["obj_recall"] = {"@5": obj_recall_at5, "@10": obj_recall_at10, "@15": obj_recall_at15}
         result["e_path"] = {"@5": e_path_at5, "@10": e_path_at10, "@15": e_path_at15}
@@ -167,8 +205,11 @@ def evaluate(files_path):
     avg_e_path_at10 = 0
     avg_e_path_at15 = 0
     avg_predict = 0
+    avg_steps = 0
 
     for result in results:
+        avg_steps += result.get("len_steps")
+
         avg_obj_recall_at5 += result.get("obj_recall").get("@5")
         avg_e_path_at5 += result.get("e_path").get("@5")
 
@@ -179,24 +220,28 @@ def evaluate(files_path):
         avg_e_path_at15 += result.get("e_path").get("@15")
         avg_predict += result.get("predict")
 
+    print("========================================")
+    print("avg step: ", avg_steps / results_num)
+    print("========================================")
     print("avg obj_recall@5: ", avg_obj_recall_at5 / results_num)
-    print("avg e_path@5: ", avg_e_path_at5 / results_num)
-
     print("avg obj_recall@10: ", avg_obj_recall_at10 / results_num)
-    print("avg e_path@10: ", avg_e_path_at10 / results_num)
-    
     print("avg obj_recall@15: ", avg_obj_recall_at15 / results_num)
+    print("========================================")
+    print("avg e_path@5: ", avg_e_path_at5 / results_num)
+    print("avg e_path@10: ", avg_e_path_at10 / results_num)
     print("avg e_path@15: ", avg_e_path_at15 / results_num)
+    print("========================================")
     print("success: ", avg_predict / results_num)
 
 if __name__ == '__main__':
     files_path = [
-        "results/reacteqa/result_1.jsonl",
-        "results/reacteqa/result_2.jsonl",
-        "results/reacteqa/result_3.jsonl",
-        "results/reacteqa/result_4.jsonl",
-        "results/reacteqa/result_5.jsonl",
-        "results/reacteqa/result_6.jsonl",
-        "results/reacteqa/result_7.jsonl",
+        "results/gpt4omini.unseen.0829/result_0.jsonl",
+        "results/gpt4omini.unseen.0829/result_1.jsonl",
+        "results/gpt4omini.unseen.0829/result_2.jsonl",
+        "results/gpt4omini.unseen.0829/result_3.jsonl",
+        "results/gpt4omini.unseen.0829/result_4.jsonl",
+        "results/gpt4omini.unseen.0829/result_5.jsonl",
+        "results/gpt4omini.unseen.0829/result_6.jsonl",
+        "results/gpt4omini.unseen.0829/result_7.jsonl",
     ]
     evaluate(files_path)

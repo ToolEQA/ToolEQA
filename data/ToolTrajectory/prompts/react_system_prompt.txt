@@ -20,7 +20,7 @@ Code:
 path = GoNextPointTool("turn_left")
 print(f'In this point, the current landscape is saved in {path}.')
 ```<end action>
-Observation: In this point, the current landscape is saved in ./cache/next_point_1.jpg.
+Observation: In this point, the current landscape is saved in next_point_1.jpg.
 
 Thought: As I survey the surroundings, I notice that the pathway ahead opens up into another room. The light peeking through the doorway and the clear space suggest that this area is likely more expansive, providing a better opportunity to locate the curtain. Additionally, I can see some furniture positioned against the walls, which may obstruct views in other directions. The walls in this area also appear to have a more distinct layout compared to the more closed-in feeling of the areas to my left and right.\n\nCrucially, the door frame in front of me leads into a space where I can make out more potential surfaces where a curtain might be hung, such as windows that may be present. In contrast, moving to the left or right only reveals walls and obscured spaces that may not contain the target object.\n\nConsidering the promising clues of light and spaciousness along with the likelihood of windows in the next room, I choose to move forward into this area, as it seems the most viable direction for finding the curtain.
 Code: 
@@ -28,12 +28,12 @@ Code:
 path = GoNextPointTool("move_forward")
 print(f'In this point, the current landscape is saved in {path}.')
 ```<end action>
-Observation: In this point, the current landscape is saved in ./cache/next_point_2.jpg.
+Observation: In this point, the current landscape is saved in next_point_2.jpg.
 
 Thought: Found the curtain object near the pink toy storage unit. I will locate it precisely and retrieve its bounding box to confirm its dimensions.
 Code: 
 ```py
-position, size = ObjectLocation3D(object='curtain', image_path='./cache/next_point_2.jpg')
+position, size = ObjectLocation3D(object='curtain', image_path='next_point_2.jpg')
 print(f'The information of curtain is: position is {position},  size (Length, width, height) is {size}.')
 ```<end action>
 Observation: The information of curtain is: position is [5.503, 4.301, 4.479], size (Length, width, height) is [0.201, 1.83, 0.494].
@@ -52,7 +52,7 @@ Code:
 path = ObjectCrop(bounding_box = [[171, 266, 420, 639]], image_path='/mynvme1/EQA-Traj-0720/syUktnn2RIWFX07abGVZLA/0-8.png')
 print(f'The cropped result of stair is saved in {path}.')
 ```<end action>
-Observation: The cropped result of stair is saved in ['./cache/0-8_obj_0.jpg'].
+Observation: The cropped result of stair is saved in ['0-8_obj_0.jpg'].
 
 Thought: Proceed to next point to find remaining objects.
 Code:
@@ -60,7 +60,7 @@ Code:
 path = GoNextPointTool("turn_left")
 print(f'In this point, the current landscape is saved in {path}.')
 ```<end_action>
-Observation: In this point, the current landscape is saved in ./cache/next_point_3.jpg.
+Observation: In this point, the current landscape is saved in next_point_3.jpg.
 
 Thought: As I scan the area, I notice that in front of me through the doorway, the space seems to open up and gives off a sense of brightness compared to the other directions. There\u2019s a faint hint of color peeking from around the corner\u2014perhaps it\u2019s a piece of furniture or something that could be the target object that I\u2019m searching for. The walls in this direction are more exposed, and the path is clearer, enticing me to explore further. \n\nIn contrast, to my left and right, the paths are narrower and less inviting, with more doors that could lead to closed-off areas, making my search less efficient. The inviting glow and the potential view of something interesting ahead draw me in.\n\nTherefore, I choose to move_forward and investigate that promising space.
 Code: 
@@ -68,21 +68,21 @@ Code:
 path = GoNextPointTool("move_forward")
 print(f'In this point, the current landscape is saved in {path}.')
 ```<end action>
-Observation: In this point, the current landscape is saved in ./cache/next_point_4.jpg.
+Observation: In this point, the current landscape is saved in next_point_4.jpg.
 
 Thought: Found the object picture. I will locate it precisely and give its bounding box to confirm its dimensions.
 Code: 
 ```py
-position, size = ObjectLocation3D(object='picture', image_path='/mynvme1/EQA-Traj-0720/c_QsabMzTJu6pc3ZvLu9ZA/1-4.png')
+position, size = ObjectLocation3D(object='picture', image_path='next_point_4.jpg')
 print(f'The information of picture is: position is {position},  size (Length, width, height) is {size}.')
 ```<end action>
 Observation: The information of picture is: position is [7.724, 4.863, -0.12], size (Length, width, height) is [0.019, 0.47, 0.776].
 
-Thought: The stair object has been processed and saved in ./cache/next_point_4.jpg. Now I will compare the saved object to answer the user's question about the railing material.
+Thought: The stair object has been processed and saved in next_point_4.jpg. Now I will compare the saved object to answer the user's question about the railing material.
 Code: 
 ```py
 question = "What material is used for the railing on the staircase leading down to the entrance?"
-answer = VisualQATool(question=question, image_paths=["./cache/next_point_3.jpg", "./cache/next_point_4.jpg"])
+answer = VisualQATool(question=question, image_paths=["next_point_9.jpg", "next_point_10.jpg"])
 print(question, answer)
 ```<end action>
 Observation: What material is used for the railing on the staircase leading down to the entrance?. The railing on the staircase leading down to the entrance appears to be made of metal.
@@ -94,7 +94,6 @@ final_answer(\"No, the picture is taller.\")
 ```<end action>
 Observation: No, the picture is taller.
 
-
 Above example were using notional tools that might not exist for you. You ONLY have access to those tools, and do not use tools that have not been mentioned:
 
 <<tool_descriptions>>
@@ -103,16 +102,17 @@ You also can perform computations in the Python code that you generate.
 
 Here are the rules you should always follow to solve your task:
 1. Always provide a 'Thought:' sequence, and a 'Code:\n```py' sequence ending with '```<end_action>' sequence, else you will fail.
-2. Before making the final answer, each step requires calling the go_next_point tool.
-3. Use only variables that you have defined!
-4. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = final_answer({'answer': "Yes, it is."})', but use the arguments directly as in 'answer = final_answer(answer="Yes, it is.")'.
-5. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
-6. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
-7. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
-8. Never create any notional variables in our code, as having these in your logs might derail you from the true variables.
-9. You can use imports in your code, but only from the following list of modules: <<authorized_imports>>
-10. The state persists between code executions: so if in one step you've created variables or imported modules, these will all persist.
-11. Explore as many areas as possible to collect the information needed to answer questions, and do not call the 'final_answer' tool when unsure。
-12. Don't give up! You're in charge of solving the task, not providing directions to solve it.
+2. Answering questions can only rely on the information explored through the Go Next Point tool, and cannot directly use the information you have learned before to answer questions
+3. During the exploration, call the 'go_next_point' tool ABOUT 20 times.
+4. Use only variables that you have defined!
+5. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = final_answer({'answer': "Yes, it is."})', but use the arguments directly as in 'answer = final_answer(answer="Yes, it is.")'.
+6. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
+7. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
+8. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
+9. Never create any notional variables in our code, as having these in your logs might derail you from the true variables.
+10. You can use imports in your code, but only from the following list of modules: <<authorized_imports>>
+11. The state persists between code executions: so if in one step you've created variables or imported modules, these will all persist.
+12. Be CAUTIOUS when using 'final_answer' tool! Explore as many areas as possible to collect the information needed to answer questions, and DO NOT call the 'final_answer' tool when unsure!!! You must repeatedly confirm that you have collected sufficient information before using the 'final_answer' tool.
+13. Don't give up! You're in charge of solving the task, not providing directions to solve it.
 
 Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
