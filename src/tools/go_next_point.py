@@ -33,7 +33,7 @@ class GoNextPointTool(Tool):
     def initialize(self, data):
         self.cur_rgb_path = self.eqa_modeling.initialize(data)
         self.sample_id = data['sample_id']
-        self.save_dir = f"./cache/qwen.zs.mc.unseen.0830/{self.sample_id}"
+        self.save_dir = f"./cache/qwen.ft.ov.seen.0902/{self.sample_id}"
         if not os.path.isdir(self.save_dir):
             os.makedirs(self.save_dir)
         self.step_idx = 0

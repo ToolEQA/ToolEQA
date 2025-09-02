@@ -35,6 +35,8 @@ class ObjectLocation2D(Tool):
             return [0, 0, 0, 0]
         
         # image_path = os.path.join(self.image_root, image_path)
+        if not os.path.exists(image_path):
+            image_path = os.path.join("./cache/qwen.ft.ov.seen.0902", image_path)
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {

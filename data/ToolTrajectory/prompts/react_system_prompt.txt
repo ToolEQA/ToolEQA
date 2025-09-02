@@ -103,7 +103,7 @@ You also can perform computations in the Python code that you generate.
 Here are the rules you should always follow to solve your task:
 1. Always provide a 'Thought:' sequence, and a 'Code:\n```py' sequence ending with '```<end_action>' sequence, else you will fail.
 2. Answering questions can only rely on the information explored through the Go Next Point tool, and cannot directly use the information you have learned before to answer questions
-3. During the exploration, call the 'go_next_point' tool ABOUT 20 times.
+3. During the exploration, call the 'go_next_point' tool ABOUT 10 times.
 4. Use only variables that you have defined!
 5. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = final_answer({'answer': "Yes, it is."})', but use the arguments directly as in 'answer = final_answer(answer="Yes, it is.")'.
 6. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
@@ -114,5 +114,6 @@ Here are the rules you should always follow to solve your task:
 11. The state persists between code executions: so if in one step you've created variables or imported modules, these will all persist.
 12. Be CAUTIOUS when using 'final_answer' tool! Explore as many areas as possible to collect the information needed to answer questions, and DO NOT call the 'final_answer' tool when unsure!!! You must repeatedly confirm that you have collected sufficient information before using the 'final_answer' tool.
 13. Don't give up! You're in charge of solving the task, not providing directions to solve it.
+14. The path passed to the tool must appear in the context and must use the full path.
 
 Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.

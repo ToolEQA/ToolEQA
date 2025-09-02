@@ -4,7 +4,7 @@ exp_name: react-eqa
 output_parent_dir: results/
 # question_data_path: ./data/EQA-Traj-0720/test.json
 scene_data_path: [./data/HM3D]
-output_dir: ./cache/qwen.zs.mc.unseen.0830
+output_dir: ./cache/qwen.ft.ov.seen.0902
 save_obs: true
 save_freq: 20
 

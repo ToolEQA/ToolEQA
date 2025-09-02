@@ -203,8 +203,7 @@ class EQAReactAgent(ReactCodeAgent):
             if hasattr(self.toolbox._tools["GoNextPointTool"], "cur_rgb_path"):
                 self.set_image_path(self.toolbox._tools["GoNextPointTool"].cur_rgb_path)
                 max_explore_step = self.toolbox._tools["GoNextPointTool"].eqa_modeling.max_step
-                # self.max_iterations = 50 if max_explore_step > 50 else max_explore_step
-                self.max_iterations = max_explore_step * 2
+                self.max_iterations = 60 if max_explore_step > 60 else max_explore_step
 
     def run(self, data = None, reset: bool = True, **kwargs):
         oepn_vocab = kwargs.get("oepn_vocab", True)
@@ -232,7 +231,8 @@ def worker(gpu_id, data_chunk, args):
     system_prompt = open("data/ToolTrajectory/prompts/react_system_prompt.txt", "r").read()
     eqa_react_agent = EQAReactAgent(
         tools=get_tool_box(gpu_id=gpu_id),
-        llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct", device=f"cuda:{gpu_id}"),
+        # llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct", device=f"cuda:{gpu_id}"),
+        llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-ft0827", device=f"cuda:{gpu_id}"),
         # llm_engine=GPTEngine("gpt-4o-mini"),
         system_prompt=system_prompt,
         add_base_tools=False,
@@ -271,9 +271,9 @@ if __name__ == "__main__":
     mp.set_start_method('spawn', force=True)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/unseen_testset.json")
-    parser.add_argument("--open-vocab", help="whether or not open vocabulary", type=bool, default=False)
-    parser.add_argument("--output", help="output direction", type=str, default="./results/qwen.zs.mc.unseen.0830")
+    parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/seen_testset.json")
+    parser.add_argument("--open-vocab", help="whether or not open vocabulary", type=bool, default=True)
+    parser.add_argument("--output", help="output direction", type=str, default="./results/qwen.ft.ov.seen.0902")
     parser.add_argument("--gpus", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="7")
     args = parser.parse_args()
 
@@ -306,6 +306,7 @@ if __name__ == "__main__":
     gpu_ids = [int(x) for x in args.gpus.split(",")]
     num_gpus = len(gpu_ids)
 
+    # remaining_data = remaining_data[:100]
     # 把数据均分给每个 GPU
     chunk_size = (len(remaining_data) + num_gpus - 1) // num_gpus
     data_chunks = [remaining_data[i*chunk_size:(i+1)*chunk_size] for i in range(num_gpus)]

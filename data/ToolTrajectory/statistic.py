@@ -5,6 +5,52 @@ import json
 
 from matplotlib import pyplot as plt
 from collections import defaultdict
+import matplotlib.colors as mcolors
+import colorsys
+
+def build_color_map(all_data_list):
+    """
+    构建颜色映射：
+    - 外圈大类：均匀分布在色环上（高区分度）
+    - 内圈小类：同色调的不同亮度
+    """
+    # 收集大类和小类
+    outer_categories = set()
+    inner_categories = {}
+    for data in all_data_list:
+        for outer in data.keys():
+            if outer == "meta":
+                continue
+            outer_categories.add(outer)
+            if outer not in inner_categories:
+                inner_categories[outer] = set()
+            inner_categories[outer].update(data[outer].keys())
+
+    outer_categories = sorted(outer_categories)
+    n_outer = len(outer_categories)
+
+    color_map = {"outer": {}, "inner": {}}
+
+    # 给大类分配颜色（均匀分布在 HSV 色环上）
+    for i, outer in enumerate(outer_categories):
+        hue = i / n_outer  # 均匀分布 [0,1)
+        r, g, b = colorsys.hsv_to_rgb(hue, 0.7, 0.9)  # 饱和度0.7, 明度0.9
+        base_color = (r, g, b)
+        color_map["outer"][outer] = base_color
+        color_map["inner"][outer] = {}
+
+        # 给子类分配同色不同亮度
+        subcats = sorted(inner_categories[outer])
+        m = len(subcats)
+        for j, subcat in enumerate(subcats):
+            factor = 0.5 + 0.5 * (j / max(1, m-1))  # 0.5 ~ 1.0
+            rr = r*factor + (1-factor)
+            gg = g*factor + (1-factor)
+            bb = b*factor + (1-factor)
+            lighter = (rr, gg, bb)
+            color_map["inner"][outer][subcat] = lighter
+
+    return color_map
 
 def statistic(data_file):
     data = json.load(open(data_file, "r"))
@@ -20,62 +66,47 @@ def statistic(data_file):
 
     return stat
 
-def visualize(data):
-    # 准备外圈（大类）数据
-    outer_categories = list(data.keys())
-    outer_categories.remove('meta')  # 移除元数据
+def visualize(data, color_map, save_path):
+    outer_categories = [k for k in data.keys() if k != "meta"]
 
-    outer_counts = []
+    outer_counts, outer_labels = [], []
     for outer_key in outer_categories:
         outer_counts.append(sum(v['count'] for v in data[outer_key].values()))
-        
-    outer_labels = [f'{cat}\n{count}' for cat, count in zip(outer_categories, outer_counts)]
+        outer_labels.append(f'{outer_key}\n{outer_counts[-1]}')
 
-    # 准备内圈（小类）数据
-    inner_labels = []
-    inner_counts = []
-    inner_colors = []
+    # 内圈
+    inner_labels, inner_counts, inner_colors = [], [], []
 
-    # 为每个大类分配一个颜色，小类使用该颜色的不同深浅
-    colors = plt.cm.tab20.colors
+    for category in outer_categories:
+        subcategories = data[category]
+        for subcat, subdata in subcategories.items():
+            inner_labels.append(f"{subcat}\n{subdata['count']}")
+            inner_counts.append(subdata['count'])
+            inner_colors.append(color_map["inner"][category][subcat])
+            # inner_colors.append(color_map[f"{category}:{subcat}"])
 
-    for i, category in enumerate(outer_categories):
-        if category in ['attribute', 'location']:  # 有子类的大类
-            subcategories = data[category]
-            for j, (subcat, subdata) in enumerate(subcategories.items()):
-                inner_labels.append(f"{subcat}\n{subdata['count']}")
-                inner_counts.append(subdata['count'])
-                # 使用大类的颜色但调整亮度
-                inner_colors.append(colors[i*2 + j%2])
-        else:  # 没有子类的大类
-            inner_labels.append(f"{category}\n{data[category][category]['count']}")
-            inner_counts.append(data[category][category]['count'])
-            inner_colors.append(colors[i*2])
-
-    # 创建图表
+    # 外圈颜色（取大类第一个子类的颜色，保证一致性）
+    # outer_colors = [color_map[f"{outer}:{list(data[outer].keys())[0]}"] for outer in outer_categories]
+    outer_colors = [color_map["outer"][outer] for outer in outer_categories]
+    # for category in outer_categories:
+    #     for subcat, subdata in data[category].items():
+    #         inner_colors.append(color_map["inner"][category][subcat])
     fig, ax = plt.subplots(figsize=(12, 10))
 
-    # 外圈饼图（标签显示在内部）
     wedges_outer, _ = ax.pie(outer_counts, radius=1.2,
         wedgeprops=dict(width=0.3, edgecolor='w'),
-        colors=colors[::2],
-        startangle=90)
+        colors=outer_colors, startangle=90)
 
-    # 内圈饼图（标签显示在内部）
     wedges_inner, _ = ax.pie(inner_counts, radius=0.9,
         wedgeprops=dict(width=0.3, edgecolor='w'),
-        colors=inner_colors,
-        startangle=90)
+        colors=inner_colors, startangle=90)
 
-    # 添加标签到饼图内部
-    # bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="w", lw=0.5, alpha=0.8)
-
+    # 添加标签
     for wedge, label in zip(wedges_outer, outer_labels):
         ang = (wedge.theta2 - wedge.theta1)/2. + wedge.theta1
         y = 1.0 * np.sin(np.deg2rad(ang))
         x = 1.0 * np.cos(np.deg2rad(ang))
-        horizontalalignment = "center"
-        ax.text(x, y, label, horizontalalignment=horizontalalignment, fontsize=15)
+        ax.text(x, y, label, ha="center", fontsize=15)
 
     for wedge, label in zip(wedges_inner, inner_labels):
         if label.split("\n")[0] in ["distance", "counting", "relationship"]:
@@ -83,19 +114,25 @@ def visualize(data):
         ang = (wedge.theta2 - wedge.theta1)/2. + wedge.theta1
         y = 0.7 * np.sin(np.deg2rad(ang))
         x = 0.7 * np.cos(np.deg2rad(ang))
-        horizontalalignment = "center"
-        ax.text(x, y, label, horizontalalignment=horizontalalignment, fontsize=13)
+        ax.text(x, y, label, ha="center", fontsize=13)
 
-    # 添加中心空白
     centre_circle = plt.Circle((0,0), 0.3, fc='white')
     ax.add_artist(centre_circle)
 
-    plt.text(0, 0, f'Data Distribution\nTotal Count: {data["meta"]["all_count"]}', ha='center', va='center', fontsize=20)
-    plt.savefig("./data/ToolTrajectory/trainval_distribution.pdf", bbox_inches='tight', transparent=True)
+    plt.text(0, 0, f'Data Distribution\nTotal Count: {data["meta"]["all_count"]}',
+             ha='center', va='center', fontsize=20)
+    plt.savefig(save_path, bbox_inches='tight', transparent=True)
 
 
 if __name__=="__main__":
-    data_file = "data/ToolTrajectory/trainval.json"
-    data = statistic(data_file)
-    print(data)
-    visualize(data)
+    files = [
+        "data/ToolTrajectory/trainval.json",
+        "data/ToolTrajectory/seen_testset.json",
+        "data/ToolTrajectory/unseen_testset.json",
+    ]
+    stats = [statistic(f) for f in files]
+    color_map = build_color_map(stats)
+
+    for f, s in zip(files, stats):
+        out_path = f.replace(".json", "_distribution.pdf")
+        visualize(s, color_map, out_path)

@@ -35,6 +35,18 @@ def answer_rating(answer, predict_answer):
 
     return rating
 
+def answer_rating_mc(answer, predict_answer):
+    """
+    多选题评分
+    判断predict_answer里面是否包含answer
+    """
+    predict_answer = str(predict_answer).strip().lower()
+    if answer.lower() in predict_answer:
+        return 5
+    else:
+        rating = answer_rating(answer, predict_answer)
+        return rating
+
 def load_jsons(files_path):
     """
     读取 JSON 文件。
@@ -133,11 +145,12 @@ def compute_weighted_recall(steps, objs, max_distance=15, fov_deg=120):
 
 def evaluate(files_path):
     samples = load_jsons(files_path)
+
     results = []
     choices = ['A', 'B', 'C', 'D']
 
     last_length = 0
-
+    print("all sample: ", len(samples))
     for data in tqdm(samples):
 
         meta_data = data['meta']
@@ -169,13 +182,14 @@ def evaluate(files_path):
         len_step = math.sqrt(len(steps))
         if len_step == 0.0:
             len_step = 1.0
+
         obj_recall_at5 = compute_weighted_recall(steps, objs, 5) / len_step
         obj_recall_at10 = compute_weighted_recall(steps, objs, 10) / len_step
         obj_recall_at15 = compute_weighted_recall(steps, objs, 15) / len_step
         
         # predict = 1 if predict_answer == answer else 0
-        predict = answer_rating(answer, predict_answer) / 5.0
-        # predict = 0.4
+        # predict = answer_rating(answer, predict_answer) / 5.0
+        predict = answer_rating_mc(answer, predict_answer) / 5.0
 
         # e_path_at5 = predict * obj_recall_at5 * (shortest_length / max(path_length, shortest_length))
         # e_path_at10 = predict * obj_recall_at10 * (shortest_length / max(path_length, shortest_length))
@@ -235,13 +249,9 @@ def evaluate(files_path):
 
 if __name__ == '__main__':
     files_path = [
-        "results/gpt4omini.unseen.0829/result_0.jsonl",
-        "results/gpt4omini.unseen.0829/result_1.jsonl",
-        "results/gpt4omini.unseen.0829/result_2.jsonl",
-        "results/gpt4omini.unseen.0829/result_3.jsonl",
-        "results/gpt4omini.unseen.0829/result_4.jsonl",
-        "results/gpt4omini.unseen.0829/result_5.jsonl",
-        "results/gpt4omini.unseen.0829/result_6.jsonl",
-        "results/gpt4omini.unseen.0829/result_7.jsonl",
+        "results/qwen.ft.ov.unseen.0901/result_4.jsonl",
+        "results/qwen.ft.ov.unseen.0901/result_5.jsonl",
+        "results/qwen.ft.ov.unseen.0901/result_6.jsonl",
+        "results/qwen.ft.ov.unseen.0901/result_7.jsonl",
     ]
     evaluate(files_path)

@@ -7,6 +7,7 @@ from src.utils.shared_memory import client_send_image
 import numpy as np
 import cv2
 import torch
+import os
 
 class ObjectLocation3D(Tool):
     name = "ObjectLocation3D"
@@ -34,6 +35,9 @@ class ObjectLocation3D(Tool):
     def forward(self, object: str, image_path: str) -> list:
         if self.debug:
             return [0,0,0], [0,0,0], [[1,0,0],[0,1,0],[0,0,1]]
+        
+        if not os.path.exists(image_path):
+            image_path = os.path.join("./cache/qwen.ft.ov.seen.0902", image_path)
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {
