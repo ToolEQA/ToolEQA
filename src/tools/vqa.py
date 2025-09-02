@@ -1,6 +1,8 @@
 from transformers import Tool
 from src.llm_engine.qwen import QwenEngine
 from src.llm_engine.gpt import GPTEngine
+import os
+from omegaconf import OmegaConf
 
 class VisualQATool(Tool):
     name = "VisualQATool"
@@ -18,8 +20,12 @@ class VisualQATool(Tool):
         super().__init__(*args, **kwargs)
         self.debug = kwargs.get("debug", False)
         self.gpu_id = kwargs.get("gpu_id", 0)
+        self.args = kwargs.get("args", None)
         if self.debug:
             return
+        
+        self.cfg = OmegaConf.load(self.args.cfg)
+        OmegaConf.resolve(self.cfg)
         
         # self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct", device=f"cuda:{self.gpu_id}")
         self.client = GPTEngine("gpt-4o-mini")
@@ -31,7 +37,7 @@ class VisualQATool(Tool):
         if not question:
             add_note = True
             question = "Please write a detailed caption for this image."
-        
+
         if isinstance(image_paths, str):
             image_paths = [image_paths]
         elif isinstance(image_paths, list):
@@ -39,6 +45,10 @@ class VisualQATool(Tool):
         else:
             print ('The type of input image is ', type(image_paths))
             raise Exception("The type of input image should be string (image path)")
+
+        for image_path in image_paths:
+            if not os.path.exists(image_path):
+                image_path = os.path.join(self.cfg.output_dir, image_path)
 
         messages = [
             {"role": "user", "content": question}

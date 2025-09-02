@@ -8,7 +8,7 @@ from src.tools.crop import ObjectCrop
 
 from transformers.agents.tools import get_tool_description_with_args
 
-def get_tool_box(debug=False, tool_box_selected = None, gpu_id = 0):
+def get_tool_box(debug=False, tool_box_selected=None, gpu_id=0, args=None):
     if debug:
         if tool_box_selected is None:
             MODEL_TOOLBOX = [
@@ -27,13 +27,13 @@ def get_tool_box(debug=False, tool_box_selected = None, gpu_id = 0):
     else:
         if tool_box_selected is None:
             MODEL_TOOLBOX = [
-                VisualQATool(gpu_id=gpu_id),
-                ObjectLocation2D(gpu_id=gpu_id),
-                ObjectLocation3D(gpu_id=gpu_id),
-                GoNextPointTool(gpu_id=gpu_id),
-                # SegmentInstanceTool(gpu_id=gpu_id),
-                FinalAnswerTool(gpu_id=gpu_id),
-                ObjectCrop(gpu_id=gpu_id)
+                VisualQATool(gpu_id=gpu_id, args=args),
+                ObjectLocation2D(gpu_id=gpu_id, args=args),
+                ObjectLocation3D(gpu_id=gpu_id, args=args),
+                GoNextPointTool(gpu_id=gpu_id, args=args),
+                # SegmentInstanceTool(gpu_id=gpu_id, args=args),
+                FinalAnswerTool(gpu_id=gpu_id, args=args),
+                ObjectCrop(gpu_id=gpu_id, args=args)
             ]
         else:
             MODEL_TOOLBOX = []

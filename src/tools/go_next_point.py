@@ -19,12 +19,13 @@ class GoNextPointTool(Tool):
         super().__init__(*args, **kwargs)
         self.gpu_id = kwargs.get("gpu_id", 0)
         self.debug = kwargs.get("debug", False)
+        self.args = kwargs.get("args", None)
         if self.debug:
             return
         
-        cfg = OmegaConf.load("/home/zml/algorithm/ReactEQA/config/react-eqa.yaml")
-        OmegaConf.resolve(cfg)
-        self.eqa_modeling = EQA_Modeling(cfg, self.gpu_id)
+        self.cfg = OmegaConf.load(self.args.cfg)
+        OmegaConf.resolve(self.cfg)
+        self.eqa_modeling = EQA_Modeling(self.cfg, self.gpu_id)
 
         self.step_idx = -1
 
@@ -33,7 +34,7 @@ class GoNextPointTool(Tool):
     def initialize(self, data):
         self.cur_rgb_path = self.eqa_modeling.initialize(data)
         self.sample_id = data['sample_id']
-        self.save_dir = f"./cache/qwen.ft.ov.seen.0902/{self.sample_id}"
+        self.save_dir = os.path.join(self.cfg.output_dir, self.sample_id)
         if not os.path.isdir(self.save_dir):
             os.makedirs(self.save_dir)
         self.step_idx = 0

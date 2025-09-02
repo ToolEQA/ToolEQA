@@ -8,6 +8,7 @@ import numpy as np
 import cv2
 import torch
 import os
+from omegaconf import OmegaConf
 
 class ObjectLocation3D(Tool):
     name = "ObjectLocation3D"
@@ -25,9 +26,13 @@ class ObjectLocation3D(Tool):
         super().__init__(*args, **kwargs)
         self.gpu_id = kwargs.get("gpu_id", 0)
         self.debug = kwargs.get("debug", False)
+        self.args = kwargs.get("args", None)
         if self.debug:
             return
         
+        self.cfg = OmegaConf.load(self.args.cfg)
+        OmegaConf.resolve(self.cfg)
+
         # Initialize any necessary components for 3D object localization here
         # For example, you might load a pre-trained model or set up a 3D environment
         self.endpoint = "location_3d"
@@ -37,7 +42,7 @@ class ObjectLocation3D(Tool):
             return [0,0,0], [0,0,0], [[1,0,0],[0,1,0],[0,0,1]]
         
         if not os.path.exists(image_path):
-            image_path = os.path.join("./cache/qwen.ft.ov.seen.0902", image_path)
+            image_path = os.path.join(self.cfg.output_dir, image_path)
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {

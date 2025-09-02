@@ -44,6 +44,7 @@ class EQAReactAgent(ReactCodeAgent):
         self.gpu_id = device
         self.error_tolerance_count = error_tolerance_count
         self.letter = ["A", "B", "C", "D"]
+        self.thought = []
 
     def set_image_path(self, image):
         self.image.clear()
@@ -152,6 +153,7 @@ class EQAReactAgent(ReactCodeAgent):
             rationale, raw_code_action = llm_output, llm_output
         try:
             code_action = parse_code_blob(raw_code_action)
+            self.thought.append({"thought": rationale, "code": code_action})
         except Exception as e:
             error_msg = f"Error in code parsing: {e}. Make sure to provide correct code"
             raise AgentParsingError(error_msg)
@@ -193,6 +195,7 @@ class EQAReactAgent(ReactCodeAgent):
     def initialize_for_run(self, data):
         super().initialize_for_run()
 
+        self.thought = []
         for tool_name in self.toolbox._tools:
             tool = self.toolbox._tools[tool_name]
             if hasattr(tool, "initialize"):
@@ -230,9 +233,9 @@ def worker(gpu_id, data_chunk, args):
     
     system_prompt = open("data/ToolTrajectory/prompts/react_system_prompt.txt", "r").read()
     eqa_react_agent = EQAReactAgent(
-        tools=get_tool_box(gpu_id=gpu_id),
-        # llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct", device=f"cuda:{gpu_id}"),
-        llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-ft0827", device=f"cuda:{gpu_id}"),
+        tools=get_tool_box(gpu_id=gpu_id, args=args),
+        llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct", device=f"cuda:{gpu_id}"),
+        # llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-ft0827", device=f"cuda:{gpu_id}"),
         # llm_engine=GPTEngine("gpt-4o-mini"),
         system_prompt=system_prompt,
         add_base_tools=False,
@@ -251,6 +254,7 @@ def worker(gpu_id, data_chunk, args):
         result = eqa_react_agent.toolbox._tools["GoNextPointTool"].eqa_modeling.result
         result['summary']['final_answer'] = final_answer
         result['summary']['shorest_path'] = eqa_react_agent.toolbox._tools["GoNextPointTool"].eqa_modeling.path_length
+        result['summary']['react'] = eqa_react_agent.thought
         results.append(result)
         save_data(result, os.path.join(output_dir, f"result_{gpu_id}.jsonl"))
 
@@ -271,9 +275,10 @@ if __name__ == "__main__":
     mp.set_start_method('spawn', force=True)
     
     parser = argparse.ArgumentParser()
+    parser.add_argument("--cfg", help="config", type=str, default="./config/react-eqa.yaml")
     parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/seen_testset.json")
-    parser.add_argument("--open-vocab", help="whether or not open vocabulary", type=bool, default=True)
-    parser.add_argument("--output", help="output direction", type=str, default="./results/qwen.ft.ov.seen.0902")
+    parser.add_argument("--open-vocab", help="whether or not open vocabulary", type=bool, default=False)
+    parser.add_argument("--output", help="output direction", type=str, default="./results/qwen.zs.mc.seen.0902")
     parser.add_argument("--gpus", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="7")
     args = parser.parse_args()
 

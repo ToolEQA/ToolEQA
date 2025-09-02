@@ -6,6 +6,7 @@ import os
 from src.utils.shared_memory import client_send_image
 from PIL import Image
 from transformers import Tool
+from omegaconf import OmegaConf
 
 # authorized_types = ["string", "integer", "number", "image", "audio", "any", "boolean"]
 class ObjectLocation2D(Tool):
@@ -24,9 +25,12 @@ class ObjectLocation2D(Tool):
         super().__init__(*args, **kwargs)
         self.debug = kwargs.get("debug", False)
         self.gpu_id = kwargs.get("gpu_id", 0)
-        self.image_root = "data/EQA-Traj-0720"
+        self.args = kwargs.get("args", None)
         if self.debug:
             return
+        
+        self.cfg = OmegaConf.load(self.args.cfg)
+        OmegaConf.resolve(self.cfg)
 
         self.endpoint = "location_2d"
 
@@ -34,9 +38,8 @@ class ObjectLocation2D(Tool):
         if self.debug:
             return [0, 0, 0, 0]
         
-        # image_path = os.path.join(self.image_root, image_path)
         if not os.path.exists(image_path):
-            image_path = os.path.join("./cache/qwen.ft.ov.seen.0902", image_path)
+            image_path = os.path.join(self.cfg.output_dir, image_path)
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {

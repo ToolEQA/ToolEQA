@@ -249,9 +249,9 @@ def evaluate(files_path):
 
 if __name__ == '__main__':
     files_path = [
-        "results/qwen.ft.ov.unseen.0901/result_4.jsonl",
-        "results/qwen.ft.ov.unseen.0901/result_5.jsonl",
-        "results/qwen.ft.ov.unseen.0901/result_6.jsonl",
-        "results/qwen.ft.ov.unseen.0901/result_7.jsonl",
+        "results/qwen.ft.ov.seen.0902/result_4.jsonl",
+        "results/qwen.ft.ov.seen.0902/result_5.jsonl",
+        "results/qwen.ft.ov.seen.0902/result_6.jsonl",
+        "results/qwen.ft.ov.seen.0902/result_7.jsonl",
     ]
     evaluate(files_path)
