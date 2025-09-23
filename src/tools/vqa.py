@@ -48,7 +48,10 @@ class VisualQATool(Tool):
 
         for image_path in image_paths:
             if not os.path.exists(image_path):
-                image_path = os.path.join(self.cfg.output_dir, image_path)
+                if not os.path.exists("/"+image_path):
+                    image_path = os.path.join(self.cfg.output_dir, image_path)
+                else:
+                    image_path = "/" + image_path
 
         messages = [
             {"role": "user", "content": question}

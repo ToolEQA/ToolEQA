@@ -2,7 +2,7 @@
 
 SCRIPT=./gen_sem_ddp.py
 
-BASE_DIR="/home/hanshengliang/hm3d-data/train-data/hm3d-train-habitat-v0.2"
+BASE_DIR="scene_dir"
 #BASE_DIR="/home/hanshengliang/hm3d-data/val-data/hm3d-val-habitat-v0.2"
 
 # 启动 8 个批次，每个绑定不同 GPU

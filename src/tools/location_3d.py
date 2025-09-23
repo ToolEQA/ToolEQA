@@ -42,7 +42,10 @@ class ObjectLocation3D(Tool):
             return [0,0,0], [0,0,0], [[1,0,0],[0,1,0],[0,0,1]]
         
         if not os.path.exists(image_path):
-            image_path = os.path.join(self.cfg.output_dir, image_path)
+            if not os.path.exists("/"+image_path):
+                image_path = os.path.join(self.cfg.output_dir, image_path)
+            else:
+                image_path = "/" + image_path
         image = np.array(Image.open(image_path).convert("RGB"))
 
         data = {

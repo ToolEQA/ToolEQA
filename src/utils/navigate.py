@@ -4,6 +4,7 @@ import quaternion
 from typing import List
 import habitat_sim
 from habitat_sim.utils.common import quat_from_two_vectors, quat_to_angle_axis
+from habitat_sim.utils.common import quat_to_coeffs, quat_from_angle_axis
 from habitat_sim.utils import viz_utils as vut
 import magnum as mn
 from tqdm import tqdm
@@ -344,9 +345,9 @@ def execute_actions(sim, actions, args, trajectory, frame_rate=24, planner=None,
     observations: List[np.ndarray] = []
     agent = sim.agents[0]
     
-    question = args["question"]
-    answer = args["answer"]
-    next_direction = args["direction"]
+    question = args.get("question", None)
+    answer = args.get("answer", None)
+    next_direction = args.get("direction", None)
     
     cam_intr = get_cam_intr(120, 480, 640)
     for action, amount in tqdm(actions):
@@ -385,7 +386,8 @@ def execute_actions(sim, actions, args, trajectory, frame_rate=24, planner=None,
             island_image = add_draw_point(island_image, trajectory[-1], trajectory, 5)
 
         img = concatenate_images_horizontally(img, island_image)
-        img = draw_text_fill_region(img, question)
+        if question is not None:
+            img = draw_text_fill_region(img, question)
         observations.append({"color": img})
 
     next_direction = None
@@ -439,6 +441,7 @@ def navigation_video(sim, agent, pathes, frame_rate=24.0, output_video="eqa.mp4"
     )
     trojectory = []
     for i in range(len(pathes)):
+        print(f"正在执行第{i}步")
         if i == 0:
             continue
         start_point = pathes[i-1]
@@ -480,25 +483,72 @@ def navigation_video(sim, agent, pathes, frame_rate=24.0, output_video="eqa.mp4"
 
 if __name__ == "__main__":
     # 配置参数
-    scene_file = "data/HM3D/00876-mv2HUxq3B53/mv2HUxq3B53.basis.glb"  # 替换为你的场景GLB文件路径
-    navmesh_file = "data/HM3D/00876-mv2HUxq3B53/mv2HUxq3B53.basis.navmesh"  # 替换为你的导航网格文件路径
-    output_video = "output.mp4"  # 输出视频文件名
+    # scene_file = "data/HM3D/00876-mv2HUxq3B53/mv2HUxq3B53.basis.glb"  # 替换为你的场景GLB文件路径
+    # navmesh_file = "data/HM3D/00876-mv2HUxq3B53/mv2HUxq3B53.basis.navmesh"  # 替换为你的导航网格文件路径
+    # output_video = "output1.mp4"  # 输出视频文件名
     
     # 起点和终点的位置和旋转(四元数)
-    position1 = np.array([3.34482479095459, 0.050354525446891785, 9.988510131835938]) # 替换为实际起点坐标
-    rotation1 = quaternion.from_float_array([0.06694663545449525, 0.0, 0.997756557483499, 0.0])  # wxyz
+    # position1 = np.array([8.397488, 0.21147346, 2.8735876]) # 替换为实际起点坐标
+    # rotation1 = quaternion.from_float_array([0.06694663545449525, 0.0, 0.997756557483499, 0.0])  # wxyz
 
-    position2 = np.array([-1.5373001098632812, 0.050354525446891785, 16.74457359313965]) # 替换为实际终点坐标
-    rotation2 = quaternion.from_float_array([0.015153784750062174, 0.0, 0.9998851748114626, 0.0])  # wxyz
+    # position2 = np.array([-1.5373001098632812, 0.050354525446891785, 16.74457359313965]) # 替换为实际终点坐标
+    # rotation2 = quaternion.from_float_array([0.015153784750062174, 0.0, 0.9998851748114626, 0.0])  # wxyz
 
-    position3 = np.array([-8.596624374389648, 0.0503545999526978, 15.994026184082031])
-    rotation3 = quaternion.from_float_array([0.443950753937056, 0.0, 0.8960511860818664, 0.0])
+    # position3 = np.array([-8.596624374389648, 0.0503545999526978, 15.994026184082031])
+    # rotation3 = quaternion.from_float_array([0.443950753937056, 0.0, 0.8960511860818664, 0.0])
 
-    pathes = [
-        {"position": position1, "rotation": rotation1, "question": "QUESTION: Where is the TV in the bed room?", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
-        {"position": position2, "rotation": rotation2, "question": "QUESTION: Where is the TV in the bed room?", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
-        {"position": position3, "rotation": rotation3, "question": "QUESTION: Where is the TV in the bed room?", "answer": "ANSWER: The TV is on the cabinet next to the window.", "confidence": "YES", "direction": [320, 240]},
-    ]
+    # pathes = [
+    #     {"position": position1, "rotation": rotation1, "question": "QUESTION: Where is the TV in the bed room?", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
+    #     {"position": position2, "rotation": rotation2, "question": "QUESTION: Where is the TV in the bed room?", "answer": "ANSWER", "confidence": "YES", "direction": [320, 240]},
+    #     {"position": position3, "rotation": rotation3, "question": "QUESTION: Where is the TV in the bed room?", "answer": "ANSWER: The TV is on the cabinet next to the window.", "confidence": "YES", "direction": [320, 240]},
+    # ]
+
+    # scene_file = "data/HM3D/00057-1UnKg1rAb8A/1UnKg1rAb8A.basis.glb"  # 替换为你的场景GLB文件路径
+    # navmesh_file = "data/HM3D/00057-1UnKg1rAb8A/1UnKg1rAb8A.basis.navmesh"  # 替换为你的导航网格文件路径
+    # output_video = "tmp/video/LL3ZGl8-RMqRDtiY2tsbMw.mp4"  # 输出视频文件名
+
+    # position1 = np.array([7.570297,
+    #         0.0009367466,
+    #         -0.07533946]) # 替换为实际起点坐标
+    # rot = quat_to_coeffs(quat_from_angle_axis(5.210947729680991, np.array([0, 1, 0]))).tolist()
+    # rotation1 = quaternion.from_float_array([rot[1], rot[2], rot[3], rot[0]])  # wxyz
+
+    # position2 = np.array([7.843354022502899, 0.0009367466, -0.6658845424652098]) # 替换为实际终点坐标
+    # rot = quat_to_coeffs(quat_from_angle_axis(-1.5707963267948966, np.array([0, 1, 0]))).tolist()
+    # rotation2 = quaternion.from_float_array([rot[1], rot[2], rot[3], rot[0]])  # wxyz
+
+    # position3 = np.array([8.1433540225029, 0.0009367466, 0.23411545753478968]) # 替换为实际终点坐标
+    # rot = quat_to_coeffs(quat_from_angle_axis(-3.141592653589793, np.array([0, 1, 0]))).tolist()
+    # rotation3 = quaternion.from_float_array([rot[1], rot[2], rot[3], rot[0]])  # wxyz
+
+    # position4 = np.array([7.243354022502899, 0.0009367466, 0.53411545753479]) # 替换为实际终点坐标
+    # rot = quat_to_coeffs(quat_from_angle_axis(1.5707963267948966, np.array([0, 1, 0]))).tolist()
+    # rotation4 = quaternion.from_float_array([rot[1], rot[2], rot[3], rot[0]])  # wxyz
+
+    # pathes = [
+    #     {"position": position1, "rotation": rotation1, },
+    #     {"position": position2, "rotation": rotation2, },
+    #     {"position": position3, "rotation": rotation3, },
+    #     {"position": position4, "rotation": rotation4, }
+    # ]
+
+    data = {"meta": {"sample_id": "ky0QIt8vRRetekSt9WDQiQ", "question": "What is the primary material of the shower floor located next to the wooden cabinet?", "related_objs": [{"name": "shower floor", "id": 195, "pos": [3.264, 0.012, 0.925]}], "shortest_length": 3.5487754344940186, "answer": "B", "scene": "00313-PE6kVEtrxtj", "proposals": ["Concrete", "Ceramic", "Glass", "Vinyl"]}, "step": [{"step": 0, "pts": [0.5164837837219238, 0.09852779, -0.40916118621826136], "angle": -3.141592653589793}, {"step": 1, "pts": [0.9164837837219242, 0.09852779, 2.5908388137817377], "angle": -0.9467732738181397}, {"step": 2, "pts": [2.716483783721924, 0.09852779, 4.490838813781738], "angle": -1.5707963267948966}, {"step": 3, "pts": [0.716483783721924, 0.09852779, 1.490838813781738], "angle": 2.300695984946628}], "summary": {"final_answer": "Tiles.", "shorest_path": 10.12582778930664, "react": [{"thought": "Thought: As I assess my surroundings, I notice that the hallway extends forward, and beyond the red chairs, I can see a glimpse of what looks like a bathroom area. The light filtering in from that direction creates a bright and inviting space, which contrasts with the darker corners of the room. Additionally, I spot a hint of tile flooring just beyond the entrance to the bathroom, suggesting that it’s a wet area where a shower floor would likely be installed. \n\nGiven that I’m specifically searching for a shower floor, the presence of the tiled floor is a strong indicator that I am moving closer to my target. Other directions either lead to closed doors or less promising spaces without any visible signs of the shower floor. Therefore, I choose to move forward.", "code": "path = GoNextPointTool(\"move_forward\")\nprint(f'In this point, the current landscape is saved in {path}.')"}, {"thought": "Thought: As I scan the environment, I notice a doorway on my left that leads into a room with a distinct design. The room features a vibrant red chair and a wall adorned with artwork, which immediately draws my attention. The colors and the arrangement seem to suggest a cozy atmosphere, potentially indicating that there may be a shower nearby, as bathrooms are often designed with comfort in mind.\n\nOn the right side, there’s a large wooden dresser and a bed, which doesn’t seem to relate to my search for the shower. The straight path ahead appears to lead to a blank wall, offering no clues or features that would indicate the presence of a shower. \n\nGiven the inviting nature of the room to my left, combined with the possibility that a shower might be situated in proximity to it, I feel compelled to explore that direction further. Therefore, I choose to turn left.", "code": "path = GoNextPointTool(\"turn_left\")\nprint(f'In this point, the current landscape is saved in {path}.')"}, {"thought": "Thought: Found the object shower. Locate it precisely and give its bounding box.", "code": "position, size = ObjectLocation3D(object='shower', image_path= 'ky0QIt8vRRetekSt9WDQiQ/next_point_2.jpg')\nprint(f'The information of shower is: position is {position},  size (Length, width, height) is {size}.')"}, {"thought": "Thought: I have located the shower and identified its bounding box. Now, I will proceed to the next point to find any remaining objects.", "code": "path = GoNextPointTool(\"turn_right\")\nprint(f'In this point, the current landscape is saved in {path}.')"}, {"thought": "Thought: As I scan the room, I notice that turning to my right reveals a large glass door leading outside, but it doesn't seem to lead anywhere related to my search for the shower floor. To my left, there’s a kitchen area with cabinets and appliances, which also doesn’t seem relevant. However, straight ahead, I can see a subtle reflection on the floor that catches my eye. It’s a shiny surface that glimmers in the light, hinting at the presence of tiles or similar materials often found in bathrooms.\n\nThis reflective quality stands out against the wooden flooring of the kitchen, making it a promising lead. Additionally, the direction ahead leads toward what looks like a bathroom area, which is likely where the shower floor would be located. The combination of the reflective floor and the proximity to a bathroom makes moving forward the best option. Therefore, I choose to move forward.", "code": "path = GoNextPointTool(\"move_forward\")\nprint(f'In this point, the current landscape is saved in {path}.')"}, {"thought": "Thought: Found the object shower floor. Locate it precisely and give its bounding box.", "code": "position, size = ObjectLocation3D(object='shower floor', image_path= 'ky0QIt8vRRetekSt9WDQiQ/next_point_4.jpg')\nprint(f'The information of shower floor is: position is {position},  size (Length, width, height) is {size}.')"}, {"thought": "Thought: The height of the shower floor is given as 3.65, and I need to compare it with the height of the shower. Since the height of the shower floor is greater than the height of the shower, I will finalize my answer.", "code": "final_answer('Tiles.')"}]}}
+
+    scene = data["meta"]["scene"].split('-')
+    sample_id = data["meta"]["sample_id"]
+    scene_file = f"data/HM3D/{scene[0]}-{scene[1]}/{scene[1]}.basis.glb"
+    navmesh_file = f"data/HM3D/{scene[0]}-{scene[1]}/{scene[1]}.basis.navmesh"
+    output_video = f"tmp/video/{sample_id}.mp4"
+    pathes = []
+    for point in data["step"]:
+        pts = np.array(point["pts"])
+        rot = point["angle"]
+        rot = quat_to_coeffs(quat_from_angle_axis(rot, np.array([0, 1, 0]))).tolist()
+        rot = quaternion.from_float_array([rot[1], rot[2], rot[3], rot[0]])
+        pathes.append({
+            "position": pts,
+            "rotation": rot
+        })
 
     # 初始化模拟器配置
     backend_cfg = habitat_sim.SimulatorConfiguration()

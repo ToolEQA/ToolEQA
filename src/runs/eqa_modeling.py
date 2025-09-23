@@ -105,19 +105,20 @@ class EQA_Modeling():
 
     def _init_data(self, data):
         self.question_id = data["sample_id"]
-        self.floor = data["floor"]
+        self.floor = data.get("floor", 0)
         self.question = data["question"]
         self.choices = data["proposals"]
         self.answer = data["answer"]
 
         self.pts = data["init_pos"]
+        # self.pts = data["goal_position"]
         self.angle = data["init_rot"]
 
         meta_data = {
             "sample_id": self.question_id,
             "question": self.question,
-            "related_objs": data["related_objects"],
-            "shortest_length": data["traj_length"],
+            "related_objs": data["related_objects"] if "related_objects" in data.keys() else "",
+            "shortest_length": data["traj_length"] if "traj_length" in data.keys() else 0,
             "answer": self.answer,
             "scene": self.scene,
             "proposals": data["proposals"]
@@ -149,12 +150,22 @@ class EQA_Modeling():
             if os.path.exists(os.path.join(scene_path, self.scene)):
                 scene_data_path = scene_path
                 break
-        scene_mesh_dir = os.path.join(
-            scene_data_path, self.scene, self.scene[6:] + ".basis" + ".glb"
-        )
-        navmesh_file = os.path.join(
-            scene_data_path, self.scene, self.scene[6:] + ".basis" + ".navmesh"
-        )
+
+        if "scene" in self.scene:
+            scene_mesh_dir = os.path.join(
+                scene_data_path, self.scene, self.scene + "_vh_clean_2" + ".glb"
+            )
+            navmesh_file = os.path.join(
+                scene_data_path, self.scene, self.scene + "_vh_clean_2" + ".navmesh"
+            )
+        else:
+            scene_mesh_dir = os.path.join(
+                scene_data_path, self.scene, self.scene[6:] + ".basis" + ".glb"
+            )
+            navmesh_file = os.path.join(
+                scene_data_path, self.scene, self.scene[6:] + ".basis" + ".navmesh"
+            )
+
         sim_settings = {
             "scene": scene_mesh_dir,
             "default_agent": 0,
@@ -393,7 +404,8 @@ class EQA_Modeling():
         self.result['step'].append({
             "step": self.cur_step,
             "pts": pts.tolist(),
-            "angle": self.angle
+            "angle": self.angle,
+            "image": os.path.join(self.episode_data_dir, "cur_rgb.png")
         })
 
         # update state

@@ -77,8 +77,8 @@ def requests_api(images, prompt, text_format = None, system=None, max_retries=5)
 
     # 初始化客户端
     client = OpenAI(
-        api_key='sk-awBjJM464IvYLL8QfYDOoFjCoKgQ7xIqhgWwyeugzQj0qNsY',
-        base_url='https://api.deerapi.com/v1',  # 这里写你代理的地址
+        api_key='your api key',
+        base_url='https://api.deerapi.com/v1/',  # 这里写你代理的地址
     )
 
     retry_delay = 1  # 初始延迟1秒
@@ -148,7 +148,7 @@ def requests_api_deprecated(images, prompt, system=None):
     })
     
     headers = {
-        'Authorization': 'sk-bty7uDUznmPRiEWdi3YaUaqUpRpwiJmt2K96E0H39UbEtvMt',
+        'Authorization': 'your api key',
         'Content-Type': 'application/json'
     }
 
@@ -206,5 +206,6 @@ def save_csv(csv_file_path, csv_columns, generated_data):
 
 if __name__=="__main__":
     # img = cv2.imread("tmp/test.jpg")
-    data = requests_api(None, "who are you?", React)
+    # data = requests_api(None, "who are you?", React)
+    data = requests_api(None, "who are you?")
     print(data)

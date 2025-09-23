@@ -46,8 +46,8 @@ class GPTEngine(HfApiEngine):
     def __init__(self, model="gpt-4o-mini"):
         self.model_name= model
         self.client = OpenAI(
-            api_key='sk-awBjJM464IvYLL8QfYDOoFjCoKgQ7xIqhgWwyeugzQj0qNsY',
-            base_url='https://api.deerapi.com/v1'
+            api_key="your api key",
+            base_url='https://api.deerapi.com/v1/'
         )
     
     def call_vlm(self, messages, stop_sequences=[], *args, **kwargs):

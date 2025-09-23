@@ -7,7 +7,7 @@ import jsonlines
 from tqdm import tqdm
 from src.vlm.generator_deerapi import requests_api
 
-def answer_rating_ov(answer, predict_answer):
+def answer_rating(answer, predict_answer):
     """
     调用大模型，对答案进行评分
     """
@@ -40,22 +40,12 @@ def answer_rating_mc(answer, predict_answer):
     多选题评分
     判断predict_answer里面是否包含answer
     """
-
     predict_answer = str(predict_answer).strip().lower()
-    print("============================")
-    print(answer, "=======>", predict_answer, "=======>", answer.lower() in predict_answer)
     if answer.lower() in predict_answer:
         return 5
     else:
-        # rating = answer_rating(answer, predict_answer)
-        return 0
-
-def answer_rating(answer, predict_answer):
-    rating = answer_rating_mc(answer, predict_answer)
-    if rating != 0:
+        rating = answer_rating(answer, predict_answer)
         return rating
-    else:
-        return answer_rating_ov(answer, predict_answer)
 
 def load_jsons(files_path):
     """
@@ -159,109 +149,57 @@ def evaluate(files_path):
     results = []
     choices = ['A', 'B', 'C', 'D']
 
-    last_length = 0
-
     all_path_length = 0
     print("all sample: ", len(samples))
-
-    # =========== 从data里面取部分数据 ===========
-    # data_unseen = json.load(open("data/ToolTrajectory/unseen_testset.json", "r"))
     for data in tqdm(samples):
-
         meta_data = data['meta']
         summary_data = data["summary"]
 
-        shortest_length = meta_data['shortest_length']
         path_length = summary_data["shorest_path"]
         all_path_length += summary_data["shorest_path"]
-
-        related_objs = meta_data['related_objs']
-        if isinstance(related_objs, str):
-            related_objs = ast.literal_eval(meta_data['related_objs'])
 
         result = {}
 
         step_data = data['step']
-        # max_step = meta_data['max_steps']
+        
         answer = meta_data['proposals'][choices.index(meta_data['answer'])]
-
         predict_answer = summary_data["final_answer"]
 
         steps = []
         for step in step_data:
             steps.append((step['pts'], step['angle']))
-        objs = []
-        for related_obj in related_objs:
-            objs.append(related_obj['pos'])
 
         len_step = math.sqrt(len(steps))
         if len_step == 0.0:
             len_step = 1.0
 
-        obj_recall_at5 = compute_weighted_recall(steps, objs, 5) / len_step
-        obj_recall_at10 = compute_weighted_recall(steps, objs, 10) / len_step
-        obj_recall_at15 = compute_weighted_recall(steps, objs, 15) / len_step
-        
-        # predict = 1 if predict_answer == answer else 0
-        # predict = answer_rating_ov(answer, predict_answer) / 5.0
-        predict = answer_rating_mc(answer, predict_answer) / 5.0
-
-        e_path_at5 = predict * obj_recall_at5 * math.exp(shortest_length / max(path_length, shortest_length))
-        e_path_at10 = predict * obj_recall_at10 * math.exp(shortest_length / max(path_length, shortest_length))
-        e_path_at15 = predict * obj_recall_at15 * math.exp(shortest_length / max(path_length, shortest_length))
+        predict = answer_rating(answer, predict_answer) / 5.0
 
         result["len_steps"] = len(steps)
         result["predict"] = predict
-        result["obj_recall"] = {"@5": obj_recall_at5, "@10": obj_recall_at10, "@15": obj_recall_at15}
-        result["e_path"] = {"@5": e_path_at5, "@10": e_path_at10, "@15": e_path_at15}
 
         results.append(result)
 
     results_num = len(results)
-    norm_steps = 0
-    norm_early_steps = 0
-    early_count = 0
-    success_count = 0
 
-    avg_obj_recall_at5 = 0
-    avg_obj_recall_at10 = 0
-    avg_obj_recall_at15 = 0
-    avg_e_path_at5 = 0
-    avg_e_path_at10 = 0
-    avg_e_path_at15 = 0
     avg_predict = 0
     avg_steps = 0
 
     for result in results:
         avg_steps += result.get("len_steps")
-
-        avg_obj_recall_at5 += result.get("obj_recall").get("@5")
-        avg_e_path_at5 += result.get("e_path").get("@5")
-
-        avg_obj_recall_at10 += result.get("obj_recall").get("@10")
-        avg_e_path_at10 += result.get("e_path").get("@10")
-
-        avg_obj_recall_at15 += result.get("obj_recall").get("@15")
-        avg_e_path_at15 += result.get("e_path").get("@15")
-
         avg_predict += result.get("predict")
 
     print("========================================")
     print("avg step: ", avg_steps / results_num)
-    print("========================================")
-    print("avg obj_recall@5: ", avg_obj_recall_at5 / results_num)
-    print("avg obj_recall@10: ", avg_obj_recall_at10 / results_num)
-    print("avg obj_recall@15: ", avg_obj_recall_at15 / results_num)
-    print("========================================")
-    print("avg e_path@5: ", avg_e_path_at5 / results_num)
-    print("avg e_path@10: ", avg_e_path_at10 / results_num)
-    print("avg e_path@15: ", avg_e_path_at15 / results_num)
     print("========================================")
     print("avg path length: ", all_path_length / results_num)
     print("success: ", avg_predict / results_num)
 
 if __name__ == '__main__':
     files_path = [
-        "results/qwen.zs.seen.0827/result.jsonl",
+        "results/qwen.ft.ov.openeqa.0910/result_4.jsonl",
+        "results/qwen.ft.ov.openeqa.0910/result_5.jsonl",
+        "results/qwen.ft.ov.openeqa.0910/result_6.jsonl",
+        "results/qwen.ft.ov.openeqa.0910/result_7.jsonl",
     ]
     evaluate(files_path)

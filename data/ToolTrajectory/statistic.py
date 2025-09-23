@@ -109,12 +109,12 @@ def visualize(data, color_map, save_path):
         ax.text(x, y, label, ha="center", fontsize=15)
 
     for wedge, label in zip(wedges_inner, inner_labels):
-        if label.split("\n")[0] in ["distance", "counting", "relationship"]:
+        if label.split("\n")[0] in ["distance", "counting", "relationship", "status"]:
             continue
         ang = (wedge.theta2 - wedge.theta1)/2. + wedge.theta1
         y = 0.7 * np.sin(np.deg2rad(ang))
         x = 0.7 * np.cos(np.deg2rad(ang))
-        ax.text(x, y, label, ha="center", fontsize=13)
+        ax.text(x, y, label, ha="center", fontsize=16)
 
     centre_circle = plt.Circle((0,0), 0.3, fc='white')
     ax.add_artist(centre_circle)
@@ -126,13 +126,14 @@ def visualize(data, color_map, save_path):
 
 if __name__=="__main__":
     files = [
-        "data/ToolTrajectory/trainval.json",
-        "data/ToolTrajectory/seen_testset.json",
-        "data/ToolTrajectory/unseen_testset.json",
+        "tmp/data/new_data/trainval.json",
+        "tmp/data/new_data/seen_testset.json",
+        "tmp/data/new_data/unseen_testset.json",
     ]
     stats = [statistic(f) for f in files]
     color_map = build_color_map(stats)
 
     for f, s in zip(files, stats):
+        print(f"statistic {f}")
         out_path = f.replace(".json", "_distribution.pdf")
         visualize(s, color_map, out_path)
