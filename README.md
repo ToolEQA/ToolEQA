@@ -18,11 +18,6 @@ Install [flash-attention2](https://github.com/Dao-AILab/flash-attention):
 pip install flash-attn --no-build-isolation
 ```
 
-Install [faiss-gpu](https://github.com/facebookresearch/faiss)
-```
-conda install -c conda-forge faiss-gpu
-```
-
 Install transformers for qwenvl
 ```
 pip install git+https://github.com/huggingface/transformers
@@ -78,6 +73,12 @@ sh data/ToolTrajectory/trajectory_gen/location/location/post_process_two.sh
 sh data/ToolTrajectory/trajectory_gen/location/special/post_process.sh
 sh data/ToolTrajectory/trajectory_gen/relationship/post_process.sh
 sh data/ToolTrajectory/trajectory_gen/status/post_process.sh
+```
+
+# Train Qwen2.5VL
+```
+cd src/train/Qwen2.5-VL/qwen-vl-finetune/
+sh scripts/sft_7b.sh
 ```
 
 # Run ToolEQA
