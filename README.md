@@ -1,4 +1,4 @@
-# ReactEQA
+# ToolEQA
 
 # Installation
 Set up the conda environment (Linux, Python 3.9):
@@ -28,6 +28,23 @@ Install AutoGPTQ
 ```
 git clone https://github.com/PanQiWei/AutoGPTQ.git && cd AutoGPTQ
 pip install -vvv --no-build-isolation -e .
+```
+
+Install DetAny3D
+```
+git clone https://github.com/zmling22/DetAny3D.git
+cd DetAny3D
+# install SegmentAnything
+pip install git+https://github.com/facebookresearch/segment-anything.git
+# install UniDepth
+git clone https://github.com/lpiccinelli-eth/UniDepth.git
+cd UniDepth
+pip install -e . --extra-index-url https://download.pytorch.org/whl/cu118
+cd ..
+git clone https://github.com/IDEA-Research/GroundingDINO.git
+cd GroundingDINO
+pip install -e .
+cd ..
 ```
 
 # Data Generation Pipeline
@@ -83,6 +100,10 @@ sh scripts/sft_7b.sh
 
 # Run ToolEQA
 ```
+# 
+cd DetAny3D
+python app_mp.py
+cd ../ToolEQA
 python src/agents/react_eqa_agent_mp.py --gpus 1,2,3,4
 ```
 

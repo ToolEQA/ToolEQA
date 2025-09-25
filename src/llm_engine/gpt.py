@@ -46,7 +46,7 @@ class GPTEngine(HfApiEngine):
     def __init__(self, model="gpt-4o-mini"):
         self.model_name= model
         self.client = OpenAI(
-            api_key="your api key",
+            api_key="API-KEY",
             base_url='https://api.deerapi.com/v1/'
         )
     

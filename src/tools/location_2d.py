@@ -51,7 +51,7 @@ class ObjectLocation2D(Tool):
             'text': object
         }
 
-        res = client_send_image(data, self.gpu_id - 4)
+        res = client_send_image(data, self.gpu_id)
         bboxes = res['bboxes_2d']
         labels = res['labels']
 

@@ -53,7 +53,7 @@ class ObjectLocation3D(Tool):
             'image': image,
             'text': object
         }
-        res = client_send_image(data, self.gpu_id - 4)
+        res = client_send_image(data, self.gpu_id)
 
         if "error" in res.keys():
             print(f"Error: {object}, {image_path}, {res['error']}")

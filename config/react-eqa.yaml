@@ -4,7 +4,7 @@ exp_name: react-eqa
 output_parent_dir: results/
 # question_data_path: ./data/EQA-Traj-0720/test.json
 scene_data_path: [./data/HM3D, ./data/OpenEQA/scenes]
-output_dir: ./cache/gpt4o.zs.ov.expressbench.0921
+output_dir: ./cache/gpt4o.zs.mc.hmeqa.0924
 save_obs: true
 save_freq: 20
 

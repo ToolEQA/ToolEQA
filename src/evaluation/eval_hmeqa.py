@@ -197,9 +197,9 @@ def evaluate(files_path):
 
 if __name__ == '__main__':
     files_path = [
-        "results/qwen.ft.ov.openeqa.0910/result_4.jsonl",
-        "results/qwen.ft.ov.openeqa.0910/result_5.jsonl",
-        "results/qwen.ft.ov.openeqa.0910/result_6.jsonl",
-        "results/qwen.ft.ov.openeqa.0910/result_7.jsonl",
+        "results/gpt4o.zs.mc.hmeqa.0924/result_4.jsonl",
+        "results/gpt4o.zs.mc.hmeqa.0924/result_5.jsonl",
+        "results/gpt4o.zs.mc.hmeqa.0924/result_6.jsonl",
+        "results/gpt4o.zs.mc.hmeqa.0924/result_7.jsonl",
     ]
     evaluate(files_path)

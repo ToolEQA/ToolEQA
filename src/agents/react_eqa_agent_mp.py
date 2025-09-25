@@ -234,7 +234,7 @@ def worker(gpu_id, data_chunk, args):
     # 设置当前进程可见的 GPU
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     
-    system_prompt = open("data/ToolTrajectory/prompts/react_system_prompt_expressbench.txt", "r").read()
+    system_prompt = open("data/ToolTrajectory/prompts/react_system_prompt.txt", "r").read()
     eqa_react_agent = EQAReactAgent(
         tools=get_tool_box(gpu_id=gpu_id, args=args),
         # llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct", device=f"cuda:{gpu_id}"),
@@ -279,9 +279,9 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--cfg", help="config", type=str, default="./config/react-eqa.yaml")
-    parser.add_argument("--data", help="data path", type=str, default="./data/EXPRESS-Bench/express-bench-reacteqa.json")
+    parser.add_argument("--data", help="data path", type=str, default="data/HM-EQA/questions.json")
     parser.add_argument("--open-vocab", help="whether or not open vocabulary", type=bool, default=False)
-    parser.add_argument("--output", help="output direction", type=str, default="./results/gpt4o.zs.ov.expressbench.0921")
+    parser.add_argument("--output", help="output direction", type=str, default="./results/gpt4o.zs.mc.hmeqa.0924")
     parser.add_argument("--gpus", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="7")
     args = parser.parse_args()
 

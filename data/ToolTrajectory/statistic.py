@@ -66,7 +66,7 @@ def statistic(data_file):
 
     return stat
 
-def visualize(data, color_map, save_path):
+def visualize(data, color_map, save_path, fontsize=30):
     outer_categories = [k for k in data.keys() if k != "meta"]
 
     outer_counts, outer_labels = [], []
@@ -83,44 +83,66 @@ def visualize(data, color_map, save_path):
             inner_labels.append(f"{subcat}\n{subdata['count']}")
             inner_counts.append(subdata['count'])
             inner_colors.append(color_map["inner"][category][subcat])
-            # inner_colors.append(color_map[f"{category}:{subcat}"])
 
-    # 外圈颜色（取大类第一个子类的颜色，保证一致性）
-    # outer_colors = [color_map[f"{outer}:{list(data[outer].keys())[0]}"] for outer in outer_categories]
+    # 外圈颜色
     outer_colors = [color_map["outer"][outer] for outer in outer_categories]
-    # for category in outer_categories:
-    #     for subcat, subdata in data[category].items():
-    #         inner_colors.append(color_map["inner"][category][subcat])
+
     fig, ax = plt.subplots(figsize=(12, 10))
 
+    # 计算标签数量
+    total_outer = len(outer_labels)
+    total_inner = len(inner_labels)
+
+    # 外圈
     wedges_outer, _ = ax.pie(outer_counts, radius=1.2,
-        wedgeprops=dict(width=0.3, edgecolor='w'),
-        colors=outer_colors, startangle=90)
+                             wedgeprops=dict(width=0.3, edgecolor='w'),
+                             colors=outer_colors, startangle=90)
 
+    # 内圈
     wedges_inner, _ = ax.pie(inner_counts, radius=0.9,
-        wedgeprops=dict(width=0.3, edgecolor='w'),
-        colors=inner_colors, startangle=90)
+                             wedgeprops=dict(width=0.3, edgecolor='w'),
+                             colors=inner_colors, startangle=90)
 
-    # 添加标签
-    for wedge, label in zip(wedges_outer, outer_labels):
-        ang = (wedge.theta2 - wedge.theta1)/2. + wedge.theta1
-        y = 1.0 * np.sin(np.deg2rad(ang))
-        x = 1.0 * np.cos(np.deg2rad(ang))
-        ax.text(x, y, label, ha="center", fontsize=15)
+    # 用于避免重叠的间隔值（增加间距）
+    outer_gap = 0.15
+    inner_gap = 0.1
 
-    for wedge, label in zip(wedges_inner, inner_labels):
+    # 添加外圈标签
+    for i, (wedge, label) in enumerate(zip(wedges_outer, outer_labels)):
+        ang = (wedge.theta2 - wedge.theta1) / 2. + wedge.theta1
+        y = (0.9 + outer_gap) * np.sin(np.deg2rad(ang))
+        x = (0.9 + outer_gap) * np.cos(np.deg2rad(ang))
+
+        # 添加文本时根据环的位置微调
+        ax.text(x, y, label, ha="center", va="center", fontsize=25, rotation=ang-90, rotation_mode='anchor')
+
+    # 添加内圈标签
+    for i, (wedge, label) in enumerate(zip(wedges_inner, inner_labels)):
         if label.split("\n")[0] in ["distance", "counting", "relationship", "status"]:
             continue
-        ang = (wedge.theta2 - wedge.theta1)/2. + wedge.theta1
-        y = 0.7 * np.sin(np.deg2rad(ang))
-        x = 0.7 * np.cos(np.deg2rad(ang))
-        ax.text(x, y, label, ha="center", fontsize=16)
+        ang = (wedge.theta2 - wedge.theta1) / 2. + wedge.theta1
+        y = (0.65 + inner_gap) * np.sin(np.deg2rad(ang))
+        x = (0.65 + inner_gap) * np.cos(np.deg2rad(ang))
 
-    centre_circle = plt.Circle((0,0), 0.3, fc='white')
+        # 添加文本时根据环的位置微调
+        ax.text(x, y, label, ha="center", va="center", fontsize=25, rotation=ang-90, rotation_mode='anchor')
+
+    # 中心白色圆圈
+    centre_circle = plt.Circle((0, 0), 0.3, fc='white')
     ax.add_artist(centre_circle)
 
-    plt.text(0, 0, f'Data Distribution\nTotal Count: {data["meta"]["all_count"]}',
-             ha='center', va='center', fontsize=20)
+    # 设置标题
+    title = ""
+    if "trainval" in save_path:
+        title = "EQA-RT-Train"
+    elif "/seen" in save_path:
+        title = "EQA-RT-Seen"
+    elif "/unseen" in save_path:
+        title = "EQA-RT-Unseen"
+    plt.text(0, 0, f'{title}\nCount: {data["meta"]["all_count"]}',
+             ha='center', va='center', fontsize=fontsize)
+
+    # 保存图像
     plt.savefig(save_path, bbox_inches='tight', transparent=True)
 
 
