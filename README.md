@@ -100,9 +100,10 @@ sh scripts/sft_7b.sh
 
 # Run ToolEQA
 ```
-# 
+# run DetAny3D
 cd DetAny3D
 python app_mp.py
+# run ToolEQA
 cd ../ToolEQA
 python src/agents/react_eqa_agent_mp.py --gpus 1,2,3,4
 ```
