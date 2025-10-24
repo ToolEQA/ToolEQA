@@ -197,6 +197,10 @@ def evaluate(files_path):
 
 if __name__ == '__main__':
     files_path = [
+        "results/gpt4o.zs.mc.hmeqa.0924/result_0.jsonl",
+        "results/gpt4o.zs.mc.hmeqa.0924/result_1.jsonl",
+        "results/gpt4o.zs.mc.hmeqa.0924/result_2.jsonl",
+        "results/gpt4o.zs.mc.hmeqa.0924/result_3.jsonl",
         "results/gpt4o.zs.mc.hmeqa.0924/result_4.jsonl",
         "results/gpt4o.zs.mc.hmeqa.0924/result_5.jsonl",
         "results/gpt4o.zs.mc.hmeqa.0924/result_6.jsonl",
