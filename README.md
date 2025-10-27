@@ -2,7 +2,7 @@
 Official implementation of the paper ["Multi-Step Reasoning for Embodied Question Answering via Tool Augmentation"](https://arxiv.org/abs/2510.20310)
 
 [[Home page]](https://tooleqa.github.io/)
-[[Demo Video]](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+[[Demo Video]](https://www.youtube.com/watch?v=qTHHB2ATnVc&t=3s)
 [Data (coming soon)]
 
 <figure style="display: flex; flex-direction: column; align-items: center; margin: 0;">
