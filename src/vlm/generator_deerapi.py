@@ -77,7 +77,8 @@ def requests_api(images, prompt, text_format = None, system=None, max_retries=5)
 
     # 初始化客户端
     client = OpenAI(
-        api_key='API_KEY',
+        # api_key='API_KEY',
+        api_key="sk-YqbuQUTS82eXW6zleSru7InNsV88G6APi68pa4IiGuUUHNox",
         base_url='https://api.deerapi.com/v1/',  # 这里写你代理的地址
     )
 

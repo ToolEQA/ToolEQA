@@ -4,5 +4,3 @@ Based on what you currently perceive from your position in the environment, expl
 Your explanation must:
 ✅ Clearly describe the specific clue or feature you perceive in that direction (e.g., part of the object, shape, color, or space) that makes it more promising than other directions.
 ✅ Clearly conclude by stating that you choose <<action_name>> — the choice must be explicitly mentioned, but the phrasing can be natural and does not have to follow a fixed template.
-
-

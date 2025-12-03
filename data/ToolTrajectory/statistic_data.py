@@ -179,7 +179,13 @@ unseen_object_stats, unseen_thought_stats = process_data(unseen_data)
 #                      "question-object", "object count", "question count", "stats_objs.pdf", True)
 # draw_multi_histogram([seen_thought_stats, unseen_thought_stats], ["Seen", "Unseen"],
 #                      "question-step", "step count", "question count", "stats_steps.pdf", False)
+
 all_keys = sorted(set(seen_thought_stats.keys()) | set(unseen_thought_stats.keys()))
 diff = {k: seen_thought_stats.get(k, 0) - unseen_thought_stats.get(k, 0) for k in all_keys}
 draw_multi_linechart([diff], ["Seen", "Unseen"],
-                     "Object Proportion Difference", "", "Proportion Difference", "stats_steps.pdf")
+                     "Thought Step Proportion Difference", "", "Proportion Difference", "stats_steps.pdf")
+
+# all_keys = sorted(set(seen_object_stats.keys()) | set(unseen_object_stats.keys()))
+# diff = {k: seen_object_stats.get(k, 0) - unseen_object_stats.get(k, 0) for k in all_keys}
+# draw_multi_linechart([diff], ["Seen", "Unseen"],
+#                      "Object Proportion Difference", "", "Proportion Difference", "stats_objects.pdf")
