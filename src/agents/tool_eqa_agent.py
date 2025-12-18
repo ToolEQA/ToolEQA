@@ -84,7 +84,7 @@ class EQAReactAgent(ReactCodeAgent):
             try:
                 if self.planning_interval is not None and iteration % self.planning_interval == 0 and iteration == 0:
                     self.planning_step(task, is_first_step=(iteration == 0), iteration=iteration)
-                # import pdb; pdb.set_trace()
+                import pdb; pdb.set_trace()
                 step_logs = self.step()
                 if "final_answer" in step_logs:
                     final_answer = step_logs["final_answer"]
@@ -268,6 +268,7 @@ def load_jsonl(path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--cfg", help="config", type=str, default="./config/react-eqa.yaml")
     parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/seen_testset.json")
     # parser.add_argument("--data", help="data path", type=str, default="./data/EQA-Traj-0720/seen_testset.json")
     parser.add_argument("--output", help="output direction", type=str, default="./results/reacteqa.zs.seen.0826")

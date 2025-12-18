@@ -13,5 +13,12 @@ class FinalAnswerTool(Tool):
         if self.debug:
             return
 
-    def forward(self, answer) -> str:        
+    def forward(self, answer=None, **kwargs) -> str:
+        if answer is None:
+            answer = kwargs.get("final_answer", None)
+        if isinstance(answer, dict):
+            if 'answer' in answer:
+                answer = answer['answer']
+        elif isinstance(answer, str):
+            answer = answer
         return answer

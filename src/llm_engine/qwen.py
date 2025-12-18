@@ -119,7 +119,26 @@ class QwenEngine(HfApiEngine):
         # print("call vlm")
         assert self.has_vision, "Should use this function with Qwen VL model"
         image_paths = kwargs.get("image_paths", [])
-        for msg_id, msg in enumerate(messages):
+
+        # for msg_id, msg in enumerate(messages):
+        #     if msg["role"] == "user":
+        #         content_replace = []
+        #         if image_paths is not None and len(image_paths) > 0:
+        #             for image_path in image_paths:
+        #                 content_replace.append({
+        #                     "type": "image",
+        #                     "image": image_path
+        #                 })
+                    
+        #         content = {"type": "text", "text": msg["content"]}
+        #         content_replace.append(content)
+        #         messages[msg_id] = {
+        #             "role": "user",
+        #             "content": content_replace
+        #         }
+        #         break
+        for msg_id in range(len(messages) - 1, -1, -1):
+            msg = messages[msg_id]
             if msg["role"] == "user":
                 content_replace = []
                 if image_paths is not None and len(image_paths) > 0:
@@ -128,9 +147,10 @@ class QwenEngine(HfApiEngine):
                             "type": "image",
                             "image": image_path
                         })
-                    
+
                 content = {"type": "text", "text": msg["content"]}
                 content_replace.append(content)
+
                 messages[msg_id] = {
                     "role": "user",
                     "content": content_replace
@@ -140,6 +160,10 @@ class QwenEngine(HfApiEngine):
         text = self.processor.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True
         )
+        # print("==========================")
+        # print(text)
+        # print("==========================")
+        # import pdb; pdb.set_trace()
         image_inputs, video_inputs = process_vision_info(messages)
 
         inputs = self.processor(
@@ -205,6 +229,7 @@ class QwenEngine(HfApiEngine):
         return answer
         
 if __name__ == "__main__":
-    qwen = QwenEngine("/mynvme0/models/Qwen2-VL/Qwen2-VL-7B-Instruct/")
+    qwen = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct", device="cuda:0")
+    response = qwen([{"role": "user", "content": "You are a robotic dog observing the environment from a first person perspective. If you are looking for a sofa, would you choose to move forward 0.5 meters, turn left 45 degrees, or turn right 45 degrees? Don't say anything else, just give me your choice"}], image_paths=["/home/zml/algorithm/ReactEQA/cache/real_test/e9cfd118-3677-46d1-8332-eaed69bd6d91/init_rgb.jpg"])
     # model, tokenizer = load_pretrained_model("/mynvme0/models/Qwen2-VL/Qwen2-VL-7B-Instruct/")
-    print(qwen)
+    print(response)

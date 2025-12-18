@@ -1,5 +1,6 @@
 from transformers import Tool
 from src.runs.eqa_modeling import EQA_Modeling
+from src.runs.go2_driver import Go2Driver
 from omegaconf import OmegaConf
 import cv2
 import os
@@ -8,24 +9,27 @@ class GoNextPointTool(Tool):
     name = "GoNextPointTool"
     description = "the agent conitnue explore next point and obtain next observation (rgb image)."
     inputs = {
-        "query": {
-            "description": "Next exploration direction, ONLY [move_forward, turn_left, turn_right] are supported.",
+        "direction": {
+            "description": "Next exploration direction, ONLY [`move_forward`, `turn_left`, `turn_right`, `turn_around`] are supported. `move_forward` means moving forward by 0.5 meters. `turn_left` is a 45 degree left turn. `turn_right` is a 45 degree right turn. `turn_around` is a 180 degree turn.",
             "type": "string",
         },
     }
-    output_type = "image"
+    output_type = "string"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.gpu_id = kwargs.get("gpu_id", 0)
         self.debug = kwargs.get("debug", False)
         self.args = kwargs.get("args", None)
+        self.real_robot = kwargs.get("real_robot", False)
+
         if self.debug:
             return
         
         self.cfg = OmegaConf.load(self.args.cfg)
         OmegaConf.resolve(self.cfg)
-        self.eqa_modeling = EQA_Modeling(self.cfg, self.gpu_id)
+
+        self.eqa_modeling = Go2Driver(self.cfg) if self.cfg.real_robot else EQA_Modeling(self.cfg, self.gpu_id)
 
         self.step_idx = -1
 
@@ -40,12 +44,19 @@ class GoNextPointTool(Tool):
         self.step_idx = 0
 
     def forward(self, command):
+        if isinstance(command, dict):
+            if 'direction' in command:
+                command = command['direction']
+
         if self.debug:
             return "./cache/init_rgb.png"
         
         self.step_idx += 1
         save_path = os.path.join(self.save_dir, f"next_point_{self.step_idx}.jpg")
         self.eqa_modeling.go_next_point(command)
-        cv2.imwrite(save_path, cv2.cvtColor(self.eqa_modeling.cur_rgb, cv2.COLOR_RGB2BGR))
+        if self.cfg.real_robot:
+            cv2.imwrite(save_path, self.eqa_modeling.cur_rgb)
+        else:
+            cv2.imwrite(save_path, cv2.cvtColor(self.eqa_modeling.cur_rgb, cv2.COLOR_RGB2BGR))
         self.cur_rgb_path = os.path.abspath(save_path)
         return self.cur_rgb_path

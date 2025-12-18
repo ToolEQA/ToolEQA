@@ -13,3 +13,5 @@ data/EQA-Traj
 cache/
 *.jsonl
 *.log
+*.png
+*.jpg

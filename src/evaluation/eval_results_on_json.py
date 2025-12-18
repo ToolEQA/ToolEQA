@@ -4,6 +4,7 @@ import numpy as np
 import ast
 import math
 import jsonlines
+from pathlib import Path
 from tqdm import tqdm
 from src.vlm.generator_deerapi import requests_api
 
@@ -57,6 +58,33 @@ def answer_rating(answer, predict_answer):
     else:
         return answer_rating_ov(answer, predict_answer)
 
+def save_jsons(data, file_path):
+    """
+    保存 JSON 文件。
+
+    :param data: 要保存的数据
+    :param file_path: 文件路径
+    """
+    with jsonlines.open(file_path, mode="w") as writer:
+        writer.write_all(data)
+
+# def load_all_traces(jsonl_root: Path) -> List[Dict[str, Any]]:
+#     traces = []
+#     jsonl_root = Path(jsonl_root)
+#     for jsonl_path in jsonl_root.iterdir():
+#         with open(jsonl_path, "r", encoding="utf-8") as f:
+#             for line in f:
+#                 line = line.strip()
+#                 if not line:
+#                     continue
+#                 trace = json.loads(line)
+#                 react = trace["summary"]["react"]
+#                 if len(react) == 0:
+#                     continue
+#                 if "final_answer" in react[-1]["code"]:
+#                     traces.append(trace)
+#     return traces
+
 def load_jsons(files_path):
     """
     读取 JSON 文件。
@@ -75,8 +103,13 @@ def load_jsons(files_path):
                 with open(file_path, 'r', encoding='utf-8') as file:
                     all_data.extend(json.load(file))
             elif file_ext == ".jsonl":
-                with jsonlines.open(file_path, mode="r") as reader:
-                    for item in reader:
+                # with jsonlines.open(file_path, mode="r") as reader:
+                #     for item in reader:
+                #         print(item)
+                #         all_data.append(item)
+                with open(file_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        item = json.loads(line)
                         all_data.append(item)
     
     return all_data
@@ -210,12 +243,17 @@ def evaluate(files_path):
         e_path_at10 = predict * obj_recall_at10 * math.exp(shortest_length / max(path_length, shortest_length))
         e_path_at15 = predict * obj_recall_at15 * math.exp(shortest_length / max(path_length, shortest_length))
 
+        result = data.copy()
+        result["meta"]["gt_answer"] = answer
         result["len_steps"] = len(steps)
         result["predict"] = predict
         result["obj_recall"] = {"@5": obj_recall_at5, "@10": obj_recall_at10, "@15": obj_recall_at15}
         result["e_path"] = {"@5": e_path_at5, "@10": e_path_at10, "@15": e_path_at15}
 
         results.append(result)
+    
+    save_path = Path(files_path[0])
+    save_jsons(results, save_path.parent / "eval_results.jsonl")
 
     results_num = len(results)
     norm_steps = 0
@@ -262,6 +300,12 @@ def evaluate(files_path):
 
 if __name__ == '__main__':
     files_path = [
-        "results/qwen.zs.seen.0827/result.jsonl",
+        "results/EQA-RT-Seen.zs/result_0.jsonl",
+        "results/EQA-RT-Seen.zs/result_1.jsonl",
+        "results/EQA-RT-Seen.zs/result_2.jsonl",
+        "results/EQA-RT-Seen.zs/result_3.jsonl",
+        "results/EQA-RT-Seen.zs/result_4.jsonl",
+        "results/EQA-RT-Seen.zs/result_5.jsonl",
+        "results/EQA-RT-Seen.zs/result_6.jsonl",
     ]
     evaluate(files_path)

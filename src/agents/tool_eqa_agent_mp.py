@@ -154,7 +154,7 @@ class EQAReactAgent(ReactCodeAgent):
             rationale, raw_code_action = llm_output, llm_output
         try:
             code_action = parse_code_blob(raw_code_action)
-            self.thought.append({"thought": rationale, "code": code_action})
+            # self.thought.append({"thought": rationale, "code": code_action, "observation": ""})
         except Exception as e:
             error_msg = f"Error in code parsing: {e}. Make sure to provide correct code"
             raise AgentParsingError(error_msg)
@@ -180,6 +180,8 @@ class EQAReactAgent(ReactCodeAgent):
             self.logger.warning("Print outputs:")
             self.logger.log(32, information)
             current_step_logs["observation"] = information
+
+            self.thought.append({"thought": rationale, "code": code_action, "observation": information})
         except Exception as e:
             error_msg = f"Code execution failed due to the following error:\n{str(e)}"
             if "'dict' object has no attribute 'read'" in str(e):
@@ -191,6 +193,7 @@ class EQAReactAgent(ReactCodeAgent):
                 self.logger.warning(">>> Final answer:")
                 self.logger.log(32, result)
                 current_step_logs["final_answer"] = result
+                self.thought[-1]["observation"] = result
         return current_step_logs
 
     def initialize_for_run(self, data):
@@ -260,6 +263,7 @@ def worker(gpu_id, data_chunk, args):
         result['summary']['react'] = eqa_react_agent.thought
         results.append(result)
         save_data(result, os.path.join(output_dir, f"result_{gpu_id}.jsonl"))
+        # import pdb; pdb.set_trace()
 
     # with open(os.path.join(output_dir, f"result_{gpu_id}.json"), "w") as f:
     #     json.dump(results, f, indent=4)
@@ -281,7 +285,7 @@ if __name__ == "__main__":
     parser.add_argument("--cfg", help="config", type=str, default="./config/react-eqa.yaml")
     parser.add_argument("--data", help="data path", type=str, default="data/HM-EQA/questions.json")
     parser.add_argument("--open-vocab", help="whether or not open vocabulary", type=bool, default=False)
-    parser.add_argument("--output", help="output direction", type=str, default="./results/gpt4o.zs.mc.hmeqa.0924")
+    parser.add_argument("--output", help="output direction", type=str, default="./results/EQA-RT-Seen.zs")
     parser.add_argument("--gpus", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="7")
     args = parser.parse_args()
 
@@ -319,6 +323,9 @@ if __name__ == "__main__":
     chunk_size = (len(remaining_data) + num_gpus - 1) // num_gpus
     data_chunks = [remaining_data[i*chunk_size:(i+1)*chunk_size] for i in range(num_gpus)]
 
-    # 使用进程池
-    with mp.Pool(processes=num_gpus) as pool:
-        pool.starmap(worker, zip(gpu_ids, data_chunks, [args] * len(gpu_ids)))
+    if num_gpus == 1:
+        worker(gpu_ids[0], data_chunks[0], args)
+    else:
+        # 使用进程池
+        with mp.Pool(processes=num_gpus) as pool:
+            pool.starmap(worker, zip(gpu_ids, data_chunks, [args] * len(gpu_ids)))

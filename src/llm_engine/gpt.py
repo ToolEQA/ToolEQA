@@ -46,7 +46,7 @@ class GPTEngine(HfApiEngine):
     def __init__(self, model="gpt-4o-mini"):
         self.model_name= model
         self.client = OpenAI(
-            api_key="API-KEY",
+            api_key="sk-bty7uDUznmPRiEWdi3YaUaqUpRpwiJmt2K96E0H39UbEtvMt",
             base_url='https://api.deerapi.com/v1/'
         )
     
@@ -109,12 +109,12 @@ class GPTEngine(HfApiEngine):
             raise Exception("No messages found")
 
         if image_paths is not None and len(image_paths) > 0:
-            origin_content = messages[1]['content']
-            messages[1]['content'] = []
-            messages[1]['content'].append(dict(type="text", text=origin_content))
+            origin_content = messages[-1]['content']
+            messages[-1]['content'] = []
+            messages[-1]['content'].append(dict(type="text", text=origin_content))
             
             for path_item in image_paths:
-                messages[1]['content'].append(dict(type="image_url", image_url={"url": f"data:image/jpeg;base64,{encode_image(path_item)}"}))
+                messages[-1]['content'].append(dict(type="image_url", image_url={"url": f"data:image/jpeg;base64,{encode_image(path_item)}"}))
                 
         retry = 3
         for i in range(retry):
@@ -129,7 +129,7 @@ class GPTEngine(HfApiEngine):
                 print("catch rate limit error")
                 import time
                 time.sleep(10)
-            
+
         return response.choices[0].message.content
 
 

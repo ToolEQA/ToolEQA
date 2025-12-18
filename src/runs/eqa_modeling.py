@@ -391,7 +391,7 @@ class EQA_Modeling():
         ax5.scatter(self.pts_pixs[0, 1], self.pts_pixs[0, 0], c="white", s=50)
         fig.tight_layout()
         plt.savefig(
-            os.path.join(self.episode_data_dir, "map.png")
+            os.path.join(self.episode_data_dir, f"map_{self.cur_step}.png")
         )
         plt.close()
 
@@ -405,7 +405,7 @@ class EQA_Modeling():
             "step": self.cur_step,
             "pts": pts.tolist(),
             "angle": self.angle,
-            "image": os.path.join(self.episode_data_dir, "cur_rgb.png")
+            "image": os.path.join(self.episode_data_dir, f"{self.cur_step}.png")
         })
 
         # update state

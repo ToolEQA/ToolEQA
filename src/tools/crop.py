@@ -23,6 +23,13 @@ class ObjectCrop(Tool):
         if self.debug:
             return
 
+    def list_dim(self, lst):
+        if not isinstance(lst, list):
+            return 0
+        if not lst:
+            return 1  # 空列表，当作一维
+        return 1 + self.list_dim(lst[0])
+
     def forward(self, bounding_box: list, image_path: str) -> list:
         if self.debug:
             return "./cache/init_crop.png"
@@ -33,12 +40,10 @@ class ObjectCrop(Tool):
         except Exception as e:
             raise ValueError(f"Failed to load image: {e}")
 
-        # # 解析 bounding boxes
-        # try:
-        #     boxes = json.loads(boubounding_boxnd_box)
-        # except Exception as e:
-        #     raise ValueError(f"Bounding box string is not valid JSON: {e}")
-
+        d_list = self.list_dim(bounding_box)
+        if d_list == 1:
+            bounding_box = [bounding_box]
+            
         if not isinstance(bounding_box, list) or not all(len(box) == 4 for box in bounding_box):
             raise ValueError("Bounding boxes must be a list of [x1, y1, x2, y2]")
 
