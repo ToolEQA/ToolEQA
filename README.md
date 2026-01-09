@@ -1,9 +1,28 @@
-# ToolEQA
-Official implementation of the paper ["Multi-Step Reasoning for Embodied Question Answering via Tool Augmentation"](https://arxiv.org/abs/2510.20310)
-
-[[Home page]](https://tooleqa.github.io/)
-[[Demo Video]](https://www.youtube.com/watch?v=qTHHB2ATnVc&t=3s)
-[Data (coming soon)]
+<p align="center">
+  <h1 align="center">ToolEQA: Multi-Step Reasoning for Embodied Question Answering via Tool Augmentation</h1>
+  <p align="center">
+    <a href="https://zmling22.github.io/">Mingliang Zhai</a>
+    ·
+    <a>Hansheng Liang</a>
+    ·
+    <a href="https://scholar.google.com/citations?user=3hzR8qQAAAAJ&hl=zh-CN">Xiaomeng Fan</a>
+    ·
+    <a href="https://zhigao2017.github.io/">Zhi Gao</a>
+    ·
+    <a href="https://nevermorelch.github.io/">Chuanhao Li</a>
+    ·
+    <a href="https://www.smbu.edu.cn/info/5731/120101.htm">Che Sun</a>
+    ·
+    <a href="https://me.bit.edu.cn/szdw/jsml/jlgcx/tzjlyjs/bssds1/76658c28d7904b158e2cd8e57efe3e4e.htm">Xu Bin</a>
+    ·
+    <a href="https://wu-yuwei-bit.github.io/">Yuwei Wu</a>
+    ·
+    <a href="https://cs.bit.edu.cn/szdw/jsml/bssds/cf032ae4027040938653c343ba88d2a7.htm">Yunde Jia</a>
+  </p>
+  <!-- <h3 align="center">CVPR 2025</h3> -->
+  <h3 align="center"><a href="https://arxiv.org/abs/2510.20310">Paper</a> | <a href="https://tooleqa.github.io/">Project Page</a> | <a href="https://tooleqa.github.io/">Data(coming soon)</a> </h3>
+  <div align="center"></div>
+</p>
 
 <figure style="display: flex; flex-direction: column; align-items: center; margin: 0;">
   <img src="assets/workflow.png" alt="figure" width="900">
@@ -119,6 +138,7 @@ python app_mp.py
 # run ToolEQA
 cd ../ToolEQA
 python src/agents/react_eqa_agent_mp.py --gpus 1,2,3,4
+# python src/agents/react_eqa_infer.py # run on single question.
 ```
 
 # Evaluation
@@ -127,7 +147,6 @@ python src/evaluation/eval_results_on_json.py
 ```
 
 # Data
-
 ## Generate Pipeline
 <figure style="display: flex; flex-direction: column; align-items: center; margin: 0;">
   <img src="assets/datapipeline.png" alt="figure" style="width: 100%; height: auto; display: block; margin: 0;">
@@ -135,24 +154,66 @@ python src/evaluation/eval_results_on_json.py
 </figure>
 Our goal is to generate a large set of diverse, practical, and complex EQA tasks. We first apply a 3D detection model to obtain each object's bounding box, position, and category, and sample the object image from detected objects. The object attributes and corresponding visual information are then fed into GPT-4o along with example question-answer pairs designed from brainstorming to simulate natural home conversations. Guided by the prompt, GPT-4o generates questions and answers across six types: relationship, status, distance, location, counting, and attribute, where location is divided into two subcategories `location-location' and `location-special', and attribute is divided into three subcategories `color', `special', and `size'. The answers are open-ended or multiple-choice, enabling the evaluating different capabilities of agents.
 
-
 <div style="display: flex; justify-content: center; gap: 10px;">
   <figure style="text-align: center; margin: 0;">
-    <img src="assets/train.png" alt="图1" style="width: 200px;">
+    <img src="assets/train.png" alt="图1" style="width: 150px;">
     <figcaption style="font-size: 14px; color: gray; text-align: center">(a) EQA-RT-Train</figcaption>
   </figure>
   <figure style="text-align: center; margin: 0;">
-    <img src="assets/seen.png" alt="图2" style="width: 200px;">
+    <img src="assets/seen.png" alt="图2" style="width: 150px;">
     <figcaption style="font-size: 14px; color: gray; text-align: center">(b) EQA-RT-Seen</figcaption>
   </figure>
   <figure style="text-align: center; margin: 0;">
-    <img src="assets/unseen.png" alt="图3" style="width: 200px;">
+    <img src="assets/unseen.png" alt="图3" style="width: 150px;">
     <figcaption style="font-size: 14px; color: gray; text-align: center">(c) EQA-RT-Unseen</figcaption>
   </figure>
 </div>
 <figcaption style="font-size: 14px; color: gray; text-align: center">Figure 3. Data statistic of different split. </figcaption>
 
 In figure 3, we have statistics of the training set (EQA-RT-Train) and two test sets (EQA-RT-Seen and EQA-RT-Unseen). The scenes in EQA-RT-Seen have the overlap with EQA-RT-Train, while the scenes in EQA-RT-Unseen are not present in the training set.
+
+# Deployment
+We deploy ToolEQA on [Unitree Go2 EDU](https://support.unitree.com/home/zh/developer). The specific implementation is as follows:
+
+## 1. CycloneDDS
+```
+cd ~
+git clone https://github.com/eclipse-cyclonedds/cyclonedds -b releases/0.10.x
+cd cyclonedds
+mkdir build install && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=../install
+cmake --build . --target install
+# Use absolute path on export
+export CYCLONEDDS_HOME="/home/<user>/cyclonedds/install"
+cd ~/unitree_sdk2_python
+pip3 install -e .
+```
+## 2. Unitree SDK2 (python)
+```
+cd ~
+sudo apt update
+sudo apt install -y python3-pip git
+git clone https://github.com/unitreerobotics/unitree_sdk2_python.git
+cd unitree_sdk2_python
+pip3 install -e .
+```
+## 3. Intel RealSense
+```
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE
+sudo add-apt-repository "deb https://librealsense.intel.com/Debian/apt-repo $(lsb_release -cs) main" -u
+sudo apt-get install -y librealsense2-utils librealsense2-dev
+
+# Python binding
+pip3 install pyrealsense2
+```
+## 4. Client
+```
+# todo
+```
+## 5. Server
+```
+python src/agents/tool_eqa_go2.py --question [your question]
+```
 
 # Citation
 If you find our paper and code useful in your research, please consider giving a star ⭐ and citation 📝 (´▽`ʃ♡ƪ)

@@ -107,12 +107,12 @@ class EQA_Modeling():
         self.question_id = data["sample_id"]
         self.floor = data.get("floor", 0)
         self.question = data["question"]
-        self.choices = data["proposals"]
-        self.answer = data["answer"]
+        self.choices = data.get("proposals", [])
+        self.answer = data.get("answer", "")
 
-        self.pts = data["init_pos"]
+        self.pts = data.get("init_pos", [0, 0, 0])
         # self.pts = data["goal_position"]
-        self.angle = data["init_rot"]
+        self.angle = data.get("init_rot", 0)
 
         meta_data = {
             "sample_id": self.question_id,
@@ -121,7 +121,7 @@ class EQA_Modeling():
             "shortest_length": data["traj_length"] if "traj_length" in data.keys() else 0,
             "answer": self.answer,
             "scene": self.scene,
-            "proposals": data["proposals"]
+            "proposals": self.choices
         }
 
         self.result = {
