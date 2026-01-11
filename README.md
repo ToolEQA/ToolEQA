@@ -20,7 +20,7 @@
     <a href="https://cs.bit.edu.cn/szdw/jsml/bssds/cf032ae4027040938653c343ba88d2a7.htm">Yunde Jia</a>
   </p>
   <!-- <h3 align="center">CVPR 2025</h3> -->
-  <h3 align="center"><a href="https://arxiv.org/abs/2510.20310">Paper</a> | <a href="https://tooleqa.github.io/">Project Page</a> | <a href="https://tooleqa.github.io/">Data(coming soon)</a> </h3>
+  <h3 align="center"><a href="https://arxiv.org/abs/2510.20310">Paper</a> | <a href="https://tooleqa.github.io/">Project Page</a> | <a href="https://modelscope.cn/datasets/zmling22/EQA-RT">Data</a> </h3>
   <div align="center"></div>
 </p>
 
@@ -175,7 +175,7 @@ In figure 3, we have statistics of the training set (EQA-RT-Train) and two test 
 # Deployment
 We deploy ToolEQA on [Unitree Go2 EDU](https://support.unitree.com/home/zh/developer). The specific implementation is as follows:
 
-## 1. CycloneDDS
+1. CycloneDDS
 ```
 cd ~
 git clone https://github.com/eclipse-cyclonedds/cyclonedds -b releases/0.10.x
@@ -188,7 +188,7 @@ export CYCLONEDDS_HOME="/home/<user>/cyclonedds/install"
 cd ~/unitree_sdk2_python
 pip3 install -e .
 ```
-## 2. Unitree SDK2 (python)
+2. Unitree SDK2 (python)
 ```
 cd ~
 sudo apt update
@@ -197,7 +197,7 @@ git clone https://github.com/unitreerobotics/unitree_sdk2_python.git
 cd unitree_sdk2_python
 pip3 install -e .
 ```
-## 3. Intel RealSense
+3. Intel RealSense
 ```
 sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE
 sudo add-apt-repository "deb https://librealsense.intel.com/Debian/apt-repo $(lsb_release -cs) main" -u
@@ -206,11 +206,11 @@ sudo apt-get install -y librealsense2-utils librealsense2-dev
 # Python binding
 pip3 install pyrealsense2
 ```
-## 4. Client
+4. Client
 ```
 # todo
 ```
-## 5. Server
+5. Server
 ```
 python src/agents/tool_eqa_go2.py --question [your question]
 ```
