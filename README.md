@@ -1,11 +1,11 @@
 <p align="center">
   <h1 align="center">ToolEQA: Multi-Step Reasoning for Embodied Question Answering via Tool Augmentation</h1>
   <p align="center">
-    <a href="https://zmling22.github.io/">Mingliang Zhai</a>
+    <a href="https://zmling22.github.io/">Mingliang Zhai*</a>
     ·
-    <a>Hansheng Liang</a>
+    <a>Hansheng Liang*</a>
     ·
-    <a href="https://scholar.google.com/citations?user=3hzR8qQAAAAJ&hl=zh-CN">Xiaomeng Fan</a>
+    <a href="https://scholar.google.com/citations?user=3hzR8qQAAAAJ&hl=zh-CN">Xiaomeng Fan*</a>
     ·
     <a href="https://zhigao2017.github.io/">Zhi Gao</a>
     ·
