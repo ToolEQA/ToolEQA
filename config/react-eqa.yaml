@@ -5,7 +5,7 @@ output_parent_dir: results/
 real_robot: false
 # question_data_path: ./data/EQA-Traj-0720/test.json
 scene_data_path: [./data/HM3D, ./data/OpenEQA/scenes]
-output_dir: ./cache/EQA-RT-Seen.zs
+output_dir: ./cache/EQA-RT-Seen.ft.true.all
 save_obs: true
 save_freq: 20
 

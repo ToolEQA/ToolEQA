@@ -6,7 +6,7 @@ import gradio as gr
 from PIL import Image
 
 ROOT = Path(__file__).parent
-EXP_NAME = "EQA-RT-Seen.zs"  # 这里是实验名称，通常是数据集名称
+EXP_NAME = "EQA-RT-Seen.ft"  # 这里是实验名称，通常是数据集名称
 JSONL_ROOT = f"results/{EXP_NAME}"   # 多条数据，每行一个 JSON
 
 

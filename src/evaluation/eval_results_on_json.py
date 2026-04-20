@@ -300,12 +300,13 @@ def evaluate(files_path):
 
 if __name__ == '__main__':
     files_path = [
-        "results/EQA-RT-Seen.zs/result_0.jsonl",
-        "results/EQA-RT-Seen.zs/result_1.jsonl",
-        "results/EQA-RT-Seen.zs/result_2.jsonl",
-        "results/EQA-RT-Seen.zs/result_3.jsonl",
-        "results/EQA-RT-Seen.zs/result_4.jsonl",
-        "results/EQA-RT-Seen.zs/result_5.jsonl",
-        "results/EQA-RT-Seen.zs/result_6.jsonl",
+        "results/gpt4omini.unseen.0829/result_0.jsonl",
+        "results/gpt4omini.unseen.0829/result_1.jsonl",
+        "results/gpt4omini.unseen.0829/result_2.jsonl",
+        "results/gpt4omini.unseen.0829/result_3.jsonl",
+        "results/gpt4omini.unseen.0829/result_4.jsonl",
+        "results/gpt4omini.unseen.0829/result_5.jsonl",
+        "results/gpt4omini.unseen.0829/result_6.jsonl",
+        "results/gpt4omini.unseen.0829/result_7.jsonl",
     ]
     evaluate(files_path)

@@ -240,9 +240,9 @@ def worker(gpu_id, data_chunk, args):
     system_prompt = open("data/ToolTrajectory/prompts/react_system_prompt.txt", "r").read()
     eqa_react_agent = EQAReactAgent(
         tools=get_tool_box(gpu_id=gpu_id, args=args),
-        # llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct", device=f"cuda:{gpu_id}"),
+        llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct", device=f"cuda:{gpu_id}"),
         # llm_engine=QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-ft0827", device=f"cuda:{gpu_id}"),
-        llm_engine=GPTEngine("gpt-4o-mini"),
+        # llm_engine=GPTEngine("gpt-4o-mini"),
         system_prompt=system_prompt,
         add_base_tools=False,
         planning_interval=1,
@@ -283,10 +283,10 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--cfg", help="config", type=str, default="./config/react-eqa.yaml")
-    parser.add_argument("--data", help="data path", type=str, default="data/HM-EQA/questions.json")
-    parser.add_argument("--open-vocab", help="whether or not open vocabulary", type=bool, default=False)
-    parser.add_argument("--output", help="output direction", type=str, default="./results/EQA-RT-Seen.zs")
-    parser.add_argument("--gpus", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="7")
+    parser.add_argument("--data", help="data path", type=str, default="data/EQA-Traj-0720/trainval.json")
+    parser.add_argument("--open-vocab", help="whether or not open vocabulary", type=bool, default=True)
+    parser.add_argument("--output", help="output direction", type=str, default="./results/EQA-RT-Trainval.zs")
+    parser.add_argument("--gpus", help="Comma-separated GPU IDs to use (e.g., '0,1,2')", type=str, default="0,1,2,3,4,5,6,7")
     args = parser.parse_args()
 
     data = json.load(open(args.data))

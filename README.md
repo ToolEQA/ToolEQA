@@ -36,7 +36,7 @@ We introduce **ToolEQA**, an agent that integrates external tools with multi-ste
 Set up the conda environment (Linux, Python 3.9):
 ```
 conda env create -f environment.yml
-conda activate explore-eqa
+conda activate tool-eqa
 pip install -e .
 ```
 
@@ -124,10 +124,18 @@ sh data/ToolTrajectory/trajectory_gen/relationship/post_process.sh
 sh data/ToolTrajectory/trajectory_gen/status/post_process.sh
 ```
 
-# Train Qwen2.5VL
+# Train
+
+## SFT
 ```
-cd src/train/Qwen2.5-VL/qwen-vl-finetune/
+cd src/train/SFT/qwen-vl-finetune/
 sh scripts/sft_7b.sh
+```
+## RFT
+We use [verl](https://github.com/verl-project/verl) framework for reinforcement training of the model. Follow the installation from [official](https://verl.readthedocs.io/en/latest/start/install.html)
+```
+cd src/train/RFT/
+sh xxx
 ```
 
 # Run ToolEQA

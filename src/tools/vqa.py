@@ -27,8 +27,8 @@ class VisualQATool(Tool):
         self.cfg = OmegaConf.load(self.args.cfg)
         OmegaConf.resolve(self.cfg)
         
-        # self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct", device=f"cuda:{self.gpu_id}")
-        self.client = GPTEngine("gpt-4o-mini")
+        self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct", device=f"cuda:{self.gpu_id}")
+        # self.client = GPTEngine("gpt-4o-mini")
 
     def forward_qwen(self, question, image_paths) -> str:
         add_note = False
