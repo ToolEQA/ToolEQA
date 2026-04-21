@@ -1,0 +1,117 @@
+tools:
+  - class_name: src.train.RFT.verl_adapter.tool_wrappers.NavigateTool
+    config:
+      type: native
+      cfg_path: config/react-eqa.yaml
+      gpu_id: 0
+      open_vocab: true
+      debug: true
+    tool_schema:
+      type: function
+      function:
+        name: Navigate
+        description: Navigate to the next viewpoint.
+        parameters:
+          type: object
+          properties:
+            direction:
+              type: string
+              enum: [move_forward, turn_left, turn_right, turn_around]
+          required: [direction]
+
+  - class_name: src.train.RFT.verl_adapter.tool_wrappers.ObjectLocation2DTool
+    config:
+      type: native
+      cfg_path: config/react-eqa.yaml
+      gpu_id: 0
+      open_vocab: true
+      debug: true
+    tool_schema:
+      type: function
+      function:
+        name: ObjectLocation2D
+        description: Locate an object in the current image.
+        parameters:
+          type: object
+          properties:
+            object:
+              type: string
+          required: [object]
+
+  - class_name: src.train.RFT.verl_adapter.tool_wrappers.ObjectLocation3DTool
+    config:
+      type: native
+      cfg_path: config/react-eqa.yaml
+      gpu_id: 0
+      open_vocab: true
+      debug: true
+    tool_schema:
+      type: function
+      function:
+        name: ObjectLocation3D
+        description: Estimate an object's 3D location and size.
+        parameters:
+          type: object
+          properties:
+            object:
+              type: string
+          required: [object]
+
+  - class_name: src.train.RFT.verl_adapter.tool_wrappers.ObjectCropTool
+    config:
+      type: native
+      cfg_path: config/react-eqa.yaml
+      gpu_id: 0
+      open_vocab: true
+      debug: true
+    tool_schema:
+      type: function
+      function:
+        name: ObjectCrop
+        description: Crop an object region from the current image.
+        parameters:
+          type: object
+          properties:
+            bounding_box:
+              type: array
+              items:
+                type: number
+          required: [bounding_box]
+
+  - class_name: src.train.RFT.verl_adapter.tool_wrappers.VisualQAToolWrapper
+    config:
+      type: native
+      cfg_path: config/react-eqa.yaml
+      gpu_id: 0
+      open_vocab: true
+      debug: true
+    tool_schema:
+      type: function
+      function:
+        name: VisualQA
+        description: Ask a question about the current or cropped image.
+        parameters:
+          type: object
+          properties:
+            question:
+              type: string
+          required: [question]
+
+  - class_name: src.train.RFT.verl_adapter.tool_wrappers.FinalAnswerToolWrapper
+    config:
+      type: native
+      cfg_path: config/react-eqa.yaml
+      gpu_id: 0
+      open_vocab: true
+      debug: true
+    tool_schema:
+      type: function
+      function:
+        name: FinalAnswer
+        description: End the episode with the final answer.
+        parameters:
+          type: object
+          properties:
+            answer:
+              type: string
+          required: [answer]

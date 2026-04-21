@@ -1,0 +1,83 @@
+hydra:
+  searchpath:
+    - file:///home/zml/algorithm/ToolEQA/third_party/verl/verl/trainer/config
+
+defaults:
+  - ppo_trainer
+  - _self_
+
+data:
+  train_files: ["src/train/RFT/verl_adapter/data/tooleqa_train.sample.jsonl"]
+  val_files: ["src/train/RFT/verl_adapter/data/tooleqa_train.sample.jsonl"]
+  prompt_key: prompt
+  max_prompt_length: 4096
+  max_response_length: 512
+  train_batch_size: 1
+  val_batch_size: 1
+  return_raw_chat: true
+  shuffle: false
+
+actor_rollout_ref:
+  hybrid_engine: true
+  model:
+    path: /mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct
+    trust_remote_code: true
+  actor:
+    strategy: fsdp
+    ppo_mini_batch_size: 1
+    ppo_micro_batch_size_per_gpu: 1
+    use_dynamic_bsz: false
+  ref:
+    strategy: fsdp
+  rollout:
+    name: vllm
+    mode: async
+    temperature: 0.7
+    top_p: 0.95
+    prompt_length: 4096
+    response_length: 512
+    log_prob_micro_batch_size_per_gpu: 1
+    engine_kwargs:
+      vllm:
+        mm_processor_cache_gb: 0
+    multi_turn:
+      enable: true
+      max_user_turns: 1
+      max_assistant_turns: 8
+      tool_config_path: /home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/configs/tools_tooleqa.yaml
+      format: hermes
+    agent:
+      num_workers: 1
+      default_agent_loop: tooleqa_tool_agent
+      agent_loop_config_path: /home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/configs/tooleqa_agent_loop.yaml
+
+critic:
+  strategy: fsdp
+  ppo_mini_batch_size: 1
+  ppo_micro_batch_size_per_gpu: 1
+  model:
+    path: /mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct
+    trust_remote_code: true
+
+reward:
+  custom_reward_function:
+    path: /home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/reward_fn.py
+    name: compute_score
+
+algorithm:
+  adv_estimator: gae
+  kl_ctrl:
+    type: fixed
+    kl_coef: 0.02
+
+trainer:
+  project_name: tooleqa-verl
+  experiment_name: controller-ppo
+  total_epochs: 1
+  val_before_train: false
+  val_only: true
+  logger: ["console"]
+  n_gpus_per_node: 1
+  nnodes: 1
+  save_freq: -1
+  test_freq: -1

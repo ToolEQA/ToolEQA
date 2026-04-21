@@ -15,3 +15,4 @@ cache/
 *.log
 *.png
 *.jpg
+outputs/
