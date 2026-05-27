@@ -1,4 +1,4 @@
-from transformers import Tool
+from src.tools.compat import Tool
 
 class FinalAnswerTool(Tool):
     name = "final_answer"

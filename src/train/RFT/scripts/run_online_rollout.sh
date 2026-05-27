@@ -17,7 +17,7 @@ export MAGNUM_LOG="quiet"
 export PYTHONWARNINGS="ignore"
 
 # Use the verl-py312 environment
-export PATH=/tmp/verl-py312/bin:$PATH
+export PATH=/home/zml/programs/miniconda3/envs/verl-tooleqa/bin:$PATH
 
 CONFIG_PATH="$(cd "$(dirname "$0")" && pwd)/configs"
 

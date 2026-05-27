@@ -1,4 +1,4 @@
-from transformers import Tool
+from src.tools.compat import Tool
 import requests
 import base64
 from PIL import Image

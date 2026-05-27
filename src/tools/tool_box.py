@@ -6,7 +6,11 @@ from src.tools.segment_instance import SegmentInstanceTool
 from src.tools.final_answer import FinalAnswerTool
 from src.tools.crop import ObjectCrop
 
-from transformers.agents.tools import get_tool_description_with_args
+try:
+    from transformers.agents.tools import get_tool_description_with_args
+except Exception:
+    def get_tool_description_with_args(tool):
+        return f"{tool.name}: {getattr(tool, 'description', '')}\ninputs: {getattr(tool, 'inputs', {})}"
 
 def get_tool_box(debug=False, tool_box_selected=None, gpu_id=0, args=None):
     if debug:

@@ -16,3 +16,5 @@ cache/
 *.png
 *.jpg
 outputs/
+tensorboard_log/
+third_party/

@@ -1,4 +1,4 @@
-from transformers import Tool
+from src.tools.compat import Tool
 import cv2
 import numpy as np
 import base64

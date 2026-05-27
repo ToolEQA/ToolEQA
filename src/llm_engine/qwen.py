@@ -1,4 +1,23 @@
-from transformers.agents.llm_engine import MessageRole, HfApiEngine, get_clean_message_list
+try:
+    from transformers.agents.llm_engine import MessageRole, HfApiEngine, get_clean_message_list
+except Exception:
+    class MessageRole:
+        SYSTEM = "system"
+        USER = "user"
+        ASSISTANT = "assistant"
+        TOOL_RESPONSE = "tool-response"
+
+    class HfApiEngine:
+        pass
+
+    def get_clean_message_list(messages, role_conversions=None):
+        role_conversions = role_conversions or {}
+        cleaned = []
+        for msg in messages:
+            role = msg.get("role")
+            role = role_conversions.get(role, role)
+            cleaned.append({"role": role, "content": msg.get("content", "")})
+        return cleaned
 import re
 
 import torch
@@ -15,11 +34,16 @@ def load_pretrained_model(model_name, device):
     torch.manual_seed(0)
     print("from pretrained", model_name)
     if "VL" in model_name:
-        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-            model_name, 
-            torch_dtype="auto", 
+        use_flash_attn = str(device).startswith("cuda") and torch.cuda.is_available()
+        model_kwargs = dict(
+            torch_dtype="auto",
             device_map=device,
-            attn_implementation="flash_attention_2",
+        )
+        if use_flash_attn:
+            model_kwargs["attn_implementation"] = "flash_attention_2"
+        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            model_name,
+            **model_kwargs,
         )
         processor = AutoProcessor.from_pretrained(model_name)
         return model, processor

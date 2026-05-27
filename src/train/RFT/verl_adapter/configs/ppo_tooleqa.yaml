@@ -26,7 +26,7 @@ actor_rollout_ref:
     strategy: fsdp
     ppo_mini_batch_size: 1
     ppo_micro_batch_size_per_gpu: 1
-    use_dynamic_bsz: false
+    use_dynamic_bsz: true
   ref:
     strategy: fsdp
   rollout:

@@ -1,5 +1,24 @@
 from openai import AzureOpenAI, RateLimitError, OpenAI
-from transformers.agents.llm_engine import MessageRole, get_clean_message_list, HfApiEngine
+try:
+    from transformers.agents.llm_engine import MessageRole, get_clean_message_list, HfApiEngine
+except Exception:
+    class MessageRole:
+        SYSTEM = "system"
+        USER = "user"
+        ASSISTANT = "assistant"
+        TOOL_RESPONSE = "tool-response"
+
+    class HfApiEngine:
+        pass
+
+    def get_clean_message_list(messages, role_conversions=None):
+        role_conversions = role_conversions or {}
+        cleaned = []
+        for msg in messages:
+            role = msg.get("role")
+            role = role_conversions.get(role, role)
+            cleaned.append({"role": role, "content": msg.get("content", "")})
+        return cleaned
 import base64
 import re
 

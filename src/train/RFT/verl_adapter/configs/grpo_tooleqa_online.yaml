@@ -7,13 +7,13 @@ defaults:
   - _self_
 
 data:
-  train_files: ["src/train/RFT/verl_adapter/data/tooleqa_train_with_neg.jsonl"]
-  val_files: ["src/train/RFT/verl_adapter/data/tooleqa_train_with_neg.jsonl"]
+  train_files: ["src/train/RFT/verl_adapter/data/tooleqa_train.jsonl"]
+  val_files: ["src/train/RFT/verl_adapter/data/tooleqa_train.jsonl"]
   prompt_key: prompt
-  max_prompt_length: 4096
-  max_response_length: 512
-  train_batch_size: 1
-  val_batch_size: 1
+  max_prompt_length: 7168
+  max_response_length: 256
+  train_batch_size: 4
+  val_batch_size: 4
   return_raw_chat: true
   shuffle: false
 
@@ -30,9 +30,9 @@ actor_rollout_ref:
     enable_gradient_checkpointing: true
   actor:
     strategy: fsdp
-    ppo_mini_batch_size: 1
+    ppo_mini_batch_size: 3
     ppo_micro_batch_size_per_gpu: 1
-    use_dynamic_bsz: false
+    use_dynamic_bsz: true
     use_kl_loss: false
     kl_loss_coef: 0.0
     kl_loss_type: low_var_kl
@@ -53,11 +53,13 @@ actor_rollout_ref:
     free_cache_engine: false
     calculate_log_probs: true
     checkpoint_engine:
-      backend: nccl
+      backend: naive
     temperature: 0.7
     top_p: 0.95
-    prompt_length: 4096
-    response_length: 512
+    prompt_length: 7168
+    response_length: 256
+    max_model_len: 8192
+    max_num_seqs: 64
     log_prob_micro_batch_size_per_gpu: 1
     n: 2
     engine_kwargs:
@@ -98,8 +100,8 @@ trainer:
   total_epochs: 1
   val_before_train: false
   val_only: false
-  logger: ["console", "wandb"]
+  logger: ["console", "tensorboard"]
   n_gpus_per_node: 4
   nnodes: 1
-  save_freq: 100
+  save_freq: 50
   test_freq: -1

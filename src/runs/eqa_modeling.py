@@ -12,6 +12,7 @@ os.environ["HABITAT_SIM_LOG"] = (
     "quiet"  # https://aihabitat.org/docs/habitat-sim/logging.html
 )
 os.environ["MAGNUM_LOG"] = "quiet"
+os.environ["MAGNUM_GPU_CONTEXT"] = "egl"  # headless rendering for Ray workers
 import numpy as np
 
 np.set_printoptions(precision=3)

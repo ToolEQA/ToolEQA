@@ -1,4 +1,4 @@
-from transformers import Tool
+from src.tools.compat import Tool
 from src.runs.eqa_modeling import EQA_Modeling
 from src.runs.go2_driver import Go2Driver
 from omegaconf import OmegaConf
@@ -22,20 +22,25 @@ class GoNextPointTool(Tool):
         self.debug = kwargs.get("debug", False)
         self.args = kwargs.get("args", None)
         self.real_robot = kwargs.get("real_robot", False)
+        self.cfg = None
+        self.eqa_modeling = None
 
         if self.debug:
             return
-        
-        self.cfg = OmegaConf.load(self.args.cfg)
-        OmegaConf.resolve(self.cfg)
-
-        self.eqa_modeling = Go2Driver(self.cfg) if self.cfg.real_robot else EQA_Modeling(self.cfg, self.gpu_id)
 
         self.step_idx = -1
 
         self.cur_rgb_path = None
 
+    def _ensure_backend(self):
+        if self.debug or self.eqa_modeling is not None:
+            return
+        self.cfg = OmegaConf.load(self.args.cfg)
+        OmegaConf.resolve(self.cfg)
+        self.eqa_modeling = Go2Driver(self.cfg) if self.cfg.real_robot else EQA_Modeling(self.cfg, self.gpu_id)
+
     def initialize(self, data):
+        self._ensure_backend()
         self.cur_rgb_path = self.eqa_modeling.initialize(data)
         self.sample_id = data['sample_id']
         self.save_dir = os.path.join(self.cfg.output_dir, self.sample_id)
@@ -50,6 +55,7 @@ class GoNextPointTool(Tool):
 
         if self.debug:
             return "./cache/init_rgb.png"
+        self._ensure_backend()
         
         self.step_idx += 1
         save_path = os.path.join(self.save_dir, f"next_point_{self.step_idx}.jpg")

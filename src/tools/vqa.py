@@ -1,4 +1,4 @@
-from transformers import Tool
+from src.tools.compat import Tool
 from src.llm_engine.qwen import QwenEngine
 from src.llm_engine.gpt import GPTEngine
 import os
@@ -21,16 +21,21 @@ class VisualQATool(Tool):
         self.debug = kwargs.get("debug", False)
         self.gpu_id = kwargs.get("gpu_id", 0)
         self.args = kwargs.get("args", None)
+        self.cfg = None
+        self.client = None
         if self.debug:
             return
-        
+
+    def _ensure_client(self):
+        if self.debug or self.client is not None:
+            return
         self.cfg = OmegaConf.load(self.args.cfg)
         OmegaConf.resolve(self.cfg)
-        
         self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct", device=f"cuda:{self.gpu_id}")
         # self.client = GPTEngine("gpt-4o-mini")
 
     def forward_qwen(self, question, image_paths) -> str:
+        self._ensure_client()
         add_note = False
         if type(question) is not str:
             raise Exception("parameter question should be a string.")
@@ -69,6 +74,7 @@ class VisualQATool(Tool):
     def forward(self, question, image_path="", image_paths=""):
         if self.debug:
             return "This is a debug context."
+        self._ensure_client()
         if image_path != "":
             return self.forward_qwen(question, image_path)
         elif image_paths != "":

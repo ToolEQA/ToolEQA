@@ -5,7 +5,7 @@ import numpy as np
 import os
 from src.utils.shared_memory import client_send_image
 from PIL import Image
-from transformers import Tool
+from src.tools.compat import Tool
 from omegaconf import OmegaConf
 
 # authorized_types = ["string", "integer", "number", "image", "audio", "any", "boolean"]

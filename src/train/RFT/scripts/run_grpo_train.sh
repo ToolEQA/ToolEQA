@@ -6,20 +6,20 @@ RFT_DIR="$ROOT_DIR/src/train/RFT"
 ADAPTER_DIR="$RFT_DIR/verl_adapter"
 CONFIG_PATH="$ADAPTER_DIR/configs"
 
-PYTHON_BIN="${PYTHON_BIN:-/tmp/verl-py312/bin/python}"
-MODEL_PATH="${MODEL_PATH:-/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct}"
+PYTHON_BIN="${PYTHON_BIN:-/home/zml/programs/miniconda3/envs/verl-tooleqa/bin/python}"
+MODEL_PATH="${MODEL_PATH:-/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct}"
 TRAIN_FILE="${TRAIN_FILE:-$ADAPTER_DIR/data/tooleqa_train.jsonl}"
 VAL_FILE="${VAL_FILE:-$TRAIN_FILE}"
 CONFIG_NAME="${CONFIG_NAME:-grpo_tooleqa}"
-CUDA_VISIBLE_DEVICES_VALUE="${CUDA_VISIBLE_DEVICES:-0,1}"
+CUDA_VISIBLE_DEVICES_VALUE="${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5}"
 NNODES="${NNODES:-1}"
-TRAIN_GPUS_PER_NODE="${TRAIN_GPUS_PER_NODE:-1}"
-ROLLOUT_GPUS_PER_NODE="${ROLLOUT_GPUS_PER_NODE:-1}"
+TRAIN_GPUS_PER_NODE="${TRAIN_GPUS_PER_NODE:-4}"
+ROLLOUT_GPUS_PER_NODE="${ROLLOUT_GPUS_PER_NODE:-2}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-controller-grpo}"
 PROJECT_NAME="${PROJECT_NAME:-tooleqa-verl}"
-SAVE_FREQ="${SAVE_FREQ:--1}"
+SAVE_FREQ="${SAVE_FREQ:-2000}"
 TEST_FREQ="${TEST_FREQ:--1}"
-TOTAL_EPOCHS="${TOTAL_EPOCHS:-1}"
+TOTAL_EPOCHS="${TOTAL_EPOCHS:-3}"
 VAL_ONLY="${VAL_ONLY:-false}"
 ROLLOUT_GPU_MEM_UTIL="${ROLLOUT_GPU_MEM_UTIL:-0.85}"
 ROLLOUT_MAX_BATCHED_TOKENS="${ROLLOUT_MAX_BATCHED_TOKENS:-512}"
@@ -63,7 +63,7 @@ with open(config_path, "r", encoding="utf-8") as f:
     config = json.load(f)
 
 rope_scaling = config.get("rope_scaling")
-needs_patch = isinstance(rope_scaling, dict) and rope_scaling.get("type") == "mrope" and "rope_type" not in rope_scaling
+needs_patch = isinstance(rope_scaling, dict) and rope_scaling.get("type") == "mrope" and "type" not in rope_scaling
 
 if not needs_patch:
     print(model_path)
@@ -79,7 +79,7 @@ with open(patched_config_path, "r", encoding="utf-8") as f:
 
 patched_rope_scaling = dict(patched.get("rope_scaling") or {})
 if "type" in patched_rope_scaling:
-    patched_rope_scaling["rope_type"] = patched_rope_scaling.pop("type")
+    patched_rope_scaling["type"] = patched_rope_scaling.pop("type")
 elif "rope_type" not in patched_rope_scaling:
     patched_rope_scaling["rope_type"] = "mrope"
 patched["rope_scaling"] = patched_rope_scaling

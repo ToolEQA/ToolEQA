@@ -32,7 +32,12 @@ class ToolEQAEnvBridge:
         if self.debug:
             self.toolbox = self._build_mock_toolbox()
         else:
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(self.gpu_id)
+            # Only set CUDA_VISIBLE_DEVICES if not already configured by veRL
+            existing = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+            if existing.strip() in {"", "-1"}:
+                os.environ["CUDA_VISIBLE_DEVICES"] = str(self.gpu_id)
+            elif str(self.gpu_id) not in existing.split(","):
+                os.environ["CUDA_VISIBLE_DEVICES"] = existing + "," + str(self.gpu_id)
             from src.tools.tool_box import get_tool_box
 
             self.toolbox = get_tool_box(debug=self.debug, gpu_id=self.gpu_id, args=self.args)
