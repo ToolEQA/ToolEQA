@@ -6,6 +6,8 @@ from transformers.agents import ReactCodeAgent
 from src.tools.tool_box import get_tool_box
 from src.llm_engine.qwen import QwenEngine
 from src.llm_engine.gpt import GPTEngine
+from src.memory.spatial_memory import SpatialMemory
+from src.planner.eqa_planner import EQAPlanner
 import random
 import json
 import jsonlines
@@ -33,11 +35,11 @@ class EQAReactAgent(ReactCodeAgent):
         device: int = 0,
         **kwargs,
     ):
-        super().__init__(tools=tools, 
-                        llm_engine=llm_engine, 
-                        system_prompt=system_prompt, 
-                        tool_description_template=tool_description_template, 
-                        additional_authorized_imports=additional_authorized_imports, 
+        super().__init__(tools=tools,
+                        llm_engine=llm_engine,
+                        system_prompt=system_prompt,
+                        tool_description_template=tool_description_template,
+                        additional_authorized_imports=additional_authorized_imports,
                         planning_interval=planning_interval,
                         **kwargs
                         )
@@ -46,6 +48,7 @@ class EQAReactAgent(ReactCodeAgent):
         self.error_tolerance_count = error_tolerance_count
         self.letter = ["A", "B", "C", "D"]
         self.thought = []
+        self.spatial_memory = SpatialMemory()
 
     def set_image_path(self, image):
         self.image.clear()
@@ -123,6 +126,14 @@ class EQAReactAgent(ReactCodeAgent):
 
         self.prompt = agent_memory.copy()
 
+        # Append spatial memory to prompt
+        memory_text = self.spatial_memory.serialize()
+        if memory_text:
+            self.prompt.append({
+                "role": "user",
+                "content": f"[Spatial Memory]\n{memory_text}"
+            })
+
         self.logger.debug("===== New step =====")
 
         # Add new step in logs
@@ -182,6 +193,9 @@ class EQAReactAgent(ReactCodeAgent):
             current_step_logs["observation"] = information
 
             self.thought.append({"thought": rationale, "code": code_action, "observation": information})
+
+            # Update spatial memory from code execution result
+            self.spatial_memory.update_from_observation(code_action, information, len(self.thought))
         except Exception as e:
             error_msg = f"Code execution failed due to the following error:\n{str(e)}"
             if "'dict' object has no attribute 'read'" in str(e):
@@ -200,6 +214,7 @@ class EQAReactAgent(ReactCodeAgent):
         super().initialize_for_run()
 
         self.thought = []
+        self.spatial_memory.reset()
         for tool_name in self.toolbox._tools:
             tool = self.toolbox._tools[tool_name]
             if hasattr(tool, "initialize"):
@@ -221,9 +236,12 @@ class EQAReactAgent(ReactCodeAgent):
             if isinstance(proposals, str) and proposals != "":
                 proposals = ast.literal_eval(proposals)
             self.task = data["question"] + str([f"{self.letter[i]}. {p}" for i, p in enumerate(proposals)])
-        # if len(kwargs) > 0:
-        #     self.task += f"\nYou have been provided with these initial arguments: {str(kwargs)}."
-        # self.state = kwargs.copy()
+
+        # Append plan from data to task
+        plan_text = EQAPlanner.load_plan_from_data(data)
+        if plan_text:
+            self.task += f"\n\n{plan_text}"
+
         self.state = {}
         if reset:
             self.initialize_for_run(data)

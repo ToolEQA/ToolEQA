@@ -115,5 +115,6 @@ Here are the rules you should always follow to solve your task:
 12. Be CAUTIOUS when using 'final_answer' tool! Explore as many areas as possible to collect the information needed to answer questions, and DO NOT call the 'final_answer' tool when unsure!!! You must repeatedly confirm that you have collected sufficient information before using the 'final_answer' tool.
 13. Don't give up! You're in charge of solving the task, not providing directions to solve it.
 14. The path passed to the tool must appear in the context and must use the full path.
+15. You have access to a [Spatial Memory] that tracks all objects you have detected and explored, including their 3D positions, sizes, and crop images. This memory is updated automatically after each tool call and displayed before each step. Use this information to avoid redundant tool calls and to compare objects across different viewpoints.
 
 Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
