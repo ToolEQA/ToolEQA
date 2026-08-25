@@ -64,19 +64,15 @@ pip install -vvv --no-build-isolation -e .
 
 Install DetAny3D
 ```
-git clone https://github.com/zmling22/DetAny3D.git
-cd DetAny3D
+git submodule update --init --recursive third_party/DetAny3D
+cd third_party/DetAny3D
 # install SegmentAnything
 pip install git+https://github.com/facebookresearch/segment-anything.git
 # install UniDepth
-git clone https://github.com/lpiccinelli-eth/UniDepth.git
-cd UniDepth
-pip install -e . --extra-index-url https://download.pytorch.org/whl/cu118
-cd ..
-git clone https://github.com/IDEA-Research/GroundingDINO.git
-cd GroundingDINO
-pip install -e .
-cd ..
+pip install -e UniDepth --extra-index-url https://download.pytorch.org/whl/cu118
+# install GroundingDINO
+pip install -e GroundingDINO
+cd ../..
 ```
 
 # Data Generation Pipeline
@@ -141,12 +137,12 @@ sh xxx
 # Run ToolEQA
 ```
 # run DetAny3D
-cd DetAny3D
+cd third_party/DetAny3D
 python app_mp.py
 # run ToolEQA
-cd ../ToolEQA
-python src/agents/react_eqa_agent_mp.py --gpus 1,2,3,4
-# python src/agents/react_eqa_infer.py # run on single question.
+cd ../..
+python src/agents/tool_eqa_agent_mp.py --gpus 0,1,2
+# python src/agents/tool_eqa_infer.py --gpus 0 # run on a single question.
 ```
 
 # Evaluation
