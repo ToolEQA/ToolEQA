@@ -2,3 +2,7 @@
 	path = third_party/verl
 	url = https://github.com/ToolEQA/verl.git
 	branch = tooleqa-rft
+[submodule "third_party/DetAny3D"]
+	path = third_party/DetAny3D
+	url = https://github.com/zmling22/DetAny3D.git
+	branch = tooleqa-runtime
