@@ -1,0 +1,4 @@
+[submodule "third_party/verl"]
+	path = third_party/verl
+	url = https://github.com/ToolEQA/verl.git
+	branch = tooleqa-rft
