@@ -232,6 +232,9 @@ class EQA_Modeling():
         cam_pose = np.eye(4)
         cam_pose[:3, :3] = quaternion.as_rotation_matrix(quaternion_0)
         cam_pose[:3, 3] = translation_0
+        # Raw Habitat sensor-to-world pose.  DetAny3D centers are converted
+        # with this pose before they are exposed to the controller/reward.
+        self.cam_pose_habitat = cam_pose.copy()
         cam_pose_normal = pose_habitat_to_normal(cam_pose)
         self.cam_pose_tsdf = pose_normal_to_tsdf(cam_pose_normal)
 
@@ -421,6 +424,7 @@ class EQA_Modeling():
         cam_pose = np.eye(4)
         cam_pose[:3, :3] = quaternion.as_rotation_matrix(quaternion_0)
         cam_pose[:3, 3] = translation_0
+        self.cam_pose_habitat = cam_pose.copy()
         cam_pose_normal = pose_habitat_to_normal(cam_pose)
         self.cam_pose_tsdf = pose_normal_to_tsdf(cam_pose_normal)
 

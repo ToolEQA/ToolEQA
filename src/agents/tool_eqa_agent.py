@@ -6,6 +6,11 @@ from transformers.agents import ReactCodeAgent
 from src.tools.tool_box import get_tool_box
 from src.llm_engine.qwen import QwenEngine
 from src.llm_engine.gpt import GPTEngine
+from src.utils.compute_action import (
+    ComputeActionGuard,
+    DuplicateComputeActionError,
+    calls_registered_action,
+)
 import random
 import json
 import jsonlines
@@ -44,6 +49,7 @@ class EQAReactAgent(ReactCodeAgent):
         self.gpu_id = device
         self.error_tolerance_count = error_tolerance_count
         self.letter = ["A", "B", "C", "D"]
+        self.compute_action_guard = ComputeActionGuard()
 
     def set_image_path(self, image):
         self.image.clear()
@@ -161,7 +167,24 @@ class EQAReactAgent(ReactCodeAgent):
 
         # Execute
         self.log_rationale_code_action(rationale, code_action)
+        compute_signature = None
         try:
+            registered_actions = set(self.toolbox.tools) | set(self.custom_tools or {}) | {"final_answer"}
+            if not calls_registered_action(code_action, registered_actions):
+                current_step_logs["action_type"] = "Compute"
+                try:
+                    compute_signature = self.compute_action_guard.check(code_action, self.state)
+                except DuplicateComputeActionError:
+                    current_step_logs["compute_action"] = {
+                        "code": code_action,
+                        "duplicate_rejected": True,
+                    }
+                    raise
+                current_step_logs["compute_action"] = {
+                    "code": code_action,
+                    "input_signature": compute_signature,
+                    "duplicate_rejected": False,
+                }
             self.logger.info(f'authorized_imports {self.authorized_imports}')
             result = self.python_evaluator(
                 code_action,
@@ -177,6 +200,12 @@ class EQAReactAgent(ReactCodeAgent):
             self.logger.warning("Print outputs:")
             self.logger.log(32, information)
             current_step_logs["observation"] = information
+            if compute_signature is not None:
+                self.compute_action_guard.record(compute_signature)
+                current_step_logs["action_type"] = "Compute"
+                current_step_logs["compute_action"]["result"] = information
+            else:
+                current_step_logs["action_type"] = "Tool"
         except Exception as e:
             error_msg = f"Code execution failed due to the following error:\n{str(e)}"
             if "'dict' object has no attribute 'read'" in str(e):
@@ -193,6 +222,7 @@ class EQAReactAgent(ReactCodeAgent):
     def initialize_for_run(self, data):
         super().initialize_for_run()
 
+        self.compute_action_guard.reset()
         for tool_name in self.toolbox._tools:
             tool = self.toolbox._tools[tool_name]
             if hasattr(tool, "initialize"):

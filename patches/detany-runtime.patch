@@ -1,0 +1,36 @@
+diff --git a/app_mp.py b/app_mp.py
+index 3de5089..f3d8652 100644
+--- a/app_mp.py
++++ b/app_mp.py
+@@ -166,6 +166,7 @@ def worker_process(gpu_id):
+                 raise Exception("No image received")
+             
+             label_list = []
++            score_list = []
+             bbox_2d_list = []
+             
+             image_source_dino, image_dino = convert_image(img)
+@@ -184,8 +185,9 @@ def worker_process(gpu_id):
+             for i, box in enumerate(xyxy):
+                 bbox_2d_list.append(box.to(torch.int).cpu().numpy().tolist())
+                 label_list.append(phrases[i])
++                score_list.append(float(logits[i].item()))
+             
+-        return bbox_2d_list, label_list
++        return bbox_2d_list, label_list, score_list
+ 
+     def predict_3d(input_dict, text):
+         with torch.no_grad():
+@@ -369,10 +371,11 @@ def worker_process(gpu_id):
+                         'text': text
+                     }
+                 elif endpoint == "location_2d":
+-                    bbox_2d_list, label_list = predict_2d(input_dict, text)
++                    bbox_2d_list, label_list, score_list = predict_2d(input_dict, text)
+                     result = {
+                         'bboxes_2d': bbox_2d_list,
+                         'labels': label_list,
++                        'scores': score_list,
+                         'text': text
+                     }
+                 elif endpoint == "location_seg":

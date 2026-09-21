@@ -1,0 +1,6 @@
+- name: tooleqa_evidence_agent
+  _target_: src.train.RFT.verl_adapter.agent_loop.ToolEQAEvidenceAgentLoop
+  final_answer_reserve_tokens: 512
+  forced_final_max_tokens: 384
+  minimum_normal_turn_tokens: 128
+  normal_turn_max_tokens: 768

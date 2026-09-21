@@ -34,6 +34,10 @@ def make_simple_cfg(settings):
     # simulator backend
     sim_cfg = habitat_sim.SimulatorConfiguration()
     sim_cfg.scene_id = settings["scene"]
+    # ToolEQA navigation and RFT use RGB-D observations only. HM3D semantic
+    # descriptors (*.basis.scn) are optional assets and are not consumed by
+    # the VLM-scored TSDF map, DetAny3D, or the evidence reward.
+    sim_cfg.load_semantic_mesh = False
 
     # agent
     agent_cfg = habitat_sim.agent.AgentConfiguration()

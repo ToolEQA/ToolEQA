@@ -1,137 +1,302 @@
-# ToolEQA RFT
+# Evidence-Grounded RFT for ToolEQA
 
-这个目录用于放 `ToolEQA controller` 的强化微调相关设计、适配代码、启动脚本和说明。
+This directory implements the RFT stage proposed after the EMNLP submission:
+the paper's Planner → Controller → Spatial Memory → Executor architecture is
+kept intact, while a Qwen3-VL-8B-Instruct controller is optimized with GRPO
+using verified evidence-state changes.
 
-## 目录结构
+The old implementation rewarded requested object names, every Crop/VQA call,
+and exact action repetition heuristics. It was deleted because those signals
+could be increased without solving the embodied task. The replacement never
+rewards a tool call merely for occurring.
 
-- [强化.pdf](/home/zml/algorithm/ToolEQA/src/train/RFT/强化.pdf): 设计文档
-- [verl_controller_rft_plan.md](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_controller_rft_plan.md): 基于设计文档整理的执行计划
-- [scripts/run_grpo_train.sh](/home/zml/algorithm/ToolEQA/src/train/RFT/scripts/run_grpo_train.sh): 当前推荐的训练启动脚本
-- [verl_adapter](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter): `ToolEQA` 接入 `verl` 的适配层
+## Reward definition
 
-## 当前方案
+For rollout `τ`, let `C=Φ(mT)` be verified task-aware evidence coverage. The
+joint-stage objectives are:
 
-当前不是直接把原来的 `ReactCodeAgent` 拿去做 RL，而是把 `controller` 适配成 `verl` 的多轮 tool-calling 任务：
+```text
+Revidence = 2.0 C + sufficiency costs + C × efficiency costs
+Ranswer   = C × (+1 if correct else -1)
+```
 
-- `ToolEQA` 继续负责环境、工具和 Habitat 执行
-- `verl` 负责 rollout、GRPO 优势计算、策略更新和多轮 agent loop
-- 强化训练对象只包括 `controller`
-- `planner` 和底层工具执行逻辑保持固定
+VERL uses GDPO to normalize these dimensions independently within each prompt
+group. A correct unsupported guess therefore has the same answer objective as
+a wrong unsupported guess: zero. If all rollouts have zero evidence, both
+objectives are constant and the actor receives zero advantage instead of
+learning cheap guessing. The evidence-acquisition stage sets the answer
+dimension weight to zero; the joint stage enables both dimensions.
 
-## 当前训练入口
+`Φ(m)` is task-aware evidence coverage:
 
-当前默认训练入口是：
+| Question family | Required evidence per related object |
+| --- | --- |
+| size | grounding + verified 3D position + positive 3D size; all operands close a comparison fact |
+| distance | grounding + verified 3D position; all operands close a pairwise-distance fact |
+| counting | grounding + distinct verified 3D instance positions; the complete set closes a count fact |
+| location-location, location-special | grounding + verified 3D position + a visual observation of semantic context |
+| color, special attribute, status, relationship | grounding + an object-referencing VQA observation from the same view |
+| unknown/new types | grounding, with no guessed tool sequence |
+
+`ObjectLocation3D` measurements are accepted only in the Habitat world frame
+and only when the returned center is within the configured tolerance of the
+training annotation. Position and size are separate facts: distance/counting
+need positions, while dimension comparison additionally needs positive sizes.
+The online tool anchors each DetAny3D detection to the depth map captured with
+the same Habitat RGB frame before transforming it into world coordinates. This
+avoids treating DetAny3D's monocular absolute-depth estimate as simulator
+ground truth; DetAny3D still supplies open-vocabulary grounding and metric box
+dimensions, normalized to `[length, width, height]`.
+The audit records verified measurements, pairwise distances, volumes, heights,
+and deduplicated instance counts. These annotations are privileged reward-side
+inputs and never enter the policy prompt.
+
+Reward targets are materialized only in derived RFT manifests. Conversion
+copies candidate `related_objects` into `evidence_targets`, then records
+`reward_eligible` and a machine-readable `reward_audit`. It rejects duplicate
+answer options, missing or coincident operands, object labels that cannot be
+grounded in the question, attribute operands that occur only as contextual
+objects (for example, `table` in `lamp on the table`), and semantic duplicate
+tasks. Rejected rows go to `reward_quarantine.jsonl`; the original EQA-RT JSON
+is never edited. Both preflight and reward computation fail closed if these
+explicit audit fields are absent or invalid.
+
+The missing-answer term defaults to `-2.0`, so omitting `final_answer` is not a
+safe fallback. A forced final turn has its own per-turn budget and records
+`forced_final` separately.
+
+The defaults are in
+[`configs/evidence_grpo.yaml`](./verl_adapter/configs/evidence_grpo.yaml).
+All components are logged separately (`acc`, `evidence_coverage`, invalid,
+duplicate, no-progress, path cost, and so on). `compute_reward` also returns a
+full per-step audit for offline analysis.
+
+Evidence is paid once through terminal sufficiency. Per-step deltas remain
+diagnostic; because the state is monotonic, summing them would reproduce the
+same terminal coverage. GDPO supplies trajectory-level multi-objective
+advantages, not token-level process supervision.
+
+## What is implemented
+
+- `evidence.py`: deterministic task specification, evidence state, tool-result
+  validation, task-specific 3D operands, duplicate/context handling, and trace
+  replay.
+- `reward.py` / `reward_fn.py`: auditable reward plus the flat numeric VERL API.
+- `verl_adapter/agent_loop.py`: a Python controller loop using the original
+  single-pass Thought–Code action protocol. Each turn generates one
+  `Thought: ... Code: ... <end_action>` continuation, executes the Python Code,
+  and carries only the resulting Observation and Spatial Memory into later
+  prompts. Tool-free Python computation remains a valid action. Each
+  trajectory stores its full trace for reward calculation and uniformly
+  samples one exact turn prompt/completion for PPO, avoiding both
+  rollout/training context mismatch and extra weight for longer trajectories.
+  The rollout context is 16K, with at most 12K persistent prompt tokens and a
+  768-token cap for each complete Thought–Code action.
+- `trajectory_log.py`: one atomic JSON record per rollout, containing every
+  local thought, Code block, Observation, tool event, Spatial Memory snapshot,
+  termination state, and the exact reward audit attached by the reward worker.
+- `dataset.py`: streaming conversion of the 777 MB source JSON, evidence-target
+  auditing, quarantine output, and semantic-task deduplication; related objects,
+  positions, and answers remain privileged reward metadata and are not inserted
+  into the policy prompt.
+- `preflight.py`: checkpoint, dataset, simulator assets, Python stack, and
+  DetAny3D liveness checks.
+- `tests/`: reward-hacking regression tests.
+
+The persistent Spatial Memory is instance-aware for 3D detections. Repeated
+detections near the same world coordinate update one entry, while distinct
+same-category objects receive stable keys such as `bed` and `bed#2`. This is
+required for counting and for reasoning over multiple objects of one category.
+It also persists compact recent tool signatures and observations. A task
+checklist and next-action recommendations are enabled only when a deployable
+planner supplies non-privileged `policy_targets`; reward-side
+`evidence_targets` never enter policy-visible memory. Exact duplicate
+perception calls are rejected before tool execution; repeated navigation
+directions remain valid when the current viewpoint changed.
+
+Image-taking tools are bound to the active `GoNextPointTool` episode. A stale
+`next_point_N.jpg` left by another GRPO sample is replaced with the current
+registered view, while a DetAny3D no-detection result consistently returns
+`([], [])` rather than changing the two-value API contract.
+
+## Prepare data
+
+The converter makes a deterministic, disjoint, question-type-stratified split:
+25 audited examples for each of the nine types form the 225-example development
+set, and all remaining eligible examples stay in training. The official Seen
+and Unseen test sets remain untouched for final evaluation.
 
 ```bash
-python -m verl.experimental.one_step_off_policy.main_ppo
+src/train/RFT/scripts/prepare_data.sh
+src/train/RFT/scripts/prepare_balanced_manifests.sh
 ```
 
-虽然入口文件名里有 `ppo`，但当前实际算法是 `GRPO`，由配置里的：
-
-```yaml
-algorithm:
-  adv_estimator: grpo
-```
-
-控制。
-
-## 为什么用 One-Step-Off
-
-当前配置已经改成“训练卡 / rollout 卡分离”。
-
-原因是 `Qwen2.5-VL + FSDP actor/ref + vLLM rollout` 在单卡共置下很容易 OOM。现在默认走 `one_step_off_policy`：
-
-- 训练卡负责 `actor/ref`
-- rollout 卡负责 `vLLM rollout`
-- 不再让训练和 rollout 抢同一张 GPU
-
-对应配置在 [grpo_tooleqa.yaml](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/configs/grpo_tooleqa.yaml)：
-
-- `actor_rollout_ref.hybrid_engine: false`
-- 顶层 `rollout.n_gpus_per_node: 1`
-- `trainer.n_gpus_per_node: 1`
-
-## 当前 reward
-
-当前训练实际使用的是 [reward_fn.py](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/reward_fn.py)。
-
-它已经并入了 [reward_manager.py](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/reward_manager.py) 的过程奖励，当前有效项包括：
-
-- `r_ans`: 最终答案正确 `+1.0`，错误 `-1.0`
-- `r_redund`: 重复动作惩罚 `-0.05`
-- `r_prem`: 没找全相关对象就提前回答，惩罚 `-0.3`
-- `r_find`: 首次找到相关对象，奖励 `+0.2`
-- `r_info`: `ObjectCrop` / `VisualQA` 信息收集奖励 `+0.1`
-
-负样本逻辑也保留了：
-
-- `wrong_answer` 负样本命中错误答案时给 `0.3`
-- 其他负样本给 `0.0`
-
-## 最小启动方式
-
-默认脚本：
+For a quick converter check:
 
 ```bash
-bash src/train/RFT/scripts/run_grpo_train.sh
+src/train/RFT/scripts/prepare_data.sh --limit 100 --val-per-question-type 0 \
+  --output-dir /tmp/tooleqa-rft-data
+python -m unittest discover -s src/train/RFT/tests -v
+python -m src.train.RFT.dry_run
 ```
 
-当前脚本默认会使用：
+The default outputs are `train_reward_eligible.jsonl` (11,374 examples),
+`validation_reward_eligible.jsonl` (225 examples), and
+`reward_quarantine.jsonl`. The balanced training curriculum contains 50
+examples per type (450 total); periodic online validation contains five per
+type (45 total).
 
-- `PYTHON_BIN=/tmp/verl-py312/bin/python`
-- `CUDA_VISIBLE_DEVICES=0,1`
-- `TRAIN_GPUS_PER_NODE=1`
-- `ROLLOUT_GPUS_PER_NODE=1`
+## GPU layout and services
 
-也就是默认要求至少 2 张可见 GPU。
+This machine currently exposes five CUDA-usable L40 GPUs. Because broken NVML
+entries shift the final CUDA ordinal, the tested Ray mask is `0,1,2,4`: three
+cards for FSDP training and one for asynchronous vLLM rollout. Physical GPU 3
+is reserved for one DetAny3D worker. DetAny3D communicates on
+shared-memory channel 0, so its physical GPU need not share an index with the
+Ray process.
 
-如果只想先检查命令而不真正启动训练：
+In terminal 1:
 
 ```bash
-DRY_RUN=true bash src/train/RFT/scripts/run_grpo_train.sh
+src/train/RFT/scripts/run_detany3d.sh
 ```
 
-## 常用启动示例
+The script removes only stale IPC objects for its selected channel before
+starting. Override `DETANY_PYTHON`, `DETANY_GPU`, or `TOOLEQA_TOOL_GPU_ID` when
+using another installation/layout.
 
-双卡分离启动：
+## Train
+
+The default actor and rollout model is the untouched local
+`Qwen3-VL-8B-Instruct` checkpoint at
+`/mynvme0/models/Qwen/Qwen3-VL-8B-Instruct`. The rollout asks it to emit the
+same single-pass Thought–Code action used by the repository's inference agent;
+it does not use Qwen's `<think>` mode or a separate Code generation call.
+`MODEL_PATH` remains optional so an ablation can explicitly select another
+complete Hugging Face checkpoint; a standalone LoRA adapter is not accepted by
+vLLM.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 \
-TRAIN_GPUS_PER_NODE=1 \
-ROLLOUT_GPUS_PER_NODE=1 \
-bash src/train/RFT/scripts/run_grpo_train.sh
+src/train/RFT/scripts/run_evidence_grpo.sh
 ```
 
-指定在线训练配置：
+Print the fully resolved Hydra configuration without launching workers:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 \
-CONFIG_NAME=grpo_tooleqa_online \
-TRAIN_GPUS_PER_NODE=1 \
-ROLLOUT_GPUS_PER_NODE=1 \
-VAL_ONLY=false \
-bash src/train/RFT/scripts/run_grpo_train.sh
+DRY_RUN=1 SKIP_DETANY_CHECK=1 src/train/RFT/scripts/run_evidence_grpo.sh
 ```
 
-## 关键文件
+Common overrides can be appended directly:
 
-- [verl_adapter/env_bridge.py](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/env_bridge.py): ToolEQA 环境桥接
-- [verl_adapter/tool_wrappers.py](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/tool_wrappers.py): 工具包装
-- [verl_adapter/verl_tool_agent_loop.py](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/verl_tool_agent_loop.py): 自定义 agent loop
-- [verl_adapter/reward_fn.py](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/reward_fn.py): 当前生效的 reward
-- [verl_adapter/configs/grpo_tooleqa.yaml](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/configs/grpo_tooleqa.yaml): 默认 GRPO 配置
-- [verl_adapter/configs/grpo_tooleqa_online.yaml](/home/zml/algorithm/ToolEQA/src/train/RFT/verl_adapter/configs/grpo_tooleqa_online.yaml): 在线训练配置
+```bash
+MODEL_PATH=/path/to/checkpoint src/train/RFT/scripts/run_evidence_grpo.sh \
+  actor_rollout_ref.rollout.n=6 \
+  data.train_batch_size=1 \
+  reward.custom_reward_function.reward_kwargs.evidence_terminal=0.0
+```
 
-## 环境说明
+The last override gives the answer-only ablation. For the paper, report answer
+accuracy, evidence coverage/completion, grounded/position/size/visual fact
+counts, path length, invalid/repeated action rates, tool count, and Seen/Unseen
+generalization—not only the optimized return.
 
-当前本地 `verl` 安装和源码位置：
+All new run artifacts default to
+`/mynvme0/ToolEQA_RFT/<experiment_name>`. The repository-side output path is
+no longer used for new checkpoints. Full trajectory diagnostics are written to
+the run's `trajectories/step_N/` directory.
 
-- Python 环境：`/tmp/verl-py312`
-- `verl` 源码：`third_party/verl`
+Run deterministic fixed-set evaluation before and after a pilot with:
 
-脚本不会修改你原来的 `react-eqa` 环境，而是默认使用这个独立的 Python 3.12 环境。
+```bash
+src/train/RFT/scripts/run_fixed_eval.sh base
+src/train/RFT/scripts/merge_fsdp_checkpoint.sh \
+  /mynvme0/ToolEQA_RFT/eqa-rt-rft-instruct-thought-code-stage1-balanced450/checkpoints/global_step_450
+src/train/RFT/scripts/run_fixed_eval.sh checkpoint
+```
 
-## 备注
+The merge command converts the rank-local FSDP actor shards into a standard
+Hugging Face checkpoint without changing the original optimizer-bearing
+checkpoint. Checkpoint evaluation defaults to the merged stage-1 step-450 model
+and starts a fresh validation-only job. Both modes use the same balanced,
+audited 225-example validation file, one greedy trajectory per example, and separate output
+directories. Summarize either directory with
+`python -m src.train.RFT.summarize_rollouts <validation-dir>`.
 
-- 当前 `run_grpo_train.sh` 会在可见 GPU 数不足时直接报错退出，避免再次落回“训练和 rollout 共置一张卡导致 OOM”的情况。
-- `verl_adapter/README.md` 记录的是更细的 adapter 说明；本 README 主要面向这个目录的整体使用。
+Training is staged. First train evidence acquisition from the untouched model:
+
+```bash
+src/train/RFT/scripts/run_stage1_evidence.sh
+```
+
+After merging the selected stage-1 checkpoint, run the 100-step joint pilot
+with gated answer reward and the largest useful rollout group for the current
+three-rank/one-environment layout (`n=12`):
+
+```bash
+src/train/RFT/scripts/run_joint_pilot_100.sh
+```
+
+It evaluates before training and at steps 25/50/75/100. Validation records
+include the paper metrics (success, Recall@5/10/15, EPath@5/10/15, trajectory
+length), raw equation-(5) recall, evidence metrics, and protocol-level tool
+call accuracy. Only the two newest full checkpoints are retained because each
+optimizer-bearing checkpoint occupies about 50 GB.
+
+Stage 1 traverses a 450-example balanced curriculum once with six rollouts per
+prompt. Its first three 50-example blocks introduce visual grounding,
+single-object 3D tasks, and pairwise 3D tasks; the remaining 300 examples mix
+all nine types. It validates on a balanced 45-example subset every 50 steps and
+disables answer advantage and early efficiency costs. Merge its final actor
+before the joint stage because native FSDP resume is broken on this host:
+
+```bash
+src/train/RFT/scripts/merge_fsdp_checkpoint.sh \
+  /mynvme0/ToolEQA_RFT/eqa-rt-rft-v6-evidence-stage1-balanced450/checkpoints/global_step_450
+src/train/RFT/scripts/run_stage2_joint.sh
+```
+
+The 450-step joint stage gates answer learning by verified coverage and
+restores small no-progress, tool, and path costs. Run the full 225-example
+fixed evaluation at each stage boundary. A shorter 100-step diagnostic remains
+available as:
+
+```bash
+src/train/RFT/scripts/run_pilot_100.sh
+```
+
+It uses six GRPO trajectories per prompt, validates every 50 steps, saves every
+50 steps, and retains only the newest actor checkpoint. Each checkpoint is
+about 50 GB because optimizer state is included. On this host, PyTorch 2.9
+currently segfaults while restoring the rank-local FSDP DTensor state, so the
+pilot deliberately starts with `resume_mode=disable`. Saved actor shards can be
+merged for evaluation with `merge_fsdp_checkpoint.sh`; do not claim optimizer
+resume support until the native FSDP restore smoke test passes.
+
+## Required external assets
+
+Online RFT needs the HM3D and OpenEQA scene directories configured by
+`config/react-eqa.yaml`. They are intentionally not stored in Git. Preflight
+fails rather than silently running a non-embodied/debug rollout when those
+directories are absent.
+# Shared evaluation modules
+
+Python evaluation implementations now live in `src/evaluation/`:
+`paper_metrics.py`, `open_protocol.py`, `frozen_service.py`, `official_eval.py`,
+`summarize_rollouts.py`, `resume_official.py`, and `select_open_checkpoint.py`.
+The matching RFT modules remain compatibility aliases; reward training stays here.
+Metric formulas, judge prompts, protocol IDs and cache keys are unchanged.
+
+Preview full evaluation without launching jobs:
+
+```bash
+python -m src.evaluation.run_open_eval --run-root /path/to/run
+python -m src.evaluation.summarize_rollouts /path/to/validation/150.jsonl
+```
+
+Add `--execute` to launch full evaluation only after training finishes and
+checkpoint-selection audits pass. The Python entry refuses active-run locks and
+existing output files. It uses the existing training launch/merge shell helpers;
+no shell scripts are placed in `src/evaluation/`.
+The existing selector's strict duplicate-trajectory audit is unchanged: padded
+development trajectories still require a separate audit fix before automatic
+selection can succeed. This migration does not certify cross-split isolation.

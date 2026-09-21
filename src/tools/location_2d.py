@@ -11,7 +11,10 @@ from omegaconf import OmegaConf
 # authorized_types = ["string", "integer", "number", "image", "audio", "any", "boolean"]
 class ObjectLocation2D(Tool):
     name = "ObjectLocation2D"
-    description = "A tool that can localize objects in given images, outputing the bounding boxes of the objects."
+    description = (
+        "Localize objects in an image and return their 2D bounding boxes. Use the exact image "
+        "path returned by GoNextPointTool."
+    )
     inputs = {
         "object": {"description": "the object that need to be localized", "type": "string"},
         "image_path": {
@@ -26,6 +29,8 @@ class ObjectLocation2D(Tool):
         self.debug = kwargs.get("debug", False)
         self.gpu_id = kwargs.get("gpu_id", 0)
         self.args = kwargs.get("args", None)
+        self.last_resolved_image_paths = []
+        self.navigation_tool = None
         if self.debug:
             return
         
@@ -34,16 +39,27 @@ class ObjectLocation2D(Tool):
 
         self.endpoint = "location_2d"
 
+    def bind_navigation_tool(self, navigation_tool):
+        self.navigation_tool = navigation_tool
+
+    def _resolve_image_path(self, image_path: str) -> str:
+        if self.navigation_tool is not None:
+            return self.navigation_tool.resolve_image_path(image_path, fallback_to_current=True)
+        candidates = [image_path]
+        if not os.path.isabs(image_path):
+            candidates.extend([os.path.join(self.cfg.output_dir, image_path), os.path.join(os.sep, image_path)])
+        for candidate in candidates:
+            if os.path.isfile(candidate):
+                return os.path.realpath(os.path.abspath(candidate))
+        raise FileNotFoundError(f"No usable image is available for {image_path!r}")
+
     def forward(self, object: str, image_path: str) -> list:
         if self.debug:
             return [0, 0, 0, 0]
         
-        if not os.path.exists(image_path):
-            if not os.path.exists("/"+image_path):
-                image_path = os.path.join(self.cfg.output_dir, image_path)
-            else:
-                image_path = "/" + image_path
+        image_path = self._resolve_image_path(image_path)
         image = np.array(Image.open(image_path).convert("RGB"))
+        self.last_resolved_image_paths = [os.path.realpath(os.path.abspath(image_path))]
 
         data = {
             'endpoint': self.endpoint,
@@ -52,12 +68,17 @@ class ObjectLocation2D(Tool):
         }
 
         res = client_send_image(data, self.gpu_id)
-        bboxes = res['bboxes_2d']
-        labels = res['labels']
-
         if "error" in res.keys():
-            raise Exception(f"Error: {res['error']}")
-        
+            error = str(res["error"])
+            if "no object" in error.lower() or "not found" in error.lower():
+                return {
+                    "bboxes_2d": [],
+                    "labels": [],
+                    "scores": [],
+                    "image_size": [int(image.shape[1]), int(image.shape[0])],
+                }
+            raise RuntimeError(f"2D localization failed for {object!r}: {error}")
+        res["image_size"] = [int(image.shape[1]), int(image.shape[0])]
         return res
 
     def draw_2dbox(self, img, bboxes, labels=None, output="output_det2d.jpg"):

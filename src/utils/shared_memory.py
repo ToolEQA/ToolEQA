@@ -1,4 +1,5 @@
 import posix_ipc
+import fcntl
 import mmap
 import numpy as np
 import atexit
@@ -9,24 +10,31 @@ import torch
 
 def client_send_image(data, device=0):
     """客户端发送单次请求"""
-    try:
-        # 连接服务端创建的资源
-        shm_img = SharedMemoryManager(f"image_data_{device}")
-        shm_result = SharedMemoryManager(f"result_data_{device}")
+    # 通道是单请求/单响应槽位，多进程并发写入会互相覆盖。
+    # 用跨进程文件锁把整个请求-响应序列化。
+    lock_path = f"/tmp/tooleqa_detany_channel_{device}.lock"
+    with open(lock_path, "a") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            # 连接服务端创建的资源
+            shm_img = SharedMemoryManager(f"image_data_{device}")
+            shm_result = SharedMemoryManager(f"result_data_{device}")
 
-        # 发送数据
-        # print("[A] 发送图像数据...")
-        shm_img.write_data(data)
+            # 发送数据
+            # print("[A] 发送图像数据...")
+            shm_img.write_data(data)
 
-        # 等待结果
-        # print("[A] 等待处理结果...")
-        shm_result.wait_done()
-        result = shm_result.read_data()
-        
-        return result
+            # 等待结果
+            # print("[A] 等待处理结果...")
+            shm_result.wait_done()
+            result = shm_result.read_data()
 
-    except Exception as e:
-        raise f"[A] 通信错误: {str(e)}"
+            return result
+
+        except Exception as e:
+            raise f"[A] 通信错误: {str(e)}"
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 class SharedMemoryManager:
     def __init__(self, name, size=0, create=False, is_server=False):

@@ -6,7 +6,10 @@ from omegaconf import OmegaConf
 
 class VisualQATool(Tool):
     name = "VisualQATool"
-    description = "A tool that can answer questions about attached images."
+    description = (
+        "Answer a question about one or more observed images. Use exact paths returned by "
+        "GoNextPointTool or ObjectCrop."
+    )
     inputs = {
         "question": {"description": "the question to answer", "type": "string"},
         "image_paths": {
@@ -23,6 +26,8 @@ class VisualQATool(Tool):
         self.args = kwargs.get("args", None)
         self.cfg = None
         self.client = None
+        self.last_resolved_image_paths = []
+        self.navigation_tool = None
         if self.debug:
             return
 
@@ -33,6 +38,20 @@ class VisualQATool(Tool):
         OmegaConf.resolve(self.cfg)
         self.client = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-3B-Instruct", device=f"cuda:{self.gpu_id}")
         # self.client = GPTEngine("gpt-4o-mini")
+
+    def bind_navigation_tool(self, navigation_tool):
+        self.navigation_tool = navigation_tool
+
+    def _resolve_image_path(self, image_path: str) -> str:
+        if self.navigation_tool is not None:
+            return self.navigation_tool.resolve_image_path(image_path, fallback_to_current=True)
+        candidates = [image_path]
+        if not os.path.isabs(image_path):
+            candidates.extend([os.path.join(self.cfg.output_dir, image_path), os.path.join(os.sep, image_path)])
+        for candidate in candidates:
+            if os.path.isfile(candidate):
+                return os.path.realpath(os.path.abspath(candidate))
+        raise FileNotFoundError(f"No usable image is available for {image_path!r}")
 
     def forward_qwen(self, question, image_paths) -> str:
         self._ensure_client()
@@ -51,19 +70,17 @@ class VisualQATool(Tool):
             print ('The type of input image is ', type(image_paths))
             raise Exception("The type of input image should be string (image path)")
 
+        resolved_image_paths = []
         for image_path in image_paths:
-            if not os.path.exists(image_path):
-                if not os.path.exists("/"+image_path):
-                    image_path = os.path.join(self.cfg.output_dir, image_path)
-                else:
-                    image_path = "/" + image_path
+            resolved_image_paths.append(self._resolve_image_path(image_path))
+        self.last_resolved_image_paths = resolved_image_paths
 
         messages = [
             {"role": "user", "content": question}
         ]
         output = self.client.call_vlm(
             messages,
-            image_paths = image_paths
+            image_paths = resolved_image_paths
         )
 
         if add_note:

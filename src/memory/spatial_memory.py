@@ -24,6 +24,63 @@ class SpatialMemory:
         self.explored_steps: int = 0
         self.detected_objects: Dict[str, Dict[str, Any]] = {}
         self.vqa_results: List[Dict[str, Any]] = []
+        self.current_image_path: str = ""
+        self.task_targets: List[str] = []
+        self.target_requirements: List[str] = []
+        self.action_history: List[Dict[str, Any]] = []
+
+    def configure_task(self, sample: Dict[str, Any]) -> None:
+        """Configure a deployable evidence checklist without exposing gold poses."""
+        question_type = str(sample.get("question_type", "")).lower().replace("_", "-")
+        if question_type == "attribute-size":
+            requirements = ["grounded", "position", "size"]
+        elif question_type.startswith(("distance", "count")):
+            requirements = ["grounded", "position"]
+        elif question_type.startswith("location"):
+            requirements = ["grounded", "position", "visual"]
+        else:
+            requirements = ["grounded", "visual"]
+
+        targets: List[str] = []
+        # Reward-side ``evidence_targets`` / ``related_objects`` are privileged
+        # annotations. Only planner-produced, deployable targets may enter the
+        # policy-visible memory.
+        for obj in sample.get("policy_targets") or []:
+            if not isinstance(obj, dict):
+                continue
+            name = str(obj.get("name", "")).strip().lower()
+            if name and name not in targets:
+                targets.append(name)
+        self.task_targets = targets
+        self.target_requirements = requirements
+
+    def record_action(
+        self,
+        tool_name: str,
+        tool_args: Dict[str, Any],
+        tool_result: Any,
+        step_idx: int,
+        *,
+        ok: bool,
+        error: Optional[str] = None,
+        duplicate_rejected: bool = False,
+    ) -> None:
+        """Persist compact tool history so discarded Code cannot cause loops."""
+        if tool_name == "GoNextPointTool" and ok and isinstance(tool_result, str):
+            self.current_image_path = tool_result
+        summary = str(tool_result if ok else error or "failed")
+        self.action_history.append(
+            {
+                "step": int(step_idx),
+                "tool": tool_name,
+                "args": dict(tool_args),
+                "ok": bool(ok),
+                "duplicate_rejected": bool(duplicate_rejected),
+                "result": summary[:240],
+            }
+        )
+        if len(self.action_history) > 12:
+            self.action_history = self.action_history[-12:]
 
     # ------------------------------------------------------------------
     # Programmatic update (when structured tool output is available)
@@ -39,6 +96,8 @@ class SpatialMemory:
         """Update buffer from structured tool output."""
         if tool_name == "GoNextPointTool":
             self.explored_steps += 1
+            if isinstance(tool_result, str):
+                self.current_image_path = tool_result
 
         elif tool_name == "ObjectLocation3D":
             self._update_location_3d(tool_args, tool_result, step_idx)
@@ -56,17 +115,20 @@ class SpatialMemory:
         self, args: Dict[str, Any], result: Any, step_idx: int
     ) -> None:
         obj_name = args.get("object", "unknown")
-        center, size = None, None
+        centers: List[List[float]] = []
+        sizes: List[List[float]] = []
         if isinstance(result, (tuple, list)) and len(result) >= 2:
-            center = self._extract_xyz(result[0])
-            size = self._extract_xyz(result[1])
-        if center is None:
+            centers = self._extract_xyz_list(result[0])
+            sizes = self._extract_xyz_list(result[1])
+        if not centers:
             return
-        entry = self._get_or_create_object(obj_name)
-        entry["position"] = center
-        entry["size"] = size
-        entry["step"] = step_idx
-        entry["image_path"] = args.get("image_path", "")
+        for index, center in enumerate(centers):
+            size = sizes[index] if index < len(sizes) else None
+            entry = self._upsert_3d_instance(obj_name, center)
+            entry["position"] = center
+            entry["size"] = size
+            entry["step"] = step_idx
+            entry["image_path"] = args.get("image_path", "")
 
     def _update_location_2d(
         self, args: Dict[str, Any], result: Any, step_idx: int
@@ -123,7 +185,7 @@ class SpatialMemory:
             obj = self._extract_tool_arg(code_text, "object")
             center, size = self._parse_3d_result(observation_text)
             if obj and center:
-                entry = self._get_or_create_object(obj)
+                entry = self._upsert_3d_instance(obj, center)
                 entry["position"] = center
                 entry["size"] = size
                 entry["step"] = step_idx
@@ -256,6 +318,16 @@ class SpatialMemory:
         lines = ["[Spatial Memory]"]
         lines.append(f"Explored: {self.explored_steps} viewpoints")
 
+        checklist = self.evidence_checklist()
+        if checklist:
+            lines.append("Evidence checklist:")
+            for target, status in checklist.items():
+                rendered = ", ".join(
+                    f"{requirement}={'done' if done else 'missing'}"
+                    for requirement, done in status.items()
+                )
+                lines.append(f"  - {target}: {rendered}")
+
         if self.detected_objects:
             lines.append("Detected objects:")
             for name, info in self.detected_objects.items():
@@ -277,7 +349,79 @@ class SpatialMemory:
                 a = vqa["answer"][:120]
                 lines.append(f"  - step {vqa['step']}: Q=\"{q}\" A=\"{a}\"")
 
+        if self.action_history:
+            lines.append("Recent actions (never repeat an identical action with the same inputs):")
+            for action in self.action_history[-6:]:
+                state = "duplicate-rejected" if action["duplicate_rejected"] else (
+                    "ok" if action["ok"] else "failed"
+                )
+                lines.append(
+                    f"  - step {action['step']}: {action['tool']}({action['args']}) -> {state}"
+                )
+
+        recommendations = self.recommended_next_actions()
+        if recommendations:
+            lines.append("Recommended next evidence actions:")
+            lines.extend(f"  - {item}" for item in recommendations[:4])
+
         return "\n".join(lines)
+
+    @staticmethod
+    def _base_name(value: str) -> str:
+        return value.lower().split("#", 1)[0].strip()
+
+    def _entries_for_target(self, target: str) -> List[Dict[str, Any]]:
+        target_base = self._base_name(target)
+        return [
+            info
+            for name, info in self.detected_objects.items()
+            if self._base_name(name) == target_base
+            or target_base in self._base_name(name)
+            or self._base_name(name) in target_base
+        ]
+
+    def evidence_checklist(self) -> Dict[str, Dict[str, bool]]:
+        checklist: Dict[str, Dict[str, bool]] = {}
+        for target in self.task_targets:
+            entries = self._entries_for_target(target)
+            visual = any(target in str(item.get("question", "")).lower() for item in self.vqa_results)
+            checklist[target] = {
+                requirement: (
+                    bool(entries)
+                    if requirement == "grounded"
+                    else any(entry.get(requirement) is not None for entry in entries)
+                    if requirement in {"position", "size"}
+                    else visual
+                )
+                for requirement in self.target_requirements
+            }
+        return checklist
+
+    def recommended_next_actions(self) -> List[str]:
+        recommendations: List[str] = []
+        checklist = self.evidence_checklist()
+        for target, status in checklist.items():
+            entries = self._entries_for_target(target)
+            if not status.get("grounded", False):
+                tool = (
+                    "ObjectLocation3D"
+                    if "position" in self.target_requirements or "size" in self.target_requirements
+                    else "ObjectLocation2D"
+                )
+                recommendations.append(f"Run {tool} for {target} on the current view; navigate only if empty.")
+                continue
+            if not status.get("position", True) or not status.get("size", True):
+                recommendations.append(f"Run ObjectLocation3D for {target} on its grounded image.")
+            if not status.get("visual", True):
+                crops = [path for entry in entries for path in entry.get("crop_paths", [])]
+                bboxes = [entry.get("bbox_2d") for entry in entries if entry.get("bbox_2d")]
+                if crops:
+                    recommendations.append(f"Run VisualQATool for {target} using its stored crop path.")
+                elif bboxes:
+                    recommendations.append(f"Crop the stored {target} bbox, then run VisualQATool next turn.")
+                else:
+                    recommendations.append(f"Run ObjectLocation2D for {target} before crop/VQA.")
+        return recommendations
 
     def serialize_with_relations(self, distance_threshold: float = 1.5) -> str:
         """Serialize with spatial relations (scene graph format)."""
@@ -321,8 +465,12 @@ class SpatialMemory:
                 rel_list.append({"type": rel_type, "from": a, "to": b, **meta})
         return {
             "explored_steps": self.explored_steps,
+            "current_image_path": self.current_image_path,
             "detected_objects": dict(self.detected_objects),
             "vqa_results": list(self.vqa_results),
+            "evidence_checklist": self.evidence_checklist(),
+            "recommended_next_actions": self.recommended_next_actions(),
+            "action_history": list(self.action_history),
             "relations": rel_list,
         }
 
@@ -341,6 +489,7 @@ class SpatialMemory:
         key = name.strip().lower()
         if key not in self.detected_objects:
             self.detected_objects[key] = {
+                "category": key.split("#", 1)[0],
                 "position": None,
                 "size": None,
                 "step": None,
@@ -349,6 +498,38 @@ class SpatialMemory:
                 "bbox_2d": None,
             }
         return self.detected_objects[key]
+
+    def _upsert_3d_instance(
+        self, name: str, center: List[float], merge_distance: float = 0.75
+    ) -> Dict[str, Any]:
+        """Return a stable instance entry, deduplicating repeat world detections."""
+        category = name.strip().lower().split("#", 1)[0]
+        closest_key: Optional[str] = None
+        closest_distance = math.inf
+        empty_key: Optional[str] = None
+        for key, info in self.detected_objects.items():
+            if info.get("category", key.split("#", 1)[0]) != category:
+                continue
+            position = info.get("position")
+            if position is None:
+                empty_key = empty_key or key
+                continue
+            distance = math.sqrt(sum((float(a) - float(b)) ** 2 for a, b in zip(center, position)))
+            if distance < closest_distance:
+                closest_key = key
+                closest_distance = distance
+
+        if closest_key is not None and closest_distance <= merge_distance:
+            return self.detected_objects[closest_key]
+        if empty_key is not None:
+            return self.detected_objects[empty_key]
+
+        key = category
+        suffix = 2
+        while key in self.detected_objects:
+            key = f"{category}#{suffix}"
+            suffix += 1
+        return self._get_or_create_object(key)
 
     def _infer_crop_object(self, args: Dict[str, Any]) -> Optional[str]:
         bbox = args.get("bounding_box") or args.get("bbox")
@@ -379,6 +560,20 @@ class SpatialMemory:
             except (ValueError, TypeError):
                 return None
         return None
+
+    @classmethod
+    def _extract_xyz_list(cls, raw: Any) -> List[List[float]]:
+        if not isinstance(raw, (list, tuple)) or not raw:
+            return []
+        if not isinstance(raw[0], (list, tuple)):
+            vector = cls._extract_xyz(raw)
+            return [vector] if vector is not None else []
+        vectors: List[List[float]] = []
+        for item in raw:
+            vector = cls._extract_xyz(item)
+            if vector is not None:
+                vectors.append(vector)
+        return vectors
 
     @staticmethod
     def _extract_tool_arg(code_text: str, arg_name: str) -> Optional[str]:

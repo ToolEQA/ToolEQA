@@ -254,6 +254,6 @@ class QwenEngine(HfApiEngine):
         
 if __name__ == "__main__":
     qwen = QwenEngine("/mynvme0/models/Qwen/Qwen2.5-VL-7B-Instruct", device="cuda:0")
-    response = qwen([{"role": "user", "content": "You are a robotic dog observing the environment from a first person perspective. If you are looking for a sofa, would you choose to move forward 0.5 meters, turn left 45 degrees, or turn right 45 degrees? Don't say anything else, just give me your choice"}], image_paths=["/home/zml/algorithm/ReactEQA/cache/real_test/e9cfd118-3677-46d1-8332-eaed69bd6d91/init_rgb.jpg"])
+    response = qwen([{"role": "user", "content": "You are a robotic dog observing the environment from a first person perspective. If you are looking for a sofa, would you choose to move forward 0.25 meters, turn left 30 degrees, or turn right 30 degrees? Don't say anything else, just give me your choice"}], image_paths=["/home/zml/algorithm/ReactEQA/cache/real_test/e9cfd118-3677-46d1-8332-eaed69bd6d91/init_rgb.jpg"])
     # model, tokenizer = load_pretrained_model("/mynvme0/models/Qwen2-VL/Qwen2-VL-7B-Instruct/")
     print(response)

@@ -216,7 +216,7 @@ class Go2Driver:
         # exit()
         return observation
 
-    def go_next_point(self, command, stride_forward=0.5, stride_turn=45):
+    def go_next_point(self, command, stride_forward=0.25, stride_turn=30):
         # self.action_queue.append(command)
         # if command == "move_forward":
         #     self.move_forward(stride_forward)
@@ -235,11 +235,11 @@ class Go2Driver:
 
     def execute_action_queue(self, action):
         if action == "move_forward":
-            self.move_forward(1)
+            self.move_forward(0.25)
         elif action == "turn_left":
-            self.turn(45)
+            self.turn(30)
         elif action == "turn_right":
-            self.turn(-45)
+            self.turn(-30)
         elif action == "turn_around":
             self.turn(180)
         else:

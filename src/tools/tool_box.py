@@ -43,6 +43,13 @@ def get_tool_box(debug=False, tool_box_selected=None, gpu_id=0, args=None):
             MODEL_TOOLBOX = []
             for tb in tool_box_selected:
                 MODEL_TOOLBOX.append(tb)
+    navigation_tool = next(
+        (tool for tool in MODEL_TOOLBOX if getattr(tool, "name", "") == "GoNextPointTool"),
+        None,
+    )
+    for tool in MODEL_TOOLBOX:
+        if hasattr(tool, "bind_navigation_tool"):
+            tool.bind_navigation_tool(navigation_tool)
     return MODEL_TOOLBOX
 
 

@@ -95,7 +95,7 @@ Observation: No, the picture is taller.
 
 Above example were using notional tools that might not exist for you. You ONLY have access to those tools, and do not use tools that have not been mentioned:
 <<tool_descriptions>>
-You also can perform computations in the Python code that you generate.
+Tool-free Python computation is a valid Compute action when it derives a result from values already observed in this episode. Print the result so it is recorded as the Observation. Compute cannot create new perceptual evidence, and you must not repeat identical Compute code with identical input values.
 
 Here are the rules you should always follow to solve your task:
 1. Always provide a 'Thought:' sequence, and a 'Code:\n```py' sequence ending with '```<end_action>' sequence, else you will fail.

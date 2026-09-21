@@ -564,9 +564,9 @@ If the distance is below {self.obstacle_distance_thresh:.2f} m, you should treat
 
         prompt = f"""
 You are controlling a quadruped robot to explore an unknown environment using ONLY three discrete actions:
-- move_forward: move forward about 0.5 meter
-- turn_left: rotate about 45 degrees to the left (in place)
-- turn_right: rotate about 45 degrees to the right (in place)
+- move_forward: move forward about 0.25 meter
+- turn_left: rotate about 30 degrees to the left (in place)
+- turn_right: rotate about 30 degrees to the right (in place)
 
 Your goal is to explore as much NEW area as possible, similar to a depth-first search strategy:
 - At each place, prefer to keep moving forward if the path is safe, instead of turning left or right.

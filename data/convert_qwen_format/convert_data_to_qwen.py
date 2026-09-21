@@ -1,9 +1,17 @@
+"""Convert EQA-RT trajectories following the paper's controller-only SFT setup."""
+
+import argparse
+import ast
 import json
-import os
 import re
-import copy
-import random
-from tqdm import tqdm
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from src.memory.spatial_memory import SpatialMemory
 
 SYSTEM_PROMPT = '''You are an expert embodied AI agent with the ability to perceive and interact with a virtual environment. You need to first explore the environment and collect information related to the problem, and when there is enough information, answer the question.
 To do so, you have been given access to a list of tools: these tools are basically Python functions which you can call with code.
@@ -147,154 +155,141 @@ Here are the rules you should always follow to solve your task:
 
 Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.'''
 
-SYSTEM_PROMPT_FACTS = """Below I will present you a task.
 
-You will now build a comprehensive preparatory survey of which facts we have at our disposal and which ones we still need.
-To do so, you will have to read the task and identify things that must be discovered in order to successfully complete it.
-Don't make any assumptions. For each item, provide a thorough reasoning. Here is how you will structure this survey:
-
----
-### 1. Facts given in the task
-List here the specific facts given in the task that could help you (there might be nothing here).
-
-### 2. Facts to look up
-List here any facts that we may need to look up.
-Also list where and how to find each of these infomation, for instance living room, bed room... - maybe the task contains some sources that you should re-use here.
-
-### 3. Facts to derive
-List here anything that we want to derive from the above by logical reasoning, for instance computation or simulation.
-
-Keep in mind that "facts" will typically be specific names, dates, values, etc. Your answer should use the below headings:
-### 1. Facts given in the task
-### 2. Facts to look up
-### 3. Facts to derive
-Do not add anything else."""
-
-import re
-import os
-
-_IMG_RE = re.compile(r'(?P<path>(?:\.?/)?[A-Za-z0-9_\-./]+?\.(?:png|jpg|jpeg|webp|bmp))', re.I)
-
-def str_to_bool(s: str) -> bool:
-    return s.strip().lower() == "true"
-
-def _pick_image_for_react(obs_text):
-    if not obs_text:
-        return None
-
-    cands = [m.group('path') for m in _IMG_RE.finditer(obs_text)]
-    if not cands:
-        return None
-
-    norm = lambda p: p.replace("\\", "/")
-
-    non_cache = [norm(p) for p in cands if "cache/" not in norm(p)]
-    chosen = (non_cache or [norm(p) for p in cands])[-1]
-
-    # 归一化
-    chosen = chosen.lstrip("./")
-    if os.path.isabs(chosen) or re.match(r'^[A-Za-z]:[\\/]', chosen):
-        return chosen
-
-    if not chosen.startswith("data/"):
-        chosen = f"data/{chosen}"
-    return chosen
+def _has_final_answer_call(code):
+    """Recognize terminal calls without treating strings/comments as calls."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        # Some stored snippets are not valid standalone Python. Fail closed
+        # for terminal-looking snippets rather than supervising their answer.
+        return bool(re.search(r"\b(?:final_answer|FinalAnswerTool)\s*\(", code))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+            if name in {"final_answer", "FinalAnswerTool"}:
+                return True
+    return False
 
 
-def is_success(threshold: float) -> bool:
-    """
-    给定阈值，随机生成一个 [0,1) 之间的浮点数，
-    如果小于阈值则判断为成功。
-    
-    参数：
-        threshold (float): 阈值，范围在 [0,1] 之间
-    返回：
-        bool: 是否成功
-    """
-    rand_val = random.random()  # 生成 [0,1) 之间的随机浮点数
-    return rand_val < threshold
+def _format_action(react):
+    return f"Thought: {react['thought']}\n\nCode:\n```py\n{react['code']}\n```<end_action>"
+
 
 def convert_sample_to_qwen_style(sample):
+    """Return one supervised controller response per nonterminal ReAct turn.
+
+    History is user-side context so the existing Qwen label mask supervises
+    only the current action, once. Plans and reference answers are not used.
+    Memory is reconstructed from preceding observations, never future ones.
+    The entire final-answer turn (including its thought) is excluded.
     """
-        一条样本数据可以产生多个多轮对话
-        1. plan
-        2. 关键步骤（每一个关键步骤都将产生一个多轮对话，上下文为之前的所有关键步骤信息）
-        3. 非关键步骤（从非关键步骤中采样与关键步骤相同数量的非关键步骤作为一个多轮对话）
-    """
-    question = sample["question"]
+    memory = SpatialMemory()
+    history = []
+    examples = []
+    turn_index = 0
+    for step_index, step in enumerate(sample["trajectory"]):
+        for react_index, react in enumerate(step["react"]):
+            if _has_final_answer_call(react["code"]):
+                return examples
+            image_path = str(step["image_path"]).strip()
+            if not image_path:
+                raise ValueError(f"Missing image for sample {sample['sample_id']}, step {step_index}")
+            context = [f"<image>\nTask: {sample['question']}"]
+            if history:
+                context.append("[Interaction History]\n" + "\n\n".join(history))
+            context.append(memory.serialize() or "[Spatial Memory]\nNo evidence collected yet.")
+            context.append(f"Current observation image: {image_path}\nGenerate the next Thought and Code.")
+            action = _format_action(react)
+            examples.append({
+                "id": f"{sample['sample_id']}:{step_index}:{react_index}",
+                "source_id": sample["sample_id"],
+                "image": [image_path],
+                "conversations": [
+                    {"from": "system", "value": SYSTEM_PROMPT},
+                    {"from": "human", "value": "\n\n".join(context)},
+                    {"from": "gpt", "value": action},
+                ],
+            })
+            # Update only after constructing this turn's input/target pair.
+            turn_index += 1
+            observation = str(react.get("observation", ""))
+            history.append(f"[Turn {turn_index}]\n{action}\nObservation:\n{observation}")
+            memory.update_from_observation(react["code"], observation, turn_index)
+    return examples
 
-    sample_conversations = []
 
-    # # first: plan
-    # conversations = []
-    # conversations.append({"from": "system", "value": SYSTEM_PROMPT_FACTS})
-    # conversations.append({"from": "human", "value": f"Here is the task:```{question}```Now begin!"})
-    # conversations.append({"from": "gpt", "value": sample["plan"]})
+def iter_samples(path):
+    """Read JSONL or stream a JSON array without loading all trajectories."""
+    with Path(path).open(encoding="utf-8") as handle:
+        if Path(path).suffix == ".jsonl":
+            for line in handle:
+                if line.strip():
+                    yield json.loads(line)
+            return
+        decoder = json.JSONDecoder()
+        buffer = ""
+        started = False
+        while True:
+            chunk = handle.read(1024 * 1024)
+            buffer += chunk
+            cursor = 0
+            while True:
+                while cursor < len(buffer) and buffer[cursor].isspace():
+                    cursor += 1
+                if not started:
+                    if cursor == len(buffer):
+                        break
+                    if buffer[cursor] != "[":
+                        raise ValueError("Input must be a JSON array or a .jsonl file")
+                    started = True
+                    cursor += 1
+                while cursor < len(buffer) and (buffer[cursor].isspace() or buffer[cursor] == ","):
+                    cursor += 1
+                if cursor == len(buffer):
+                    break
+                if buffer[cursor] == "]":
+                    return
+                try:
+                    sample, end = decoder.raw_decode(buffer, cursor)
+                except json.JSONDecodeError:
+                    if not chunk:
+                        raise
+                    break
+                yield sample
+                cursor = end
+            buffer = buffer[cursor:]
+            if not chunk:
+                raise ValueError("Unterminated input JSON array")
 
-    # sample_conversations.append(
-    #     {
-    #         "id": sample["sample_id"],
-    #         "conversations": conversations
-    #     }
-    # )
-    
-    # second: 关键步骤
-    conversations = []
-    conversations.append({"from": "system", "value": SYSTEM_PROMPT})
-    conversations.append({"from": "human", "value": f"<image>\nTask:{question}"})
 
-    need_key = False
-    for step_idx, step in enumerate(sample["trajectory"]):
-        step_id = step["step"]
-        img_path = step["image_path"]
-        is_key = str_to_bool(step["is_key"])
+def main():
+    parser = argparse.ArgumentParser(description="Convert EQA trajectories to controller-only SFT examples.")
+    parser.add_argument("--input", type=Path, default=REPO_ROOT / "data/ToolTrajectory/trainval.json")
+    parser.add_argument("--output", type=Path, default=Path(__file__).with_name("qwen_output_trainval.json"))
+    parser.add_argument("--limit", type=int, help="Convert only this many source trajectories for inspection.")
+    args = parser.parse_args()
+    if args.input.resolve() == args.output.resolve():
+        parser.error("Input and output must be different files")
+    if args.limit is not None and args.limit < 1:
+        parser.error("--limit must be positive")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    source_count = example_count = 0
+    with args.output.open("w", encoding="utf-8") as output:
+        output.write("[\n")
+        for sample in iter_samples(args.input):
+            for example in convert_sample_to_qwen_style(sample):
+                if example_count:
+                    output.write(",\n")
+                json.dump(example, output, ensure_ascii=False)
+                example_count += 1
+            source_count += 1
+            if args.limit is not None and source_count >= args.limit:
+                break
+        output.write("\n]\n")
+    print(f"Converted {source_count} trajectories into {example_count} controller examples: {args.output}")
 
-        if not is_key and not need_key:
-            if is_success(0.5):
-                need_key = True
-                react = step["react"][-1]
-                code_block = f"Thought: {react['thought']}\n\nCode:\n```py\n{react['code']}\n```<end_action>"
-                conversations.append({"from": "gpt", "value": code_block})
-
-                user_content = f"Observation:\n{react['observation']}\n\n"
-                conversations.append({"from": "human", "value": user_content})
-
-                sample_conversations.append(
-                    {
-                        "id": sample["sample_id"],
-                        "image": [img_path],
-                        "conversations": copy.deepcopy(conversations[:-1])
-                    }
-                )
-
-        elif is_key:
-            need_key = False
-            for react_idx, react in enumerate(step["react"]):
-                code_block = f"Thought: {react['thought']}\n\nCode:\n```py\n{react['code']}\n```<end_action>"
-                conversations.append({"from": "gpt", "value": code_block})
-
-                # if step_idx != len(sample["trajectory"]) - 1 or react_idx != len(step["react"]) - 1:
-                user_content = f"Observation:\n{react['observation']}\n\n"
-                conversations.append({"from": "human", "value": user_content})
-
-                sample_conversations.append(
-                    {
-                        "id": sample["sample_id"],
-                        "image": [img_path],
-                        "conversations": copy.deepcopy(conversations[:-1])
-                    }
-                )
-
-    return sample_conversations
 
 if __name__ == "__main__":
-    with open("/home/zml/data/EQA-Traj-0720/trainval.json", "r", encoding="utf-8") as f:
-        input_samples = json.load(f)
-    output_sample = []
-    for sample in tqdm(input_samples):
-        output_sample.extend(convert_sample_to_qwen_style(sample))
-
-    with open("qwen_output_trainval.json", "w", encoding="utf-8") as f:
-        json.dump(output_sample, f, ensure_ascii=False)
-
-    print("Done")
+    main()

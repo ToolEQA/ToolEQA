@@ -18,3 +18,19 @@ cache/
 outputs/
 tensorboard_log/
 third_party/
+
+# Local documents, model artifacts and generated binaries.
+*.pdf
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+*.so
+*.o
+*.zip
+*.gz
+*.aux
+*.bbl
+*.blg
+*.synctex.gz

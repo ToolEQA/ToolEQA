@@ -1,2 +1,0 @@
-- name: tooleqa_tool_agent
-  _target_: src.train.RFT.verl_adapter.verl_tool_agent_loop.ToolEQAReactCodeAgentLoop

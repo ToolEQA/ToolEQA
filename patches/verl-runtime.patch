@@ -1,0 +1,707 @@
+diff --git a/verl/experimental/agent_loop/agent_loop.py b/verl/experimental/agent_loop/agent_loop.py
+index 564accd8..55a0bc4b 100644
+--- a/verl/experimental/agent_loop/agent_loop.py
++++ b/verl/experimental/agent_loop/agent_loop.py
+@@ -645,7 +645,12 @@ class AgentLoopWorker:
+                 dataset_cls=self.dataset_cls,
+                 data_config=DictConfigWrap(self.config.data),
+             )
+-            output: AgentLoopOutput = await agent_loop.run(sampling_params, **kwargs)
++            # Expose the manager-owned trajectory metadata to custom loops.
++            # Dataset kwargs do not contain the trainer step, while diagnostic
++            # logging needs the same step/sample/rollout identity used by VERL.
++            output: AgentLoopOutput = await agent_loop.run(
++                sampling_params, trajectory_info=trajectory, **kwargs
++            )
+             return await self._agent_loop_postprocess(output, trajectory["validate"], **kwargs)
+ 
+     async def _agent_loop_postprocess(self, output, validate, **kwargs) -> _InternalAgentLoopOutput:
+diff --git a/verl/experimental/one_step_off_policy/ray_trainer.py b/verl/experimental/one_step_off_policy/ray_trainer.py
+index 8af070ae..42b906b5 100644
+--- a/verl/experimental/one_step_off_policy/ray_trainer.py
++++ b/verl/experimental/one_step_off_policy/ray_trainer.py
+@@ -274,6 +274,13 @@ class OneStepOffRayTrainer(SeparateRayPPOTrainer):
+ 
+         # load checkpoint and update weights before doing anything
+         self._load_checkpoint()
++        if __import__('os').environ.get('TOOLEQA_RESUME_REWIND_PREFETCH') == '1':
++            from src.train.RFT.resume_prefetch import rewind_stateless_prefetch
++            assert self.global_steps > 0
++            assert self.config.data.train_batch_size == 1
++            state = rewind_stateless_prefetch(self.train_dataloader.state_dict(), self.global_steps)
++            self.train_dataloader.load_state_dict(state)
++            print(f"Recovered unconsumed prefetched batch: data cursor={self.global_steps}", flush=True)
+         self._fit_update_weights()
+ 
+         # perform validation before training
+diff --git a/verl/experimental/separation/ray_trainer.py b/verl/experimental/separation/ray_trainer.py
+index 23f87648..263c353d 100644
+--- a/verl/experimental/separation/ray_trainer.py
++++ b/verl/experimental/separation/ray_trainer.py
+@@ -20,6 +20,7 @@ This trainer supports model-agonistic model initialization with huggingface
+ """
+ 
+ import uuid
++import os
+ from collections import defaultdict
+ from copy import deepcopy
+ from pprint import pprint
+@@ -671,6 +672,9 @@ class SeparateRayPPOTrainer(RayPPOTrainer):
+         # 4. The ESI(Elastic Server Instance)/training plan is close to expiration.
+         if self.config.trainer.save_freq > 0 and (
+             self.is_last_step or self.global_steps % self.config.trainer.save_freq == 0 or esi_close_to_expiration
++            or self.global_steps in {
++                int(s) for s in os.environ.get("TOOLEQA_EARLY_CHECKPOINT_STEPS", "").split(",") if s.strip()
++            }
+         ):
+             if esi_close_to_expiration:
+                 print("Force saving checkpoint: ESI instance expiration approaching.")
+diff --git a/verl/protocol.py b/verl/protocol.py
+index 4a1034b3..c6b472f2 100644
+--- a/verl/protocol.py
++++ b/verl/protocol.py
+@@ -252,7 +252,10 @@ def serialize_tensordict(batch: TensorDict) -> tuple[tuple[int, ...], Optional[s
+         else:
+             layout = str(v.layout).removeprefix("torch.")
+             data = [serialize_single_tensor(tensor) for tensor in v.unbind()]
+-            encoded_items[k] = (layout, data)
++            # Preserve the jagged axis. Re-inferring it from a singleton
++            # matrix such as mRoPE (4, seq_len) chooses axis 1 and silently
++            # truncates the sequence during the next TensorDict dispatch.
++            encoded_items[k] = (layout, data, v._ragged_idx, "nested")
+ 
+     batch_size = tuple(batch.batch_size)
+     device = str(batch.device) if batch.device is not None else None
+@@ -280,13 +283,25 @@ def deserialize_tensordict(arr: Any) -> TensorDict:
+         if len(v) == 3:
+             # decode single tensor
+             decoded_items[k] = deserialize_single_tensor(v)
+-        elif len(v) == 2:
++        elif len(v) in (2, 4):
+             # decode nested tensor
+-            layout, data = v
++            layout, data = v[:2]
+             torch_layout = getattr(torch, layout)
+-            decoded_items[k] = torch.nested.as_nested_tensor(
+-                [deserialize_single_tensor(tensor) for tensor in data], layout=torch_layout
+-            )
++            samples = [deserialize_single_tensor(tensor) for tensor in data]
++            ragged_idx = v[2] if len(v) == 4 else None
++            if ragged_idx == 2 and samples and samples[0].dim() == 2:
++                lengths = [sample.shape[-1] for sample in samples]
++                values = torch.cat(samples, dim=-1)
++                offsets = torch.tensor([0, *np.cumsum(lengths).tolist()], dtype=torch.int64)
++                decoded_items[k] = torch.nested.nested_tensor_from_jagged(
++                    values,
++                    offsets=offsets,
++                    jagged_dim=2,
++                    min_seqlen=min(lengths),
++                    max_seqlen=max(lengths),
++                )
++            else:
++                decoded_items[k] = torch.nested.as_nested_tensor(samples, layout=torch_layout)
+         else:
+             raise ValueError(f"Invalid tensor encoding format, expected length 2 or 3, got {len(v)}")
+ 
+diff --git a/verl/single_controller/base/worker.py b/verl/single_controller/base/worker.py
+index 6fc955cb..c801c672 100644
+--- a/verl/single_controller/base/worker.py
++++ b/verl/single_controller/base/worker.py
+@@ -270,7 +270,22 @@ class Worker(WorkerHelper):
+             os.environ["CUDA_VISIBLE_DEVICES"] = cuda_val
+             rocr_val = None
+ 
+-        if is_ray_noset_visible_devices:
++        visible_devices = [item for item in (cuda_val or "").split(",") if item.strip()]
++        if os.environ.get("TOOLEQA_RANK_DEVICE_MAP") == "1" and len(visible_devices) > 1:
++            # Explicit single-node fallback for hosts where broken NVML makes
++            # Ray report accelerator 0 for every fractional-GPU worker. Narrow
++            # each process to its rank-selected physical device before CUDA is
++            # initialized; cuda:0 then means a different GPU in every worker.
++            rank = int(os.environ["RANK"])
++            local_rank = rank % len(visible_devices)
++            os.environ["LOCAL_RANK"] = str(local_rank)
++            get_torch_device().set_device(local_rank)
++            print(
++                f"[ToolEQA device map] rank={rank} visible={cuda_val} "
++                f"local_rank={local_rank} current_device={get_torch_device().current_device()}",
++                flush=True,
++            )
++        elif is_ray_noset_visible_devices:
+             # NOTE: Ray will automatically set the *_VISIBLE_DEVICES
+             # environment variable for each actor, unless
+             # RAY_EXPERIMENTAL_NOSET_*_VISIBLE_DEVICES is set,
+@@ -279,6 +294,15 @@ class Worker(WorkerHelper):
+             local_rank = ray.get_runtime_context().get_accelerator_ids()[device_name][0]
+             os.environ["LOCAL_RANK"] = local_rank
+             get_torch_device().set_device(int(local_rank))
++        elif len(visible_devices) > 1:
++            # Some Ray/NVML combinations leave the parent's multi-device mask
++            # unchanged for fractional-GPU actors. In that case every worker
++            # otherwise defaults to cuda:0 despite distinct accelerator IDs.
++            accelerator_ids = ray.get_runtime_context().get_accelerator_ids().get("GPU", [])
++            visible_count = len(visible_devices)
++            local_rank = accelerator_ids[0] if accelerator_ids else str(int(os.environ["RANK"]) % visible_count)
++            os.environ["LOCAL_RANK"] = local_rank
++            get_torch_device().set_device(int(local_rank))
+ 
+     def _configure_with_store(self, store: dict):
+         """
+diff --git a/verl/single_controller/ray/base.py b/verl/single_controller/ray/base.py
+index 2ab1f406..691a72d7 100644
+--- a/verl/single_controller/ray/base.py
++++ b/verl/single_controller/ray/base.py
+@@ -28,7 +28,7 @@ from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy, Place
+ from verl.protocol import DataProto, _padding_size_key
+ from verl.single_controller.base import ClassWithInitArgs, ResourcePool, Worker, WorkerGroup
+ from verl.single_controller.base.decorator import MAGIC_ATTR, Dispatch
+-from verl.utils.device import get_device_name, is_torch_npu_available
++from verl.utils.device import get_device_name, get_visible_devices_keyword, is_torch_npu_available
+ from verl.utils.py_functional import temp_env_var
+ 
+ __all__ = ["Worker"]
+diff --git a/verl/utils/checkpoint/fsdp_checkpoint_manager.py b/verl/utils/checkpoint/fsdp_checkpoint_manager.py
+index 245a0ce5..26532109 100644
+--- a/verl/utils/checkpoint/fsdp_checkpoint_manager.py
++++ b/verl/utils/checkpoint/fsdp_checkpoint_manager.py
+@@ -138,14 +138,14 @@ class FSDPCheckpointManager(BaseCheckpointManager):
+             if self.should_load_model:
+                 remote_model_path = os.path.join(local_path, f"model_world_size_{self.world_size}_rank_{self.rank}.pt")
+                 local_model_path = copy_to_local(remote_model_path)
+-                model_state_dict = torch.load(local_model_path, weights_only=False)
++                model_state_dict = torch.load(local_model_path, map_location="cpu", weights_only=False)
+                 self.model.load_state_dict(model_state_dict)
+                 log_with_rank(f"Loaded model from {remote_model_path}", rank=self.rank, logger=logger)
+ 
+             if self.should_load_optimizer:
+                 remote_optim_path = os.path.join(local_path, f"optim_world_size_{self.world_size}_rank_{self.rank}.pt")
+                 local_optim_path = copy_to_local(remote_optim_path)
+-                optimizer_state_dict = torch.load(local_optim_path, weights_only=False)
++                optimizer_state_dict = torch.load(local_optim_path, map_location="cpu", weights_only=False)
+                 self.optimizer.load_state_dict(optimizer_state_dict)
+                 log_with_rank(f"Loaded optimizer from {remote_optim_path}", rank=self.rank, logger=logger)
+ 
+@@ -154,7 +154,7 @@ class FSDPCheckpointManager(BaseCheckpointManager):
+                 local_path, f"extra_state_world_size_{self.world_size}_rank_{self.rank}.pt"
+             )
+             local_extra_state_path = copy_to_local(remote_extra_state_path)
+-            extra_state_dict = torch.load(local_extra_state_path, weights_only=False)
++            extra_state_dict = torch.load(local_extra_state_path, map_location="cpu", weights_only=False)
+             # recover random state
+             if "rng" in extra_state_dict:
+                 # 'rng' may not exist for backward compatibility
+diff --git a/verl/utils/fsdp_utils.py b/verl/utils/fsdp_utils.py
+index 24093781..d95f02fb 100644
+--- a/verl/utils/fsdp_utils.py
++++ b/verl/utils/fsdp_utils.py
+@@ -166,6 +166,12 @@ def offload_fsdp_model_to_cpu(model: FSDP, empty_cache: bool = True):
+         # the following still keeps id(._local_shard) != id(.data)
+         flat_param._local_shard = flat_param.data
+         assert id(flat_param._local_shard) != id(flat_param.data)
++    # flat_param_to(..., non_blocking=True) may enqueue D2H copies into pinned
++    # storage.  Releasing the CUDA allocator before those copies complete can
++    # leave the CPU shards partially zeroed/corrupt; the next load then silently
++    # changes the policy.  This is especially visible when a rollout snapshot
++    # is immediately followed by another FSDP forward.
++    get_torch_device().synchronize()
+     if empty_cache:
+         get_torch_device().empty_cache()
+ 
+@@ -213,6 +219,9 @@ def offload_fsdp_optimizer(optimizer):
+             for key, value in state.items():
+                 if isinstance(value, torch.Tensor):
+                     state[key] = value.to("cpu", non_blocking=True)
++    # Optimizer states have the same lifetime hazard as parameter shards: the
++    # old CUDA tensors can be reclaimed as soon as the dict entry is replaced.
++    get_torch_device().synchronize()
+ 
+ 
+ @torch.no_grad()
+diff --git a/verl/utils/tensordict_utils.py b/verl/utils/tensordict_utils.py
+index c7c97b08..f99199e5 100644
+--- a/verl/utils/tensordict_utils.py
++++ b/verl/utils/tensordict_utils.py
+@@ -195,6 +195,31 @@ def concat_nested_tensors(tensors: list[torch.Tensor]) -> torch.Tensor:
+     return tensor
+ 
+ 
++def _rebuild_nested_samples(samples: list[torch.Tensor], ragged_idx: int | None = None) -> torch.Tensor:
++    """Rebuild samples without losing a trailing jagged dimension.
++
++    ``as_nested_tensor([sample])`` cannot infer whether a singleton matrix
++    shaped ``(4, seq_len)`` is ragged on its first or second axis.  mRoPE
++    position ids require the latter.  Build that layout explicitly and cache
++    the true min/max sequence lengths so padding and serialization preserve
++    all tokens.
++    """
++    if samples and samples[0].dim() == 2 and ragged_idx == 2:
++        lengths = [sample.shape[-1] for sample in samples]
++        values = torch.cat(samples, dim=-1)
++        offsets = torch.tensor(
++            [0, *np.cumsum(lengths).tolist()], dtype=torch.int64, device=values.device
++        )
++        return torch.nested.nested_tensor_from_jagged(
++            values,
++            offsets=offsets,
++            jagged_dim=2,
++            min_seqlen=min(lengths),
++            max_seqlen=max(lengths),
++        )
++    return torch.nested.as_nested_tensor(samples, layout=torch.jagged)
++
++
+ def concat_tensordict_with_none_bsz(data: list[TensorDict]):
+     """Handle concatenation of TensorDicts with empty batch size.
+ 
+@@ -336,13 +361,13 @@ def chunk_tensordict(td: TensorDict, chunks: int) -> list[TensorDict]:
+             lengths = offsets.diff().tolist()
+             for i, chunk_td in enumerate(tds):
+                 chunk_lengths = lengths[i * chunk_size : (i + 1) * chunk_size]
+-                chunk_tensors = [padded_chunks[i][j, :seq_len] for j, seq_len in enumerate(chunk_lengths)]
+-                chunk_td[key] = torch.nested.as_nested_tensor(chunk_tensors, layout=torch.jagged)
++                chunk_tensors = [padded_chunks[i][j, ..., :seq_len] for j, seq_len in enumerate(chunk_lengths)]
++                chunk_td[key] = _rebuild_nested_samples(chunk_tensors, ragged_idx=nt._ragged_idx)
+             continue
+ 
+         for i, chunk_td in enumerate(tds):
+-            chunk_td[key] = torch.nested.as_nested_tensor(
+-                tensors[i * chunk_size : (i + 1) * chunk_size], layout=torch.jagged
++            chunk_td[key] = _rebuild_nested_samples(
++                list(tensors[i * chunk_size : (i + 1) * chunk_size]), ragged_idx=nt._ragged_idx
+             )
+ 
+     return tds
+@@ -466,9 +491,18 @@ def index_select_tensor_dict(batch: TensorDict, indices: torch.Tensor | list[int
+             if isinstance(tensor, torch.Tensor) and not tensor.is_nested:
+                 data_dict[key] = tensor[indices]
+             elif isinstance(tensor, torch.Tensor) and tensor.is_nested:
+-                data_dict[key] = torch.nested.as_nested_tensor(
+-                    [tensor[idx] for idx in indices], layout=torch.jagged
+-                )
++                try:
++                    unbound = tensor.unbind(dim=0)
++                    selected = [unbound[int(idx)] for idx in indices]
++                except RuntimeError:
++                    # PyTorch may unbind a 3D mRoPE NestedTensor along its
++                    # fixed head dimension instead of the ragged sequence
++                    # dimension. Recover samples from padded storage using the
++                    # actual jagged lengths.
++                    padded = tensor.to_padded_tensor(0)
++                    lengths = tensor.offsets().diff().tolist()
++                    selected = [padded[int(idx), ..., : lengths[int(idx)]] for idx in indices]
++                data_dict[key] = _rebuild_nested_samples(selected, ragged_idx=tensor._ragged_idx)
+             else:
+                 # This handles NonTensorStack (indexable by batch dim) and NonTensorData (scalar metadata).
+                 if tensor.shape:
+diff --git a/verl/workers/engine/base.py b/verl/workers/engine/base.py
+index fedfc732..fba48b68 100644
+--- a/verl/workers/engine/base.py
++++ b/verl/workers/engine/base.py
+@@ -177,7 +177,11 @@ class BaseEngine:
+             grad: If True, move the gradient buffer.
+         """
+         if not model:
+-            assert not optimizer and not grad, "Model must be moved to device along with optimizer and grad"
++            # Optimizer state offload is independent of parameter placement.
++            # This configuration is useful when model shards fit persistently
++            # on GPU but Adam states do not. Gradients, unlike optimizer state,
++            # are parameter-backed and still require moving the model.
++            assert not grad, "Gradient buffers cannot be moved without the model"
+ 
+     def save_checkpoint(
+         self,
+diff --git a/verl/workers/engine/fsdp/transformer_impl.py b/verl/workers/engine/fsdp/transformer_impl.py
+index 8c369c0b..ee0272b4 100644
+--- a/verl/workers/engine/fsdp/transformer_impl.py
++++ b/verl/workers/engine/fsdp/transformer_impl.py
+@@ -16,6 +16,7 @@ The concrete Engine implementation using PyTorch FullyShardedDataParallel (FSDP)
+ """
+ 
+ import gc
++import json
+ import logging
+ import os
+ import warnings
+@@ -28,7 +29,7 @@ from peft import LoraConfig, TaskType, get_peft_model
+ from tensordict import TensorDict
+ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+ from torch.distributed.fsdp.api import FullStateDictConfig, ShardedStateDictConfig, StateDictType
+-from torch.distributed.tensor import DTensor
++from torch.distributed.tensor import DTensor, Replicate, Shard
+ 
+ import verl.utils.torch_functional as verl_F
+ from verl.models.transformers.monkey_patch import apply_monkey_patch
+@@ -38,7 +39,7 @@ from verl.utils.activation_offload import enable_activation_offloading
+ from verl.utils.checkpoint.fsdp_checkpoint_manager import FSDPCheckpointManager
+ from verl.utils.dataset.dataset_utils import DatasetPadMode
+ from verl.utils.debug import log_gpu_memory_usage
+-from verl.utils.device import get_device_id, get_device_name
++from verl.utils.device import get_device_id, get_device_name, get_torch_device
+ from verl.utils.fsdp_utils import (
+     CPUOffloadPolicy,
+     FSDPModule,
+@@ -81,6 +82,49 @@ logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
+ device_name = get_device_name()
+ 
+ 
++def _materialize_dtensor_on_cpu(param: DTensor) -> torch.Tensor:
++    """Rebuild a one-dimensional FSDP DTensor using CPU Gloo collectives.
++
++    Calling ``DTensor.full_tensor()`` uses the CUDA device mesh and crashes on
++    hosts where NCCL/NVML is unavailable. Conversely, moving the DTensor to CPU
++    before ``full_tensor()`` leaves its mesh/device metadata inconsistent and
++    can return zero-filled tensors. Gather the local CPU shards explicitly.
++    """
++
++    placements = tuple(param.placements)
++    if len(placements) != 1:
++        raise RuntimeError(f"Only one-dimensional FSDP meshes are supported, got {placements}")
++
++    placement = placements[0]
++    local = param.to_local().detach().to(dtype=torch.bfloat16, device="cpu").contiguous()
++    if isinstance(placement, Replicate):
++        return local
++    if not isinstance(placement, Shard):
++        raise RuntimeError(f"Unsupported DTensor placement for weight sync: {placement}")
++
++    group = param.device_mesh.get_group()
++    world_size = torch.distributed.get_world_size(group)
++    local_shapes: list[tuple[int, ...] | None] = [None] * world_size
++    torch.distributed.all_gather_object(local_shapes, tuple(local.shape), group=group)
++    assert all(shape is not None for shape in local_shapes)
++
++    max_numel = max(torch.Size(shape).numel() for shape in local_shapes if shape is not None)
++    padded = torch.zeros(max_numel, dtype=local.dtype, device="cpu")
++    padded[: local.numel()].copy_(local.reshape(-1))
++    gathered = [torch.empty_like(padded) for _ in range(world_size)]
++    torch.distributed.all_gather(gathered, padded, group=group)
++
++    shards = [
++        tensor[: torch.Size(shape).numel()].view(shape)
++        for tensor, shape in zip(gathered, local_shapes, strict=True)
++        if shape is not None
++    ]
++    full = torch.cat(shards, dim=placement.dim)
++    # Uneven sharding may pad the final rank. Trim back to the global shape.
++    slices = tuple(slice(0, size) for size in param.shape)
++    return full[slices].contiguous()
++
++
+ class FSDPEngine(BaseEngine):
+     """
+     Concrete Engine implementation using PyTorch FullyShardedDataParallel (FSDP).
+@@ -105,6 +149,12 @@ class FSDPEngine(BaseEngine):
+         """
+         super().__init__()
+ 
++        # Training/reference workers only. A global allocator env setting would
++        # break vLLM's separate CuMem memory pool on the rollout GPU.
++        if os.environ.get("TOOLEQA_TRAIN_EXPANDABLE_SEGMENTS") == "1":
++            torch.cuda.memory._set_allocator_settings("expandable_segments:True")
++            print("TOOLEQA_ALLOCATOR training worker: expandable_segments=True", flush=True)
++
+         self.model_config = model_config
+         self.engine_config = engine_config
+         self.optimizer_config = optimizer_config
+@@ -131,6 +181,7 @@ class FSDPEngine(BaseEngine):
+         # set FSDP offload params
+         self._is_offload_param = self.engine_config.param_offload
+         self._is_offload_optimizer = self.engine_config.optimizer_offload
++        self._optimizer_load_deferred = False
+         self._is_lora = self.model_config.lora_rank > 0
+ 
+         # QAT (Quantization-Aware Training)
+@@ -609,11 +660,27 @@ class FSDPEngine(BaseEngine):
+         ctx = torch.no_grad() if forward_only else nullcontext()
+ 
+         for micro_batch in micro_batches:
+-            with ctx:
+-                loss, meta_info = self.forward_step(micro_batch, loss_function=loss_function, forward_only=forward_only)
+-
+-                if not forward_only:
+-                    loss.backward()
++            audit = os.environ.get("TOOLEQA_MEMORY_AUDIT") == "1"
++            if audit:
++                assert len(micro_batch) == 1, "Memory-safe run requires one trajectory per micro-batch"
++                torch.cuda.reset_peak_memory_stats()
++            succeeded = False
++            try:
++                with ctx:
++                    loss, meta_info = self.forward_step(micro_batch, loss_function=loss_function, forward_only=forward_only)
++
++                    if not forward_only:
++                        loss.backward()
++                succeeded = True
++            finally:
++                if audit:
++                    print("TOOLEQA_MEMORY " + json.dumps({
++                        "rank": torch.distributed.get_rank(), "forward_only": forward_only,
++                        "success": succeeded, "micro_batch_size": len(micro_batch),
++                        "tokens": sum(t.numel() for t in micro_batch["input_ids"].unbind()),
++                        "peak_allocated_gib": torch.cuda.max_memory_allocated() / 2**30,
++                        "peak_reserved_gib": torch.cuda.max_memory_reserved() / 2**30,
++                    }), flush=True)
+ 
+             output_lst.append(meta_info)
+ 
+@@ -650,12 +717,24 @@ class FSDPEngine(BaseEngine):
+         if isinstance(grad_norm, DTensor):
+             grad_norm = grad_norm.full_tensor()
+ 
+-        # if grad_norm is not finite, skip the update
+-        if not torch.isfinite(grad_norm):
+-            print(f"WARN: grad_norm is not finite: {grad_norm}")
+-            self.optimizer.zero_grad()
+-        else:
+-            self.optimizer.step()
++        # Optimizer offload is most useful when its states do not overlap with
++        # forward/backward activations.  Load them only after backward has
++        # released the graph, then immediately return them to CPU.  Loading in
++        # BaseEngineCtx.__enter__ makes the second full-parameter AdamW step OOM
++        # even though the first (which has no states yet) fits comfortably.
++        optimizer_was_deferred = self._optimizer_load_deferred
++        if optimizer_was_deferred:
++            load_fsdp_optimizer(self.optimizer, get_device_name())
++        try:
++            # if grad_norm is not finite, skip the update
++            if not torch.isfinite(grad_norm):
++                print(f"WARN: grad_norm is not finite: {grad_norm}")
++                self.optimizer.zero_grad()
++            else:
++                self.optimizer.step()
++        finally:
++            if optimizer_was_deferred:
++                offload_fsdp_optimizer(self.optimizer)
+ 
+         if self._qat_enabled:
+             from verl.utils.qat.core import invalidate_all_scales
+@@ -690,13 +769,17 @@ class FSDPEngine(BaseEngine):
+             if model:
+                 load_fsdp_model_to_gpu(self.module)
+             if optimizer and self.optimizer is not None:
+-                load_fsdp_optimizer(self.optimizer, device)
++                if self._is_offload_optimizer:
++                    self._optimizer_load_deferred = True
++                else:
++                    load_fsdp_optimizer(self.optimizer, device)
+             gc.collect()
+         elif device == "cpu":
+             if model:
+                 offload_fsdp_model_to_cpu(self.module)
+             if optimizer and self.optimizer is not None:
+                 offload_fsdp_optimizer(self.optimizer)
++                self._optimizer_load_deferred = False
+         else:
+             raise ValueError(f"Invalid device type: {device}")
+ 
+@@ -750,6 +833,16 @@ class FSDPEngine(BaseEngine):
+ 
+         load_fsdp_model_to_gpu(self.module)
+ 
++        # Model loading/offloading uses non-blocking device copies in several
++        # FSDP paths.  The first rollout weight sync can otherwise start while
++        # a later parameter shard is still in flight on another rank, producing
++        # a partially stale full_tensor().  Finish local copies and align all
++        # data-parallel ranks before taking state_dict views.
++        if os.environ.get("VERL_FSDP_WEIGHT_SYNC_CPU") == "1":
++            get_torch_device().synchronize()
++            if torch.distributed.is_initialized():
++                torch.distributed.barrier()
++
+         log_gpu_memory_usage("After load_fsdp_model_to_gpu", logger=logger)
+ 
+         peft_config = None
+@@ -775,25 +868,38 @@ class FSDPEngine(BaseEngine):
+ 
+         params = convert_weight_keys(params, getattr(self.module, "_fsdp_wrapped_module", self.module))
+ 
+-        log_gpu_memory_usage("Before offload_fsdp_model_to_cpu", logger=logger)
+-        if self._is_offload_param:
+-            offload_fsdp_model_to_cpu(self.module)
+-        log_gpu_memory_usage("After offload_fsdp_model_to_cpu", logger=logger)
++        def iter_materialized_params():
++            # state_dict() returns DTensor views backed by the live FSDP local
++            # shards.  Do not offload/move the module before this iterator has
++            # consumed them: doing so leaves later views pointing at storage
++            # that can be reused, and vLLM receives a partially corrupt model.
++            try:
++                if peft_config is not None and base_sync_done:
++                    yield from params.items()
++                    return
++
++                device = get_device_id()  # used when fsdp2 set cpu_offload_policy
++                # Gloo's CUDA DTensor all-gather is unstable for large FSDP shards
++                # on hosts where NCCL is unavailable. Materialize on CPU when the
++                # compatibility transport explicitly requests it.
++                sync_to_cpu = os.environ.get("VERL_FSDP_WEIGHT_SYNC_CPU") == "1"
++                # TODO: cast fp32 to bf16 to reduce weight sync overhead, need more fine-grained control, e.g MoE gate
++                for name, param in params.items():
++                    if isinstance(param, DTensor):
++                        if sync_to_cpu:
++                            value = _materialize_dtensor_on_cpu(param)
++                        else:
++                            value = param.full_tensor().to(torch.bfloat16, non_blocking=True)
++                    else:
++                        value = param
++                    yield name, value
++            finally:
++                log_gpu_memory_usage("Before offload_fsdp_model_to_cpu", logger=logger)
++                if self._is_offload_param:
++                    offload_fsdp_model_to_cpu(self.module)
++                log_gpu_memory_usage("After offload_fsdp_model_to_cpu", logger=logger)
+ 
+-        if peft_config is not None and base_sync_done:
+-            per_tensor_param = params.items()
+-        else:
+-            device = get_device_id()  # used when fsdp2 set cpu_offload_policy
+-            # TODO: cast fp32 to bf16 to reduce weight sync overhead, need more fine-grained control, e.g MoE gate
+-            per_tensor_param = (
+-                (
+-                    name,
+-                    param.to(device, non_blocking=True).full_tensor().to(torch.bfloat16, non_blocking=True)
+-                    if isinstance(param, DTensor)
+-                    else param,
+-                )
+-                for name, param in params.items()
+-            )
++        per_tensor_param = iter_materialized_params()
+ 
+         if self._qat_enabled:
+             from verl.utils.qat.quantizer import QATQuantizer
+@@ -905,7 +1011,24 @@ class FSDPEngineWithLMHead(FSDPEngine):
+             if pad_mode == DatasetPadMode.NO_PADDING:
+                 input_ids_rmpad = input_ids.values().unsqueeze(0)  # (1, total_nnz)
+                 if position_ids.dim() == 3:
+-                    position_ids_rmpad = position_ids.values().unsqueeze(1)  # (4, 1, total_nnz)
++                    # A singleton 3-D jagged NestedTensor is ambiguous to
++                    # PyTorch: rebuilding a sample shaped (4, seq_len) may
++                    # choose either the channel or sequence axis as ragged.
++                    # Normalize from the underlying storage by matching the
++                    # known number of unpadded input tokens instead of
++                    # trusting ``_ragged_idx`` metadata.
++                    position_values = position_ids.values()
++                    total_nnz = input_ids.values().numel()
++                    if position_values.shape[-1] == total_nnz:
++                        position_values = position_values
++                    elif position_values.shape[0] == total_nnz:
++                        position_values = position_values.transpose(0, 1).contiguous()
++                    else:
++                        raise RuntimeError(
++                            "Cannot align multimodal position ids with input tokens: "
++                            f"position_values={tuple(position_values.shape)}, total_nnz={total_nnz}"
++                        )
++                    position_ids_rmpad = position_values.unsqueeze(1)  # (4, 1, total_nnz)
+                 else:
+                     position_ids_rmpad = position_ids.values().unsqueeze(0)  # (1, total_nnz)
+             else:
+diff --git a/verl/workers/rollout/vllm_rollout/bucketed_weight_transfer.py b/verl/workers/rollout/vllm_rollout/bucketed_weight_transfer.py
+index 42fb8f43..f83214eb 100644
+--- a/verl/workers/rollout/vllm_rollout/bucketed_weight_transfer.py
++++ b/verl/workers/rollout/vllm_rollout/bucketed_weight_transfer.py
+@@ -38,6 +38,18 @@ class TensorMetadata(TypedDict):
+     shape: torch.Size
+     dtype: torch.dtype
+     offset: int
++    probe: tuple[int, int, int]
++
++
++def _edge_probe(tensor: torch.Tensor) -> tuple[int, int, int]:
++    flat = tensor.contiguous().view(torch.uint8).reshape(-1)
++    width = min(256, flat.numel())
++    middle = max(0, (flat.numel() - width) // 2)
++    return (
++        int(flat[:width].to(torch.int64).sum().item()),
++        int(flat[middle : middle + width].to(torch.int64).sum().item()),
++        int(flat[-width:].to(torch.int64).sum().item()),
++    )
+ 
+ 
+ # copy from https://github.com/vllm-project/vllm/blob/main/examples/offline_inference/rlhf_utils.py
+@@ -115,6 +127,7 @@ class BucketedWeightSender:
+             # send bucket weights
+             offset = 0
+             bucket_meta: dict[str, TensorMetadata] = {}
++            debug_count = 0
+             # dtype = PrecisionType.to_dtype(self.config.dtype)
+             async for name, weight in ensure_async_iterator(weights):
+                 # model parameters are in fp32 full precision
+@@ -142,8 +155,25 @@ class BucketedWeightSender:
+                     "shape": weight.shape,
+                     "dtype": weight.dtype,
+                     "offset": offset,
++                    "probe": _edge_probe(weight),
+                 }
+-                self.buffer[offset : offset + weight.nbytes].copy_(weight.view(-1).view(torch.uint8), non_blocking=True)
++                if os.environ.get("TOOLEQA_DEBUG_WEIGHT_SYNC") == "1" and debug_count < 8:
++                    print(
++                        f"[IPC send] {name} shape={tuple(weight.shape)} dtype={weight.dtype} "
++                        f"probe={bucket_meta[name]['probe']}",
++                        flush=True,
++                    )
++                    debug_count += 1
++                # Gloo compatibility transports yield CPU views backed by a
++                # pair of reusable receive buffers.  An asynchronous H2D copy
++                # can still be reading one of those views when Gloo reuses the
++                # buffer two buckets later, silently corrupting the middle of
++                # large tensors.  Pageable CPU sources must therefore finish
++                # their copy before the generator advances.  CUDA-to-CUDA IPC
++                # keeps the original asynchronous fast path.
++                self.buffer[offset : offset + weight.nbytes].copy_(
++                    weight.view(-1).view(torch.uint8), non_blocking=weight.is_cuda
++                )
+                 offset += weight.nbytes
+ 
+             # send the last bucket
+@@ -258,6 +288,11 @@ class BucketedWeightReceiver:
+                     tensor = self.buffer[offset : offset + size].view(dtype=dtype).view(shape)
+                     if self.use_shm:
+                         tensor = tensor.to(self.device)
++                    probe = _edge_probe(tensor)
++                    if probe != tuple(meta["probe"]):
++                        raise RuntimeError(
++                            f"IPC weight corruption for {name}: expected {meta['probe']}, got {probe}"
++                        )
+                     weights.append((name, tensor))
+                 on_bucket_received(weights)
+                 get_torch_device().synchronize()
+diff --git a/verl/workers/rollout/vllm_rollout/vllm_rollout.py b/verl/workers/rollout/vllm_rollout/vllm_rollout.py
+index d48f8599..01057f68 100644
+--- a/verl/workers/rollout/vllm_rollout/vllm_rollout.py
++++ b/verl/workers/rollout/vllm_rollout/vllm_rollout.py
+@@ -104,10 +104,14 @@ class ServerAdapter(BaseRollout):
+         local_rank = self.rollout_rank % local_world_size
+         self.zmq_handle = f"ipc:///tmp/rl-colocate-zmq-replica-{self.replica_rank}-rank-{local_rank}.sock"
+ 
+-        self.use_shm = not is_support_ipc()
++        # CPU/Gloo checkpoint transport should not allocate a second 1.5 GiB
++        # CUDA IPC bucket on a training GPU. That allocation races with the
++        # actor's update peak and OOMs even though /dev/shm has ample capacity.
++        force_shm = os.environ.get("VERL_WEIGHT_TRANSFER_SHM", "0") == "1"
++        self.use_shm = force_shm or not is_support_ipc()
+         if self.use_shm:
+             logger.warning(
+-                "IPC is not supported on your devices. Falling back to shared memory for weight transfer, "
++                "Using shared memory for rollout weight transfer, "
+                 "which may cause performance degradation. If you are using Ascend NPUs, please ensure that "
+                 "your software and CANN toolkit versions meet the requirements for IPC support. (Ascend HDK version "
+                 ">= 25.3.rc1 and CANN toolkit version >= 8.3.RC1)"
+diff --git a/verl/workers/utils/padding.py b/verl/workers/utils/padding.py
+index e3add8ba..222477b6 100644
+--- a/verl/workers/utils/padding.py
++++ b/verl/workers/utils/padding.py
+@@ -64,7 +64,14 @@ def left_right_2_no_padding(data: TensorDict) -> TensorDict:
+         else:  # (4, seq_len)
+             valid_ids = curr_pos_ids[:, curr_mask]
+         position_ids_list.append(valid_ids)
+-    position_ids_nested = torch.nested.as_nested_tensor(position_ids_list, layout=torch.jagged)
++    if position_ids_list and position_ids_list[0].dim() == 2:
++        # mRoPE samples are (4, seq_len). When all samples happen to have
++        # the same sequence length, as_nested_tensor cannot infer which axis
++        # is jagged and defaults to the 4-channel axis. Construct the trailing
++        # sequence axis explicitly so later DP chunking retains every token.
++        position_ids_nested = tu._rebuild_nested_samples(position_ids_list, ragged_idx=2)
++    else:
++        position_ids_nested = torch.nested.as_nested_tensor(position_ids_list, layout=torch.jagged)
+ 
+     data["input_ids"] = input_ids_nested
+     data["position_ids"] = position_ids_nested
