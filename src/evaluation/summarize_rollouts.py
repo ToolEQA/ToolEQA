@@ -15,6 +15,7 @@ FIELDS = (
     "score",
     "acc",
     "evidence_coverage",
+    "evidence_complete",
     "invalid_count",
     "duplicate_count",
     "no_progress_count",

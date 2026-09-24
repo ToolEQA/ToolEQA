@@ -99,6 +99,7 @@ def compute_reward(
     final_answer: Any = None,
     weights: RewardWeights | Mapping[str, Any] | None = None,
     semantic_score: int | None = None,
+    score_protocol: str = "legacy",
 ) -> dict[str, Any]:
     """Return scalar reward plus an auditable component breakdown."""
     if isinstance(weights, RewardWeights):
@@ -111,9 +112,14 @@ def compute_reward(
         final_answer = extract_final_answer(trace_list)
     has_final = final_answer is not None and bool(str(final_answer).strip())
     is_open = sample.get("answer_setting") == "open"
-    if is_open and (type(semantic_score) is not int or not 0 <= semantic_score <= 5):
+    if score_protocol not in ('legacy', 'openeqa'):
+        raise ValueError(f"Unknown score protocol: {score_protocol}")
+    if is_open and (type(semantic_score) is not int or (score_protocol == 'legacy' and not 0 <= semantic_score <= 5)):
         raise ValueError("Open answers require a validated semantic score in 0..5")
     quality = (semantic_score / 5.0 if has_final else 0.0) if is_open else None
+    if is_open and score_protocol == 'openeqa':
+        from src.evaluation.openeqa_protocol import normalize_score
+        quality = normalize_score(semantic_score)
     correct = (has_final and semantic_score == 5) if is_open else (has_final and answer_is_correct(final_answer, sample))
 
     tracker = EvidenceTracker(

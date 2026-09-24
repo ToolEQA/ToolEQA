@@ -13,6 +13,21 @@ from src.evaluation import run_open_eval
 
 
 class MigrationTest(unittest.TestCase):
+    def test_judge_endpoint_is_separate_from_planner(self):
+        from src.evaluation.open_protocol import request, PROTOCOL_ID
+        from src.evaluation.openeqa_protocol import JUDGE_PROTOCOL_ID
+        import os
+        endpoints = []
+        def respond(req, **kwargs):
+            endpoints.append(req.full_url)
+            operation = json.loads(req.data)['operation']
+            return io.BytesIO(json.dumps({'protocol_id': JUDGE_PROTOCOL_ID if operation == 'judge' else PROTOCOL_ID}).encode())
+        with patch.dict(os.environ, {'TOOLEQA_FROZEN_SERVICE': 'http://127.0.0.1:18941'}, clear=True), \
+                patch('urllib.request.urlopen', side_effect=respond):
+            request('judge', question='q', reference='r', candidate='c')
+            request('plan', question='q')
+        self.assertEqual(endpoints, ['http://127.0.0.1:18942', 'http://127.0.0.1:18941'])
+
     def test_file_based_reward_loader_keeps_callable(self):
         path = run_open_eval.REPO_ROOT / 'src/train/RFT/official_eval.py'
         spec = importlib.util.spec_from_file_location('_migration_legacy_reward', path)

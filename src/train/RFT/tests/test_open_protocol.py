@@ -55,13 +55,12 @@ class OpenProtocolTest(unittest.TestCase):
         self.assertAlmostEqual(result["epath_at_5"], .6*.8*math.e)
         self.assertAlmostEqual(result["legacy_recall_at_5"], .4)
 
-    def test_blank_and_letter_score_zero_without_service(self):
+    def test_missing_prediction_scores_zero_without_service(self):
         with patch("src.train.RFT.open_protocol.request", side_effect=AssertionError("unexpected call")):
-            for value in ("", "A", "b."):
-                self.assertEqual(semantic_judgment("q", "yes", value)["score"], 0)
+            self.assertEqual(semantic_judgment("q", "yes", None)["score"], 0)
 
     def test_bad_judge_output_fails_closed(self):
-        with patch("src.train.RFT.open_protocol.request", return_value={"score": 6}):
+        with patch("src.train.RFT.open_protocol.request", return_value={"score": "6"}):
             with self.assertRaises(ValueError):
                 semantic_judgment("q", "yes", "no")
 

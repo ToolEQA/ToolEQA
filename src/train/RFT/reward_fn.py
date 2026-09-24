@@ -49,9 +49,11 @@ def score(
             raise RuntimeError("Hardware failure invalidates open rollout: " + failures[0])
         if final_answer is None:
             final_answer = extract_final_answer(trace)
-        judgment = semantic_judgment(str(sample["question"]), str(sample["answer"]), str(final_answer or ""))
+        judgment = semantic_judgment(str(sample["question"]), str(sample["answer"]),
+                                     None if final_answer is None else str(final_answer), sample.get('extra_answers'))
     result = compute_reward(sample, trace, final_answer=final_answer, weights=reward_kwargs,
-                            semantic_score=judgment["score"] if judgment is not None else None)
+                            semantic_score=judgment["score"] if judgment is not None else None,
+                            score_protocol=judgment.get('score_protocol', 'legacy') if judgment else 'legacy')
     if judgment is not None:
         result["semantic_judgment"] = judgment
     attach_reward(

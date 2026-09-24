@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from src.train.RFT.frozen_service import parse_judgment
 from src.train.RFT.open_protocol import PROTOCOL_ID, request
+from src.evaluation.openeqa_protocol import JUDGE_PROTOCOL_ID
 
 
 class FrozenResilienceTest(unittest.TestCase):
@@ -29,7 +30,7 @@ class FrozenResilienceTest(unittest.TestCase):
 
     def test_transient_http_retry(self):
         error = urllib.error.HTTPError('http://local', 503, 'busy', {}, io.BytesIO(b'{"error":"busy"}'))
-        response = io.BytesIO(json.dumps({"score": 2, "protocol_id": PROTOCOL_ID}).encode())
+        response = io.BytesIO(json.dumps({"score": 2, "protocol_id": JUDGE_PROTOCOL_ID}).encode())
         with patch('urllib.request.urlopen', side_effect=[error, response]) as call, patch('time.sleep'):
             self.assertEqual(request('judge', question='q')["score"], 2)
             self.assertEqual(call.call_count, 2)

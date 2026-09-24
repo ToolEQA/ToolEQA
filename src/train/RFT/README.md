@@ -280,6 +280,26 @@ fails rather than silently running a non-embodied/debug rollout when those
 directories are absent.
 # Shared evaluation modules
 
+The answer judge now defaults to `http://127.0.0.1:18942` (frozen original
+Qwen3-VL-8B-Instruct), configurable via `TOOLEQA_FROZEN_JUDGE_SERVICE`.
+`TOOLEQA_FROZEN_SERVICE` remains the planner endpoint (port 18941, unchanged 7B).
+Use a separate cache for the 8B judge; historical scores used the 7B judge and
+are not retroactively changed. Do not mix judge models in a comparison.
+
+As of the OpenEQA-aligned protocol, the judge uses the upstream `mmbench` or
+`mmbench-extra` prompt as one user message, integer marks 1--5, temperature 0.2,
+seed 1234 per request, and 32 output tokens. Normalized quality is
+`(clip(mark, 1, 5) - 1) / 4`; percentage LLM-Match is 100 times its mean.
+The upstream last-period answer preprocessing and None-prediction handling are
+preserved. Empty strings and bare option letters are sent to the judge rather
+than assigned a custom zero. The backend is local Qwen3-VL-8B, not official GPT-4;
+PyTorch seeds do not reproduce OpenAI API randomness. New caches and judge
+protocol IDs separate this from all historical 0--5 scores. Planner requests
+retain their existing protocol. No old trajectories, rewards or tables are
+rewritten; re-score saved final answers before comparing new-protocol results.
+The reward helper retains legacy normalization by default for historical
+replay; online scoring explicitly selects the OpenEQA scale.
+
 Python evaluation implementations now live in `src/evaluation/`:
 `paper_metrics.py`, `open_protocol.py`, `frozen_service.py`, `official_eval.py`,
 `summarize_rollouts.py`, `resume_official.py`, and `select_open_checkpoint.py`.
